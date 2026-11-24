@@ -16,6 +16,10 @@ import uuid
 from .config import ARTICLES_DIR
 
 MAX_CHARS = 40_000
+# Articles have their own queue: they are quick (no download or transcription), so they should not
+# wait behind a long video import that holds the pipeline's lock.
+_article_lock = threading.Lock()
+_annotate_lock = threading.Lock()
 ARTICLE_ID = re.compile(r"^a[0-9a-f]{12}$")
 
 
@@ -97,7 +101,7 @@ def run_article_job(pipeline, job, text: str, title: str) -> None:
         if msg:
             job.log.append(msg)
 
-    with pipeline._run_lock:
+    with _article_lock:
         try:
             pipeline._set(job, "split")
             cues = split_sentences(text)
@@ -120,6 +124,61 @@ def run_article_job(pipeline, job, text: str, title: str) -> None:
             job.error = friendly_error(str(e))
             job.stage = "error"
             log(traceback.format_exc(limit=3))
+
+
+def ensure_article_annotation(data: dict, dic) -> dict:
+    """Re-mark key phrases and hard words for articles saved with an older annotation format."""
+    from .annotate import ANNOTATION_VERSION, annotate_cues
+
+    if data.get("annotation") == ANNOTATION_VERSION:
+        return data
+    with _annotate_lock:
+        fresh = load_article(data["id"]) or data  # another request may have upgraded it already
+        if fresh.get("annotation") != ANNOTATION_VERSION:
+            annotate_cues(fresh["cues"], dic)
+            fresh["annotation"] = ANNOTATION_VERSION
+            save_article(fresh)
+    return fresh
+
+
+def run_retranslate_job(pipeline, job) -> None:
+    from .pipeline import friendly_error
+    from .settings import load_settings
+    from .translate import translate_cues
+
+    with _article_lock:
+        try:
+            data = load_article(job.video_id)
+            if not data:
+                raise RuntimeError("找不到这篇文章。")
+            settings = load_settings()
+            if settings.engine != "api":
+                raise RuntimeError("现在用的是本地翻译。请先在设置里选择一个 API 翻译模型。")
+            pipeline._set(job, "translate")
+            job.log.append(f"使用 API 重新翻译 {len(data['cues'])} 句…")
+            data["translator"] = translate_cues(data["cues"], lambda p: setattr(job, "percent", p),
+                                                settings=settings, log=job.log.append)
+            save_article(data)
+            pipeline._set(job, "done", 1.0)
+        except Exception as e:
+            job.error = friendly_error(str(e))
+            job.stage = "error"
+            job.log.append(traceback.format_exc(limit=3))
+
+
+def retranslate_article(pipeline, aid: str):
+    from .pipeline import Job
+
+    key = f"retranslate-article:{aid}"
+    with pipeline._jobs_lock:
+        for job in pipeline.jobs.values():
+            if job.url == key and job.stage not in ("done", "error"):
+                return job
+        job = Job(url=key)
+        job.video_id = aid
+        pipeline.jobs[job.id] = job
+    threading.Thread(target=run_retranslate_job, args=(pipeline, job), daemon=True).start()
+    return job
 
 
 def submit_article(pipeline, text: str, title: str):

@@ -18,6 +18,7 @@
     <div class="article-tools" role="toolbar" aria-label="阅读设置">
       <button type="button" class="btn" id="zhBtn" aria-pressed="false" title="逐句显示中文 (C)">中文对照</button>
       <button type="button" class="btn" id="marksBtn" aria-pressed="true" title="标出重点短语和难词 (M)">重点标注</button>
+      <button type="button" class="btn" id="retranslate" title="用设置里的 API 模型重新翻译，并按单词和短语对照中文">↻ 重新翻译</button>
       <span class="hint">点单词查词、收藏；点句子末尾的「译」看这一句的中文。</span>
     </div>
     <article class="article-body" id="body"></article>
@@ -37,8 +38,14 @@ function render() {
   const body = $("#body");
   body.classList.toggle("zh-on", zhOn);
   body.classList.toggle("no-marks", !marksOn);
+  // 中文对照: each word or phrase gets its Chinese underneath (same layout as the video captions).
+  const enHtml = c => {
+    const marks = marksOn ? visibleMarks(c) : [];
+    const layered = zhOn && (Array.isArray(c.gl) || Array.isArray(c.seg));
+    return `<span class="sent-en${layered ? " interlinear" : ""}">${layered ? renderInterlinear(c.text, marks, c.gl, c.seg) : renderMarked(c.text, marks)}</span>`;
+  };
   body.innerHTML = paragraphs.filter(Boolean).map(sents => `<div class="para">${sents.map(c => `
-    <span class="sent" id="s${c.i}" data-i="${c.i}"><span class="sent-en">${renderMarked(c.text, marksOn ? visibleMarks(c) : [])}</span>` +
+    <span class="sent" id="s${c.i}" data-i="${c.i}">${enHtml(c)}` +
       `<button type="button" class="sent-tr" data-tr="${c.i}" title="看这一句的中文">译</button>` +
       `<span class="sent-zh">${esc(c.zh || "")}</span></span>`).join(" ")}</div>`).join("");
   $("#zhBtn").setAttribute("aria-pressed", zhOn);
@@ -125,6 +132,47 @@ document.addEventListener("click", async e => {
   if (!e.target.closest(".pop")) hidePop();
 });
 
+function showMeta() {
+  const words = cues.reduce((n, c) => n + (c.text.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length, 0);
+  const marks = cues.reduce((n, c) => n + visibleMarks(c).length, 0);
+  const aligned = cues.some(c => c.seg && c.seg.length);
+  const how = data.translator === "local" ? "本地翻译" : aligned ? "API 短语对照" : "API 翻译";
+  $("#meta").textContent = `${words} 词 · ${cues.length} 句 · ${marks} 处重点 · ${how}`;
+}
+
+// ---------- 重新翻译 with the API model (phrase by phrase)
+async function retranslate() {
+  const btn = $("#retranslate");
+  let settings;
+  try { settings = await api("/api/settings"); } catch (e) { toast(e.message); return; }
+  if (settings.engine !== "api") {
+    if (confirm("重新翻译需要 API 模型，现在用的是本地翻译。要去设置里选择模型吗？")) location.href = "/settings/translation";
+    return;
+  }
+  if (!confirm(`用 ${settings.model} 重新翻译这篇文章的 ${cues.length} 句，并按单词、短语对照中文？\n会按服务商价格计费。`)) return;
+  btn.disabled = true;
+  try {
+    let job = await api(`/api/reading/${encodeURIComponent(aid)}/retranslate`, { method: "POST" });
+    while (job.stage !== "done" && job.stage !== "error") {
+      btn.textContent = job.stage === "queued" ? "排队中…" : `翻译中 ${Math.round(job.percent)}%`;
+      await new Promise(r => setTimeout(r, 1000));
+      job = await api(`/api/jobs/${job.id}`);
+    }
+    if (job.stage === "error") throw new Error(job.error || "重新翻译失败");
+    data = await api(`/api/reading/${encodeURIComponent(aid)}`);
+    cues = data.cues;
+    showMeta();
+    render();
+    toast("已重新翻译");
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "↻ 重新翻译";
+  }
+}
+$("#retranslate").onclick = retranslate;
+
 function setZh(on) { zhOn = on; storeFlag("readingZh", on); render(); }
 $("#zhBtn").onclick = () => setZh(!zhOn);
 $("#marksBtn").onclick = () => { marksOn = !marksOn; render(); };
@@ -142,9 +190,7 @@ window.addEventListener("storage", event => { if (event.key === null || event.ke
   cues = data.cues;
   document.title = data.title;
   $("#title").textContent = data.title;
-  const words = cues.reduce((n, c) => n + (c.text.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length, 0);
-  const marks = cues.reduce((n, c) => n + visibleMarks(c).length, 0);
-  $("#meta").textContent = `${words} 词 · ${cues.length} 句 · ${marks} 处重点 · ${data.translator === "local" ? "本地翻译" : "API 翻译"}`;
+  showMeta();
   render();
   const vocab = await api("/api/vocab").catch(() => []);
   saved = new Set(vocab.map(v => v.en.toLowerCase()));

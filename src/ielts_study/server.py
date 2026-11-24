@@ -306,7 +306,9 @@ def make_handler(app: App):
                 return self._json(reading.list_articles())
             if p.startswith("/api/reading/"):
                 data = reading.load_article(p.rsplit("/", 1)[1])
-                return self._json(data) if data else self._json({"error": "not found"}, 404)
+                if not data:
+                    return self._json({"error": "not found"}, 404)
+                return self._json(reading.ensure_article_annotation(data, app.dic))
             if p.startswith("/player/"):
                 return self._file(STATIC_DIR / "player.html", "text/html; charset=utf-8")
             if p == "/mistakes":
@@ -437,6 +439,11 @@ def make_handler(app: App):
                     return self._json({"error": f"文章太长了，请控制在 {reading.MAX_CHARS // 1000}k 字符以内，或分几次粘贴。"}, 400)
                 title = re.sub(r"\s+", " ", str(body.get("title") or "")).strip()[:120]
                 return self._json(reading.submit_article(app.pipeline, text, title).to_json())
+            if p.startswith("/api/reading/") and p.endswith("/retranslate"):
+                aid = p.split("/")[3]
+                if not reading.load_article(aid):
+                    return self._json({"error": "not found"}, 404)
+                return self._json(reading.retranslate_article(app.pipeline, aid).to_json())
             if p.startswith("/api/video/") and p.endswith("/shrink"):
                 from .storage import SHRINK_MODES
 
