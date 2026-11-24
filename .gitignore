@@ -13,3 +13,10 @@ wheels/
 library/
 data/
 articles/
+
+# outdated promo page (kept locally, not published)
+site/
+
+# OS / partial downloads
+.DS_Store
+*.part

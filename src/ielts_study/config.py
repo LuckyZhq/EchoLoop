@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import platform
 import sys
 from pathlib import Path
 
@@ -16,8 +17,13 @@ HOST = "127.0.0.1"
 # IELTS_* variables; the old WHATSUB_* names still work.
 PORT = int(os.environ.get("IELTS_PORT") or os.environ.get("WHATSUB_PORT") or "8765")
 
-# Local Whisper model (MLX, Apple Silicon). Downloaded from Hugging Face on first use.
-WHISPER_MODEL = os.environ.get("IELTS_WHISPER") or os.environ.get("WHATSUB_WHISPER") or "mlx-community/whisper-large-v3-turbo"
+# Local speech recognition, downloaded from Hugging Face on first use:
+#   Apple Silicon Mac  → mlx-whisper (GPU through MLX), large-v3-turbo
+#   Windows / Linux / Intel Mac → faster-whisper: large-v3-turbo on an NVIDIA GPU, small.en on the CPU
+# IELTS_WHISPER overrides the model (an MLX repo on Apple Silicon, a faster-whisper model name elsewhere).
+APPLE_SILICON = sys.platform == "darwin" and platform.machine() == "arm64"
+WHISPER_MODEL = os.environ.get("IELTS_WHISPER") or os.environ.get("WHATSUB_WHISPER") or (
+    "mlx-community/whisper-large-v3-turbo" if APPLE_SILICON else "")
 
 # Hard-word candidates saved at import time. The player chooses which to show from the
 # vocabulary level in Settings (IELTS 5.5–7.5+ or general), so these are deliberately generous.

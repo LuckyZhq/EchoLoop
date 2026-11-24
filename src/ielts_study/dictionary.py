@@ -113,6 +113,42 @@ def clean_translation(translation: str, pos: str | None = None, max_senses: int 
     return "　".join(parts)
 
 
+# ECDICT (https://github.com/skywind3000/ECDICT, MIT license), pinned to a commit so every install gets the
+# same data; the checksum guards against a broken or truncated download.
+ECDICT_URL = "https://raw.githubusercontent.com/skywind3000/ECDICT/39cfb9672c0906b63569e0453c2e6abfb9ab182a/ecdict.csv"
+ECDICT_SHA256 = "d1ecbdf9ee2b920afb6f430ca6b6bb9f559588cf0dff86e04bd255f9390843cc"
+
+
+def download_ecdict(log=print, url: str = ECDICT_URL, sha256: str = ECDICT_SHA256) -> None:
+    """Fetch ecdict.csv into data/ (first run only). Written to a temporary file and moved into place only
+    when complete and verified, so an interrupted download is simply retried next time."""
+    import hashlib
+    from urllib.request import Request, urlopen
+
+    log("首次运行：正在下载离线词典 ECDICT（约 66 MB）…")
+    CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    part = CSV_PATH.with_suffix(".part")
+    digest = hashlib.sha256()
+    try:
+        with urlopen(Request(url, headers={"User-Agent": "ielts-study"}), timeout=60) as r, part.open("wb") as f:
+            total = int(r.headers.get("Content-Length") or 0)
+            done, next_report = 0, 10
+            while chunk := r.read(1 << 20):
+                f.write(chunk)
+                digest.update(chunk)
+                done += len(chunk)
+                if total and done * 100 // total >= next_report:
+                    log(f"已下载 {done * 100 // total}%")
+                    next_report += 10
+    except OSError as error:
+        part.unlink(missing_ok=True)
+        raise RuntimeError(f"下载离线词典失败，请检查网络后重试：{error}") from None
+    if digest.hexdigest() != sha256:
+        part.unlink(missing_ok=True)
+        raise RuntimeError("词典下载不完整或已损坏，请检查网络后重试。")
+    part.replace(CSV_PATH)
+
+
 def build_database(log=print) -> None:
     if DB_PATH.exists():
         con = sqlite3.connect(DB_PATH)
@@ -125,7 +161,7 @@ def build_database(log=print) -> None:
             return
         DB_PATH.unlink()
     if not CSV_PATH.exists():
-        raise FileNotFoundError(f"缺少词典文件 {CSV_PATH}，请先运行 setup（见 README）")
+        download_ecdict(log)
     log("首次运行：正在建立离线词典索引（约 30 秒）…")
     csv.field_size_limit(10_000_000)
 

@@ -1,7 +1,7 @@
 [project]
 name = "ielts-study"
 version = "0.1.0"
-description = "IELTS listening and vocabulary practice from any video link"
+description = "Learn English for IELTS from any video or article: bilingual subtitles, phrase-by-phrase translation, dictation and spaced-repetition review, in 16 languages"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -9,7 +9,9 @@ dependencies = [
     "deno>=2.9.8",
     "en-core-web-sm",
     "imageio-ffmpeg>=0.8.1",
-    "mlx-whisper>=0.4.3",
+    # speech recognition: MLX on Apple Silicon, faster-whisper (CTranslate2) everywhere else
+    "mlx-whisper>=0.4.3; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "faster-whisper>=1.1.0; sys_platform != 'darwin' or platform_machine != 'arm64'",
     "opencc-python-reimplemented>=0.1.7",
     "spacy>=3.8.18",
     "yt-dlp[default]>=2026.10.26",

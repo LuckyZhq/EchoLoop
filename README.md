@@ -1,132 +1,125 @@
 # IELTS Study
 
-粘贴视频链接，自动生成「英文 + 中文」双语字幕，并标出值得学的重点短语和难词。
-默认使用本地翻译，安装模型后可以离线处理字幕。也可在首页「设置」中切换到 OpenAI 兼容的翻译 API。
+Learn English for the IELTS from real videos and articles, in your own language.
 
-## 启动
+Paste a YouTube, Bilibili or TED link and IELTS Study gives you bilingual subtitles with the translation written
+under each phrase, the spoken word highlighted, key phrases and IELTS-level words marked for *your* level,
+sentence-by-sentence dictation, and spaced-repetition review of the words you save. It runs on your own computer:
+no account, no uploads.
+
+[简体中文说明](README.zh-CN.md)
+
+## What you can do
+
+- **Video listening** – subtitles split into words and phrases with the translation underneath, the word being spoken
+  lit up, sentence loop, auto-pause, 0.6×–1.5× speed. Videos without English subtitles are transcribed locally with Whisper.
+- **Dictation** – type what you hear; answers are compared word by word (contractions, numbers and UK/US spellings
+  count as equal). Sentences below 90 % go to *Mistakes* for another try.
+- **Level test** – read three short passages, click the words you don't know, answer a short spot-check.
+  You get an estimated vocabulary size and a rough IELTS band; from then on only the words between your level and your
+  target are marked.
+- **Word review** – saved words come back as fill-in-the-blank cards from the sentence you met them in, with the
+  original audio, scheduled with a simplified SM-2 (like Anki).
+- **Close reading** – paste an English article for sentence-by-sentence translation and marked key words.
+- **Study plan** – four stages from beginner to band 7+, daily goals that fill in as you study, streaks, progress charts,
+  and a daily new-word quota that follows your exam date.
+
+## Languages
+
+Interface and translations in **16 languages**: 简体中文, 繁體中文 (Taiwan), English (English-only explanations),
+Español, Português, Français, Deutsch, 日本語, 한국어, Tiếng Việt, Bahasa Indonesia, ไทย, Türkçe, Русский, العربية
+(right-to-left) and हिन्दी. Pick yours on the home page.
+
+| | Chinese learners | Other languages |
+|---|---|---|
+| Subtitle translation | API, or offline (Argos) | API with phrase-by-phrase translation (any language), or offline Argos (model downloaded on first use) |
+| Word meanings | offline English–Chinese dictionary (ECDICT) | API, cached per language; English definitions offline |
+| Word-by-word glosses | yes | phrase-by-phrase translation instead |
+
+An API is optional but gives the best translations: any OpenAI-compatible provider works (DeepSeek, OpenAI, Gemini,
+Grok, Qwen, Kimi, GLM, Doubao or your own endpoint). Only subtitle text is sent, and only to the provider you choose.
+
+## Install
+
+You need [uv](https://docs.astral.sh/uv/) (it installs the right Python and all dependencies) and git.
+
+**macOS / Linux**
 
 ```bash
-cd ~/Downloads/vibe/IELTS-study
+curl -LsSf https://astral.sh/uv/install.sh | sh
+git clone https://github.com/<you>/IELTS-study.git
+cd IELTS-study
 uv run ielts-study
 ```
 
-桌面启动器：双击桌面上的 **IELTS-study** 图标，会在后台启动并直接打开页面（不弹终端窗口）；已经在运行时只打开页面。退出后台服务：`uv run ielts-study --stop`。日志在 `data/server.log`。移动了项目文件夹后，运行 `zsh assets/build_app.sh` 重新生成启动器（图标源文件在 `assets/`）。
+**Windows** (PowerShell)
 
-改了代码或更新后要重启：`uv run ielts-study --restart`（会先停掉正在运行的旧服务）。
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+git clone https://github.com/<you>/IELTS-study.git
+cd IELTS-study
+uv run ielts-study
+```
 
-浏览器会自动打开 http://127.0.0.1:8765 。把视频链接粘贴到输入框（⌘V 会自动开始），处理完成后自动进入播放器。
+Your browser opens <http://127.0.0.1:8765>. The first start installs dependencies and downloads the offline dictionary
+(ECDICT, about 66 MB, checksum-verified), so it takes a few minutes; later starts take seconds.
 
-## 它做了什么
+Afterwards you can start it by double-clicking `scripts/IELTS-Study.bat` (Windows) or running `scripts/start.sh`
+(macOS / Linux). On a Mac, `zsh assets/build_app.sh` puts an IELTS-study app on your desktop.
 
-| 步骤 | 工具（都在本机） |
-|---|---|
-| 下载视频 | yt-dlp（支持 YouTube、Bilibili、TED、X 等上千个网站） |
-| 英文字幕 | 优先用平台自带的人工字幕；没有的话用 Whisper（mlx-whisper，Apple Silicon 加速）识别 |
-| 中文翻译 | Argos Translate 离线英译中，或使用自己配置的 API |
-| 重点短语 | 约 230 条精选口语短语 + ECDICT 词典短语，spaCy 识别时态变化和拆开的短语动词（如 *pick it up*） |
-| 难词 | ECDICT 的雅思词表 + 词频排名，按「设置 → 学习」里的词汇水平筛选 |
-| 释义 | ECDICT 开源英汉词典（77 万词条） |
+### Speech recognition
 
-## 页面
+Used only when a video has no human-made English subtitles. The model is downloaded on first use.
 
-左上角「IELTS Study」打开首页：选择母语（下拉框可搜索），界面和翻译一起切换。具体功能都在左侧栏各自的按钮里：
-
-- **听力**：视频精听（导入视频、资料库、播放器、听写）和错句本
-- **学习计划**：按现在的分数分为入门 / 基础 / 提升 / 冲刺四个阶段，每个阶段推荐播放速度、中文显示和每天的量（新词、精听、听写、精读），可一键应用推荐的播放设置。首页「今天的计划」随学习自动更新进度，并显示连续学习天数；填上考试日期后，每天的新词数按「还差多少词 ÷ 剩余天数」安排（每天最多 40 个）。「水平与目标」页有词汇量曲线和最近 30 天的学习时间图
-- **水平与目标**（单词分组里）：读 3 篇短文、点出不认识的词，再抽查几个没点的词，估算词汇量和大约的雅思分数（只按词汇量粗略换算）。之后视频和文章里只标「比现在难、又不超出目标太多」的词；词卡上的「✓ 认识」让这个词不再出现，单词复习里记牢的词也会自动不标
-- **单词**：单词复习和收藏词句。复习卡片把原句里的词挖空，可以听视频原声、拼写检查，按「忘了 / 模糊 / 记得 / 很简单」安排下次出现的时间（简化版 SM-2，每天最多 20 个新词）；收藏词句可导出 CSV
-- **阅读**：文章精读。粘贴英文文章后逐句翻译，标出重点短语和难词；点单词查词、收藏，点句末的「译」看这一句的中文，「中文对照」（C 键）逐句显示中文
-
-「最近在看」可以点标题折叠，下次打开仍保持折叠。导入页的翻译模型菜单会列出每个已配置服务商的全部模型（例如 DeepSeek V4.1 Flash 和 V4 Pro）。
-
-## 语言
-
-设置 → 外观 里有两项：
-
-- **界面语言**：和母语同样的 16 种（按钮、菜单、提示和出错信息）。阿拉伯语界面从右往左排版，英文学习内容保持从左往右。第一次打开（资料库还是空的）时按浏览器的语言自动选择
-- **母语**：字幕、短语和单词释义翻译成哪种语言。可选简体中文、繁體中文（台灣）、Español、Português、Français、Deutsch、日本語、한국어、Tiếng Việt、Bahasa Indonesia、ไทย、Türkçe、Русский、العربية、हिन्दी，以及只看英英释义的 English
-
-| | 中文母语 | 其他母语 |
+| Computer | Engine | Default model |
 |---|---|---|
-| 字幕翻译 | API 或离线 | API（任何语言，带短语对照）或离线 Argos（第一次用某种语言时下载模型） |
-| 单词释义 | 离线英汉词典 ECDICT | 有 API：翻成母语并缓存（同一个词只翻一次）；没有 API：英文释义 |
-| 逐词释义 | 有 | 由 API 的短语对照代替 |
-| 考试标签 | 中考 / 高考 / 四六级 / 托福 / 雅思 | TOEFL / IELTS / GRE |
+| Mac with Apple Silicon | [mlx-whisper](https://github.com/ml-explore/mlx-examples) (GPU) | large-v3-turbo (≈1.6 GB) |
+| Windows / Linux with an NVIDIA GPU | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (CUDA) | large-v3-turbo |
+| Any other computer | faster-whisper (CPU) | small.en (≈0.5 GB) |
 
-简体和繁体之间马上切换（繁体用 OpenCC 台湾用语转换）。换成其他语言后，每个视频和文章会提示「译文是 X」，点「↻ 换成 …」重新翻译即可。
+Set `IELTS_WHISPER` to choose another model.
 
-界面翻译表在 `src/ielts_study/i18n/<语言>.json`：英文是人工写的，其他 13 种语言由大模型（DeepSeek）从英文生成，欢迎修正。界面加了新文字后，用设置里的 API 补全（只翻缺的条目；缺的条目在那之前显示英文）：
-
-```bash
-uv run ielts-study --translate-ui es     # 一种语言
-uv run ielts-study --translate-ui all    # 全部
-```
-
-## 播放器
-
-- 浅蓝底 = 重点短语，橙色底加下划线 = 难词，点击看释义；**点击任意单词都能查词**
-- 播放时正在读的单词会高亮（设置里可关）。本地语音识别的视频用真实的逐词时间；平台字幕按位置估算
-- 视频字幕逐词对照：每个英文单词下面显示简短中文（按 G 或在设置里开关），正在读的单词用淡绿底标出（设置 → 播放里可改成淡黄、淡蓝）。逐词释义来自本地词典和常用词表，按词性选择意思，不看整句语境
-- 用 API 翻译时，模型会把每句切成单词和短语，并给出它们在这句里的意思，显示在对应英文的正下方（短语下有一条细线标出范围）；本地翻译时用词典释义。已有视频可以在播放器里点「↻ 重新翻译」（只重新翻译，不重新下载）
-- ☆ 收藏 → 进入「收藏词句」，保留原句和视频时间（可导出 CSV 给 Anki）
-- 单句循环、逐句暂停、0.6×–1.5× 变速、导出双语 / 英文 / 中文 SRT
-- 快捷键：空格 播放/暂停，←/→ 上/下一句，↑ 重听，L 单句循环，P 逐句暂停，C 中文，M 标注，D 听写
-
-## 听写
-
-点「✎ 听写」或按 D。字幕会被模糊，每次只播放一句并自动暂停；把听到的内容写进输入框，按 Enter 检查。
-
-- 逐词对比：拼写错（黄色波浪线）算半对，听错、漏听标红，多写的词单独列出
-- 数字和英文数字（5 / five）、缩写（don't / do not）、英式和美式拼写（colour / color）都算对
-- ↑ 重听，🐢 慢速 0.75× 重听，可以提示首字母或直接看答案（不记成绩）
-- 成绩保存在 `library/<视频>/dictation.json`；低于 90% 的句子可以用「只练错句」专门重练
-- 侧边栏「错句本」汇总所有视频里低于 90% 的句子（数字是待重练句数），可以单句重练或整个视频的错句一起重练；重练到 90% 以上自动移出
-- 侧边栏「最近在看」显示最近 3 个视频和播放进度，点一下从上次的位置继续（记录在 `library/recent.json`）
-
-## 词汇水平
-
-在「设置 → 学习」选你现在大约的雅思分数（5.5 到 7.5+）。只标出雅思词表里比这个水平更难的词，常见词默认你已认识；「不限雅思」按词频标出所有生僻词。改了之后所有视频立即生效，不用重新导入。
-
-## 调整
-
-在「设置」选择 OpenAI 兼容 API，填写服务地址、模型名称及服务商需要的密钥。测试连接后保存，新导入或重新处理的视频会使用所选翻译方式。API 仅接收字幕文字，密钥保存在本机 `data/settings.json`。
-
-API 请求遇到限流、超时或返回格式不对时会自动重试 2 次；仍然失败的那一段改用本地翻译。如果密钥、地址或模型名称有误，整段视频改用本地翻译。播放器顶部会显示这次用的是哪种翻译。
-
-环境变量：
-
-- `IELTS_WHISPER=mlx-community/whisper-small.en-mlx`：换成更小、更快的识别模型（默认 large-v3-turbo，约 1.6 GB）
-- `IELTS_PORT=8765`：端口
-
-想加自己的短语：编辑 `src/ielts_study/phrases_curated.json`，格式 `{"en": "...", "zh": "...", "note": "..."}`，英文第一个词写原形（如 `take care of`）。
-
-YouTube 下载失败时，先更新 yt-dlp：
+## Commands
 
 ```bash
-uv lock --upgrade-package yt-dlp && uv sync
+uv run ielts-study                 # start (opens the browser)
+uv run ielts-study --no-browser    # start without opening the browser
+uv run ielts-study --stop          # stop the server running in the background
+uv run ielts-study --restart       # restart with the latest code
+uv run ielts-study --translate-ui es   # generate / complete an interface language with your API ("all" for every language)
 ```
 
-## 文件位置
+The pages show a "restart" banner when the code on disk is newer than the running server.
 
-- `library/<视频ID>/`：视频和 `data.json`（字幕、翻译、标注）
-- `library/vocab.json`：生词本
-- `library/activity.json`：每天的精听、精读时间和听写、复习数量
-- `library/language.json`：界面语言和母语
-- `library/meanings/<语言>.json`：翻成母语的单词释义缓存
-- `library/profile.json`：现在的水平、目标分数、测试记录、标为「认识」的词
-- `articles/<文章ID>/data.json`：文章精读的句子、翻译和标注
-- `data/ecdict.csv`、`data/ecdict.db`：离线词典
+| Environment variable | Meaning |
+|---|---|
+| `IELTS_PORT` | port (default 8765) |
+| `IELTS_WHISPER` | speech-recognition model |
+| `IELTS_LIBRARY` | where videos, articles and your progress are kept (default `library/`) |
 
-## 开发
+## Your data
+
+Everything stays in the project folder:
+
+- `library/` – videos, subtitles, dictation results, saved words, your level and study log
+- `articles/` – pasted articles
+- `data/` – the dictionary, its index and your API settings (the API key is stored with owner-only permissions)
+
+None of these folders are tracked by git.
+
+## Development
 
 ```bash
 uv run pytest
 ```
 
-测试覆盖短语对齐、翻译设置校验、文章拆句，以及「只接受本机页面的写请求」和版本检查。改了 Python 代码后，后台服务会提示重启：页面顶部出现「立即重启」，或者再运行一次 `uv run ielts-study`、双击桌面图标，都会自动换成最新代码。
+Interface translations live in `src/ielts_study/i18n/<language>.json`. English is written by hand; the other languages
+were generated from it by an LLM, so corrections from native speakers are very welcome — edit the JSON file directly.
+After adding interface text, run `uv run ielts-study --translate-ui all` to fill the new strings (missing strings show
+in English until then).
 
-## 已知局限
+## Notes
 
-- 离线翻译质量不如大模型，偶尔会直译或误译（如 trunks → 树干）。可在播放器里按 C 隐藏中文，先自己理解。
-- 重点检测按规则进行，不理解上下文：同一个短语在不同语境下给出的是同一条释义。
-- 下载视频请遵守各平台的使用条款，仅用于个人学习。
+- Downloading videos is for personal study. Respect each site's terms of service and copyright.
+- The IELTS band shown after the level test is a rough estimate from vocabulary size only, not an official score.
+- Third-party data and libraries: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

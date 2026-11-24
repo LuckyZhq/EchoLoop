@@ -33,7 +33,7 @@ def test_english_table_is_valid_and_has_no_untranslated_values():
 def test_english_pages_keep_their_markup(name):
     path = server.STATIC_DIR / name
     out = i18n.page(path, "en").decode()
-    assert out.count("<script") == path.read_text().count("<script")
+    assert out.count("<script") == path.read_text(encoding="utf-8").count("<script")
     if name.endswith(".html"):
         assert '<html lang="en">' in out
 
@@ -59,7 +59,7 @@ def test_language_settings(tmp_path, monkeypatch):
     s = i18n.save({"native": "vi"})
     assert s["native"] == "vi" and s["zh"] == "zh-CN"  # stored Chinese is only shown Traditional for zh-TW
     # files written before 母语 existed only had the Chinese variant
-    (tmp_path / "language.json").write_text('{"ui": "zh-CN", "zh": "zh-TW"}')
+    (tmp_path / "language.json").write_text('{"ui": "zh-CN", "zh": "zh-TW"}', encoding="utf-8")
     assert i18n.load()["native"] == "zh-TW"
 
 
@@ -80,7 +80,7 @@ def test_existing_library_keeps_the_chinese_default(tmp_path, monkeypatch):
     monkeypatch.setattr(i18n, "SETTINGS_PATH", tmp_path / "language.json")
     monkeypatch.setattr(i18n, "LIBRARY_DIR", tmp_path)
     (tmp_path / "some-video").mkdir()
-    (tmp_path / "some-video" / "data.json").write_text("{}")
+    (tmp_path / "some-video" / "data.json").write_text("{}", encoding="utf-8")
     assert i18n.load("en-US,en;q=0.9")["ui"] == "zh-CN"
     assert not (tmp_path / "language.json").exists()
 
@@ -101,8 +101,8 @@ def test_ui_table_generator_keeps_edges_and_only_fills_gaps(tmp_path, monkeypatc
     monkeypatch.setattr(i18n, "UI_DIR", tmp_path)
     (tmp_path / "en.json").write_text(json.dumps({
         "单词复习": "Word review", "继续上次：": "Continue: ", "分": "", "n会按服务商价格计费。": "nThis is billed.",
-        "阶段 · 现在": " stage · now"}, ensure_ascii=False))
-    (tmp_path / "fr.json").write_text(json.dumps({"单词复习": "Révision"}, ensure_ascii=False))
+        "阶段 · 现在": " stage · now"}, ensure_ascii=False), encoding="utf-8")
+    (tmp_path / "fr.json").write_text(json.dumps({"单词复习": "Révision"}, ensure_ascii=False), encoding="utf-8")
     i18n.table.cache_clear()
     sent = []
 

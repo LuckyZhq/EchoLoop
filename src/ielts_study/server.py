@@ -7,6 +7,7 @@ import mimetypes
 import re
 import shutil
 import threading
+import sys
 import time
 import webbrowser
 from pathlib import Path
@@ -238,7 +239,7 @@ def srt_time(t: float) -> str:
 
 class App:
     def __init__(self):
-        self.dic = Dictionary()
+        self.dic = Dictionary(log=say)  # first run: downloads and indexes the dictionary
         self.pipeline = Pipeline(self.dic)
 
 
@@ -512,6 +513,10 @@ def make_handler(app: App):
             if p == "/api/language":
                 i18n.save(body)
                 return self._json(i18n.public())
+            if p == "/api/shutdown":  # `ielts-study --stop` on every system
+                self._json({"ok": True})
+                threading.Thread(target=self.server.shutdown, daemon=True).start()
+                return None
             if p == "/api/restart":
                 self._json({"ok": True})
                 threading.Thread(target=restart_in_place, daemon=True).start()
@@ -726,44 +731,84 @@ def _running_is_stale(url: str) -> bool:
         return False
 
 
+def cli_language() -> str:
+    """Language for terminal messages: the saved interface language, else the system locale, else English."""
+    import os
+
+    saved = i18n._read()
+    if saved:
+        return i18n._normalize(saved)["ui"]
+    env = os.environ.get("LC_ALL") or os.environ.get("LC_MESSAGES") or os.environ.get("LANG") or ""
+    return i18n.from_browser(env.split(".")[0].replace("_", "-")) or "en"
+
+
+def say(message: str) -> None:
+    print(i18n.to_ui(message, cli_language()), flush=True)
+
+
+def _request_shutdown(url: str) -> bool:
+    """Ask the running server to quit (works on every system); False for builds without /api/shutdown."""
+    from urllib.error import URLError
+    from urllib.request import Request, urlopen
+
+    origin = url.rstrip("/")
+    try:
+        with urlopen(Request(url + "api/shutdown", data=b"{}", method="POST",
+                             headers={"Origin": origin, "Content-Type": "application/json"}), timeout=3):
+            pass
+    except (URLError, OSError):
+        return False
+    for _ in range(50):  # wait up to 5 s for the port to be released
+        if not _already_running(url):
+            return True
+        time.sleep(0.1)
+    return False
+
+
+class Server(ThreadingHTTPServer):
+    # On Windows SO_REUSEADDR lets a second server bind the same port, so a second start would not notice
+    # the first one; elsewhere it only allows a quick restart.
+    allow_reuse_address = sys.platform != "win32"
+
+
 def stop() -> int:
     """`ielts-study --stop`: quit the server that is running in the background (e.g. started by the desktop app)."""
     url = f"http://{HOST}:{PORT}/"
     if not _already_running(url):
-        print("IELTS Study 没有在运行。")
+        say("IELTS Study 没有在运行。")
         return 0
-    if _stop_running_instance():
-        print("已停止 IELTS Study。")
+    if _request_shutdown(url) or _stop_running_instance():
+        say("已停止 IELTS Study。")
         return 0
-    print("没能停止 IELTS Study。")
+    say("没能停止 IELTS Study。")
     return 1
 
 
 def main(open_browser: bool = True, restart: bool = False):
     LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
-    print("IELTS Study 启动中…")
+    say("IELTS Study 启动中…")
     url = f"http://{HOST}:{PORT}/"
     if _already_running(url) and (restart or _running_is_stale(url)):
         if not restart:
-            print("后台运行的是旧版本，正在换成最新代码…")
-        if _stop_running_instance():
-            print("已停止旧的 IELTS Study，正在用最新代码重新启动…")
+            say("后台运行的是旧版本，正在换成最新代码…")
+        if _request_shutdown(url) or _stop_running_instance():
+            say("已停止旧的 IELTS Study，正在用最新代码重新启动…")
     try:
-        httpd = ThreadingHTTPServer((HOST, PORT), make_handler(App()))
+        httpd = Server((HOST, PORT), make_handler(App()))
     except OSError as error:
-        if error.errno != errno.EADDRINUSE:
+        if error.errno not in (errno.EADDRINUSE, 10048):  # 10048: WSAEADDRINUSE on Windows
             raise
         if _already_running(url):
-            print(f"IELTS Study 已经在运行：{url}")
+            say(f"IELTS Study 已经在运行：{url}")
             if open_browser:
                 webbrowser.open(url)
             raise SystemExit(0) from None  # not an error: the page is open
-        print(f"端口 {PORT} 被其他程序占用。可以换一个端口启动，例如：IELTS_PORT=8766 uv run ielts-study")
+        say(f"端口 {PORT} 被其他程序占用。可以设置环境变量 IELTS_PORT 换一个端口，例如 8766。")
         raise SystemExit(1) from None
-    print(f"已启动：{url}  （按 Ctrl+C 退出）")
+    say(f"已启动：{url}  （按 Ctrl+C 退出）")
     if open_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n已退出")
+        say("已退出")

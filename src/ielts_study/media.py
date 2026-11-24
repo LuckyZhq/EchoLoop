@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import html
 import re
+import sys
 from pathlib import Path
 
-from .config import DATA_DIR, QUALITY_FORMATS, WHISPER_MODEL
+from .config import APPLE_SILICON, DATA_DIR, QUALITY_FORMATS, WHISPER_MODEL
 
 
 def ffmpeg_dir() -> Path:
@@ -17,13 +18,21 @@ def ffmpeg_dir() -> Path:
 
     bin_dir = DATA_DIR / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
-    link = bin_dir / "ffmpeg"
+    link = bin_dir / FFMPEG_NAME
     exe = Path(imageio_ffmpeg.get_ffmpeg_exe())
-    if not link.exists() or link.resolve() != exe.resolve():
+    if not link.exists() or (link.is_symlink() and link.resolve() != exe.resolve()):
         if link.is_symlink() or link.exists():
             link.unlink()
-        link.symlink_to(exe)
+        try:
+            link.symlink_to(exe)
+        except OSError:  # Windows without symlink rights: a copy works the same
+            import shutil
+
+            shutil.copy2(exe, link)
     return bin_dir
+
+
+FFMPEG_NAME = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
 
 
 THUMB_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
@@ -190,6 +199,9 @@ def parse_subtitles(path: Path) -> list[dict]:
 # ---------------------------------------------------------------- whisper
 
 def transcribe(video: Path, log=print, progress=None) -> list[dict]:
+    """English cues with word timings, from the best local engine for this computer."""
+    if not APPLE_SILICON:
+        return transcribe_faster_whisper(video, log, progress)
     import mlx_whisper
 
     log(f"本地语音识别中（模型 {WHISPER_MODEL}，首次使用会自动下载）…")
@@ -210,6 +222,50 @@ def transcribe(video: Path, log=print, progress=None) -> list[dict]:
             for s in result.get("segments", [])
             if s["text"].strip()
         ]
+    return regroup_words(words)
+
+
+def _faster_whisper_setup() -> tuple[str, str, str]:
+    """(model, device, compute type): the large model on an NVIDIA GPU, a small English one on the CPU."""
+    try:
+        import ctranslate2
+
+        gpu = ctranslate2.get_cuda_device_count() > 0
+    except Exception:  # no CUDA runtime
+        gpu = False
+    model = WHISPER_MODEL or ("large-v3-turbo" if gpu else "small.en")
+    return model, ("cuda" if gpu else "cpu"), ("float16" if gpu else "int8")
+
+
+def _audio_16k(video: Path):
+    """Mono 16 kHz float audio decoded with our own ffmpeg (faster-whisper's PyAV decoder varies by platform)."""
+    import subprocess
+
+    import numpy as np
+
+    raw = subprocess.run([str(ffmpeg_dir() / FFMPEG_NAME), "-nostdin", "-v", "error", "-i", str(video),
+                          "-f", "s16le", "-ac", "1", "-ar", "16000", "-"], capture_output=True, check=True).stdout
+    return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
+
+
+def transcribe_faster_whisper(video: Path, log=print, progress=None) -> list[dict]:
+    from faster_whisper import WhisperModel
+
+    model_name, device, compute = _faster_whisper_setup()
+    log(f"本地语音识别中（模型 {model_name}，首次使用会自动下载）…")
+    if progress:
+        progress(0.05)
+    model = WhisperModel(model_name, device=device, compute_type=compute)
+    segments, info = model.transcribe(_audio_16k(video), language="en", word_timestamps=True,
+                                      condition_on_previous_text=False, vad_filter=True)
+    words, plain = [], []
+    for seg in segments:  # a generator: recognition happens while iterating
+        plain.append({"start": seg.start, "end": seg.end, "text": seg.text.strip()})
+        words.extend({"word": w.word, "start": w.start, "end": w.end} for w in (seg.words or []))
+        if progress and info.duration:
+            progress(min(0.99, 0.05 + 0.95 * seg.end / info.duration))
+    if not words:  # fall back to segment-level cues
+        return [s for s in plain if s["text"]]
     return regroup_words(words)
 
 

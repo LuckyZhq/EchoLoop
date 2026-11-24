@@ -14,7 +14,7 @@ def video_dir(tmp_path):
                     "-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30:duration=3",
                     "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
                     "-c:v", "libx264", "-b:v", "8M", "-c:a", "aac", "-shortest", str(clip)], check=True)
-    (tmp_path / "data.json").write_text(json.dumps({"id": "t", "video": "video.mp4", "cues": []}))
+    (tmp_path / "data.json").write_text(json.dumps({"id": "t", "video": "video.mp4", "cues": []}), encoding="utf-8")
     return tmp_path
 
 
@@ -23,7 +23,7 @@ def test_shrink_to_720p_replaces_the_file_and_keeps_the_name(video_dir):
     result = shrink(video_dir, "720")
     assert result["before"] == before and result["after"] < before
     assert media_info(video_dir / "video.mp4")["height"] == 720
-    data = json.loads((video_dir / "data.json").read_text())
+    data = json.loads((video_dir / "data.json").read_text(encoding="utf-8"))
     assert data["video"] == "video.mp4" and data["shrunk"] == "720"
     assert not (video_dir / "shrinking.mp4").exists()
 
@@ -33,7 +33,7 @@ def test_audio_only_switches_to_m4a_and_removes_the_mp4(video_dir):
     assert not (video_dir / "video.mp4").exists()
     info = media_info(video_dir / "video.m4a")
     assert info["height"] == 0 and info["duration"] == pytest.approx(3, abs=0.2)
-    assert json.loads((video_dir / "data.json").read_text())["video"] == "video.m4a"
+    assert json.loads((video_dir / "data.json").read_text(encoding="utf-8"))["video"] == "video.m4a"
 
 
 def test_refuses_to_upscale_and_keeps_the_original(video_dir):
@@ -47,3 +47,12 @@ def test_refuses_to_upscale_and_keeps_the_original(video_dir):
 def test_unknown_mode_is_refused(video_dir):
     with pytest.raises(RuntimeError):
         shrink(video_dir, "4k")
+
+
+def test_other_systems_compress_with_x264(video_dir, monkeypatch):
+    from ielts_study import storage
+
+    monkeypatch.setattr(storage.sys, "platform", "linux")  # no VideoToolbox outside macOS
+    assert storage._video_encoder(1400)[:2] == ["-c:v", "libx264"]
+    result = shrink(video_dir, "720")
+    assert result["after"] < result["before"] and media_info(video_dir / "video.mp4")["height"] == 720

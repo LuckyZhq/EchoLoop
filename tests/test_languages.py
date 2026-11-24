@@ -82,7 +82,7 @@ def test_meanings_are_translated_once_and_kept(tmp_path, monkeypatch, dic):
     meanings.fill_notes(cues, "es", API)
     note = cues[0]["notes"]["w:mitigate"]
     assert note["zh"] == "es:mitigate" and note["api"] is True
-    assert json.loads((tmp_path / "es.json").read_text())["mitigate"] == "es:mitigate"
+    assert json.loads((tmp_path / "es.json").read_text(encoding="utf-8"))["mitigate"] == "es:mitigate"
     # annotating again (e.g. a new annotation format) keeps the translated meaning; no second API call
     annotate_cues(cues, dic, lang="es")
     meanings.fill_notes(cues, "es", API)

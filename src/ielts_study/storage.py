@@ -1,13 +1,13 @@
 """Storage: how much space each video takes, and shrinking it (lower resolution, or audio only).
 
-Shrinking re-encodes with the Mac's hardware H.264 encoder (VideoToolbox), so a 15-minute 1080p video
-takes well under a minute. The new file replaces the old one only after it finished and came out smaller.
+Shrinking re-encodes with the Mac's hardware H.264 encoder (VideoToolbox), or x264 on other systems. The new file replaces the old one only after it finished and came out smaller.
 """
 from __future__ import annotations
 
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 from .config import ARTICLES_DIR, LIBRARY_DIR
@@ -17,14 +17,21 @@ SHRINK_MODES = {"720": ("720p", 1400), "480": ("480p", 700), "audio": ("只保�
 
 
 def ffmpeg_exe() -> str:
-    from .media import ffmpeg_dir
+    from .media import FFMPEG_NAME, ffmpeg_dir
 
-    return str(ffmpeg_dir() / "ffmpeg")
+    return str(ffmpeg_dir() / FFMPEG_NAME)
+
+
+def _video_encoder(rate: int) -> list[str]:
+    """The Mac's hardware encoder where there is one; x264 (fast preset) everywhere else."""
+    if sys.platform == "darwin":
+        return ["-c:v", "h264_videotoolbox", "-b:v", f"{rate}k"]
+    return ["-c:v", "libx264", "-preset", "veryfast", "-b:v", f"{rate}k"]
 
 
 def media_info(path: Path) -> dict:
     """Duration (s) and video height from ffmpeg's header dump; height 0 means audio only."""
-    out = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", str(path)], capture_output=True, text=True).stderr
+    out = subprocess.run([ffmpeg_exe(), "-hide_banner", "-i", str(path)], capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
     m = re.search(r"Duration: (\d+):(\d+):([\d.]+)", out)
     duration = int(m[1]) * 3600 + int(m[2]) * 60 + float(m[3]) if m else 0.0
     v = re.search(r"Stream #.*Video: .*?(\d{2,5})x(\d{2,5})", out)
@@ -64,6 +71,19 @@ def overview() -> dict:
     }
 
 
+def _run_ffmpeg(cmd: list[str], duration: float, progress) -> tuple[bool, str]:
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                            encoding="utf-8", errors="replace")
+    for line in proc.stdout:
+        if line.startswith("out_time_us=") and duration:
+            try:
+                progress(min(0.99, int(line.split("=", 1)[1]) / 1e6 / duration))
+            except ValueError:
+                pass
+    err = proc.stderr.read()
+    return proc.wait() == 0, err
+
+
 def shrink(vdir: Path, mode: str, progress=lambda p: None, log=lambda m: None) -> dict:
     """Re-encode vdir's video. Returns {"before", "after"} byte counts; raises RuntimeError on failure."""
     if mode not in SHRINK_MODES:
@@ -83,20 +103,18 @@ def shrink(vdir: Path, mode: str, progress=lambda p: None, log=lambda m: None) -
         codec = ["-vn", "-c:a", "copy"]
     else:
         rate = SHRINK_MODES[mode][1]
-        codec = ["-vf", f"scale=-2:{mode}", "-c:v", "h264_videotoolbox", "-b:v", f"{rate}k",
+        codec = ["-vf", f"scale=-2:{mode}", *_video_encoder(rate),
                  "-maxrate", f"{rate * 3 // 2}k", "-bufsize", f"{rate * 2}k", "-c:a", "copy"]
     cmd = [ffmpeg_exe(), "-hide_banner", "-nostats", "-y", "-i", str(src), *codec,
            "-movflags", "+faststart", "-progress", "pipe:1", str(tmp)]
     log(f"正在压缩为{SHRINK_MODES[mode][0]}…")
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    for line in proc.stdout:
-        if line.startswith("out_time_us=") and info["duration"]:
-            try:
-                progress(min(0.99, int(line.split("=", 1)[1]) / 1e6 / info["duration"]))
-            except ValueError:
-                pass
-    err = proc.stderr.read()
-    if proc.wait() != 0 or not tmp.is_file():
+    ok, err = _run_ffmpeg(cmd, info["duration"], progress)
+    if not ok and "h264_videotoolbox" in cmd:  # no hardware encoder (e.g. a Mac VM): use x264 instead
+        rate = SHRINK_MODES[mode][1]
+        i = cmd.index("-c:v")
+        cmd[i:i + 4] = ["-c:v", "libx264", "-preset", "veryfast", "-b:v", f"{rate}k"]
+        ok, err = _run_ffmpeg(cmd, info["duration"], progress)
+    if not ok or not tmp.is_file():
         tmp.unlink(missing_ok=True)
         raise RuntimeError("压缩失败：" + (err.strip().splitlines() or ["ffmpeg 出错"])[-1])
 
