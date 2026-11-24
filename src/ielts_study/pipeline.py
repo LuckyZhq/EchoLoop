@@ -222,7 +222,7 @@ class Pipeline:
                     "url": info.get("webpage_url") or job.url,
                     "uploader": info.get("uploader") or info.get("channel") or "",
                     "duration": info.get("duration") or (cues[-1]["end"] if cues else 0),
-                    "thumbnail": info.get("thumbnail") or "",
+                    "thumbnail": media.https(info.get("thumbnail") or ""),
                     "video": video.name,
                     "subtitleSource": source,
                     "translator": translator,
@@ -232,6 +232,7 @@ class Pipeline:
                     "created": int(time.time()),
                     "cues": cues,
                 }
+                check_preview(data, staged_video, log)
                 media.save_thumbnail(data["thumbnail"], staged_video)  # so the library shows covers offline
                 (staged_video / "data.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
                 previous = staging / "previous"
@@ -249,6 +250,39 @@ class Pipeline:
                 job.error = friendly_error(str(e))
                 job.stage = "error"
                 log(traceback.format_exc(limit=3))
+
+
+def check_preview(data: dict, vdir: Path, log=lambda m: None) -> None:
+    """Members-only videos (e.g. Bilibili 番剧 without 大会员) download as a short preview while the site still
+    reports the full length. Record the real length and remember the full one as data["preview"]."""
+    from .storage import media_info
+
+    try:
+        got = media_info(vdir / data["video"])["duration"]
+    except Exception:  # noqa: BLE001 - keep the import; the length stays as reported
+        return
+    full = float(data.get("duration") or 0)
+    data["lengthChecked"] = True
+    if got and full - got > 30 and got < full * 0.9:
+        data["duration"] = round(got, 1)
+        data["preview"] = {"full": full}
+        log(f"⚠ 只下载到 {int(got) // 60}:{int(got) % 60:02d} 的试看片段（完整 {int(full) // 60}:{int(full) % 60:02d}）："
+            "这个视频要登录会员才能看全。")
+
+
+def _check_old_import(d: Path, data: dict) -> dict:
+    """Videos imported before previews were detected: check once, when the subtitles end long before the
+    reported length (cheap test first; reading the file's length runs ffmpeg)."""
+    if data.get("lengthChecked") or not data.get("cues") or not data.get("video"):
+        return data
+    if float(data.get("duration") or 0) - data["cues"][-1].get("end", 0) < 60:
+        return data
+    check_preview(data, d)
+    if data.get("lengthChecked"):
+        tmp = d / "data.tmp"
+        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(d / "data.json")
+    return data
 
 
 _reannotate_lock = threading.Lock()
@@ -296,12 +330,12 @@ _thumb_fetching: set[str] = set()
 def _thumbnail_url(vdir: Path, data: dict) -> str:
     """The local copy of the cover when there is one. Videos imported before covers were saved locally
     fetch theirs once in the background; until then the remote address is used."""
-    from .media import local_thumbnail, save_thumbnail
+    from .media import https, local_thumbnail, save_thumbnail
 
     local = local_thumbnail(vdir)
     if local:
         return f"/media/{vdir.name}/{local.name}"
-    remote = data.get("thumbnail") or ""
+    remote = https(data.get("thumbnail") or "")
     if remote and vdir.name not in _thumb_fetching:
         _thumb_fetching.add(vdir.name)
         threading.Thread(target=save_thumbnail, args=(remote, vdir), daemon=True).start()
@@ -327,10 +361,12 @@ def list_library() -> list[dict]:
             data = json.loads(f.read_text(encoding="utf-8"))
         except Exception:
             continue
+        data = _check_old_import(d, data)
         cues = data.get("cues", [])
         items.append(
             {
                 "id": data["id"],
+                "preview": data.get("preview"),
                 "title": data.get("title"),
                 "uploader": data.get("uploader"),
                 "duration": data.get("duration"),

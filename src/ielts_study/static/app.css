@@ -892,3 +892,7 @@ mark.cloze-answer { padding: 0 3px; border-radius: 5px; background: var(--word-b
 .graded-write .muted { font-size: 12.5px; }
 .graded-write-row { display: flex; gap: 8px; }
 .graded-write-row input { flex: 1; min-width: 0; min-height: 40px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); font: inherit; color: var(--text); }
+
+/* members-only video: only the preview was downloaded */
+.preview-note { margin-top: 4px; color: var(--warn); font-size: 12px; font-weight: 600; }
+.player-preview { margin: -6px 0 12px; font-size: 13px; }

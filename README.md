@@ -2,7 +2,7 @@
 
 Learn English for the IELTS from real videos and articles, in your own language.
 
-Paste a YouTube, Bilibili or TED link and IELTS Study gives you bilingual subtitles with the translation written
+Paste a YouTube, Bilibili, TED or podcast link and IELTS Study gives you bilingual subtitles with the translation written
 under each phrase, the spoken word highlighted, key phrases and IELTS-level words marked for *your* level,
 sentence-by-sentence dictation, and spaced-repetition review of the words you save. It runs on your own computer:
 no account, no uploads.
@@ -30,6 +30,23 @@ no account, no uploads.
   length and difficulty; your API can write more at any level, on a topic you choose. Or paste your own article.
 - **Study plan** – four stages from beginner to band 7+, daily goals that fill in as you study, streaks, progress charts,
   and a daily new-word quota that follows your exam date.
+
+## Where videos and podcasts can come from
+
+| Source | Works | Notes |
+|---|---|---|
+| YouTube | yes | uses the video's English subtitles when it has them |
+| Bilibili | yes | members-only videos (most 番剧) give only a short preview without signing in; the library marks them |
+| TED | yes | English subtitles included |
+| Apple Podcasts | yes, episode links | the latest 200 episodes of a show; covers almost every public podcast (BBC 6 Minute English, TED Talks Daily, All Ears English…) |
+| 小宇宙 (Xiaoyuzhou) | yes, episode links | |
+| Spreaker, Internet Archive | yes | |
+| Direct audio links (.mp3, .m4a) | yes | e.g. the download link of a podcast episode |
+| Vimeo | no | now requires signing in |
+| Spotify, Netflix and other DRM services | no | protected, cannot be downloaded |
+
+Podcasts have no subtitles, so they are transcribed locally with Whisper (see Speech recognition).
+Any other site [yt-dlp supports](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) may work too.
 
 ## Languages
 

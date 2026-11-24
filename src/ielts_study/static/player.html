@@ -514,6 +514,12 @@ document.addEventListener("keydown", e => {
   cues = data.cues;
   document.title = `${data.title} · 播放器`;
   $("#title").textContent = data.title;
+  if (data.preview) {
+    const note = document.createElement("p");
+    note.className = "preview-note player-preview";
+    note.textContent = `只下载到试看片段（完整 ${fmtTime(data.preview.full)}）：这个视频要登录会员才能看全。`;
+    $("#title").after(note);
+  }
   await loadLanguage();  // language names for the labels below
   const aligned = cues.some(c => c.seg && c.seg.length);
   $("#cueCount").textContent = [`${cues.length} 句字幕`, `英文：${data.subtitleSource === "whisper" ? "本机识别" : "平台字幕"}`,

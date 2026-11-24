@@ -862,5 +862,17 @@
  "生态保护": "Conservation",
  "科技与经济": "Technologie et économie",
  "用 API 写新文章需要先配置翻译 API。": "Pour écrire de nouveaux textes avec l’API, il faut d’abord configurer une API de traduction.",
- "用 API 写文章需要先在设置里配置翻译 API。": "Pour écrire des textes, il faut une API de traduction : configurez-la d’abord dans les réglages."
+ "用 API 写文章需要先在设置里配置翻译 API。": "Pour écrire des textes, il faut une API de traduction : configurez-la d’abord dans les réglages.",
+ "粘贴视频或播客链接：YouTube、Bilibili、TED、Apple Podcasts、小宇宙…": "Collez un lien de vidéo ou de podcast : YouTube, Bilibili, TED, Apple Podcasts, Xiaoyuzhou…",
+ "这个视频要登录会员才能看全，没登录时平台只给试看片段": "Cette vidéo est réservée aux membres ; sans connexion, le site ne propose qu'un extrait",
+ "仅试看片段 · 完整": "Aperçu uniquement · version intégrale",
+ "只下载到试看片段（完整": "Seul l'aperçu a été téléchargé (version intégrale",
+ "）：这个视频要登录会员才能看全。": ") : cette vidéo est réservée aux membres.",
+ "在 Apple Podcasts 里找不到这一集的音频（可能太早了，只能找到最近 200 集）。可以换成这一集在其他平台的链接。": "L'audio de cet épisode est introuvable sur Apple Podcasts (seuls les 200 derniers épisodes sont référencés). Essayez avec un lien vers cet épisode sur une autre plateforme.",
+ "小宇宙这一集的页面里没有找到音频，可能需要登录或已下架。": "Aucun audio n'a été trouvé sur la page de cet épisode Xiaoyuzhou ; il faut peut-être se connecter ou l'épisode a été retiré.",
+ "下载播客音频…": "Téléchargement de l'audio du podcast…",
+ "播客音频下载失败：": "Échec du téléchargement de l'audio du podcast : ",
+ "播客音频下载失败：文件是空的": "Échec du téléchargement de l'audio du podcast : le fichier est vide",
+ "只下载到": "N'a téléchargé que",
+ "的试看片段（完整": "l'aperçu (version intégrale"
 }

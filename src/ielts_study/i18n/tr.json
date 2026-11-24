@@ -862,5 +862,17 @@
  "生态保护": "Koruma",
  "科技与经济": "Teknoloji ve ekonomi",
  "用 API 写新文章需要先配置翻译 API。": "Yeni metinler yazmak için önce bir çeviri API'si ayarlayın.",
- "用 API 写文章需要先在设置里配置翻译 API。": "Metin yazmak için bir çeviri API'si gerekir: önce Ayarlar'dan bir tane ayarlayın."
+ "用 API 写文章需要先在设置里配置翻译 API。": "Metin yazmak için bir çeviri API'si gerekir: önce Ayarlar'dan bir tane ayarlayın.",
+ "粘贴视频或播客链接：YouTube、Bilibili、TED、Apple Podcasts、小宇宙…": "Bir video veya podcast bağlantısı yapıştırın: YouTube, Bilibili, TED, Apple Podcasts, Xiaoyuzhou…",
+ "这个视频要登录会员才能看全，没登录时平台只给试看片段": "Bu videonun tamamı yalnızca üye girişiyle izlenebilir; giriş yapmadığınızda platform yalnızca önizleme gösterir.",
+ "仅试看片段 · 完整": "Yalnızca önizleme · tamamı",
+ "只下载到试看片段（完整": "Yalnızca önizleme indirildi (tamamı",
+ "）：这个视频要登录会员才能看全。": ")：bu video yalnızca üyelere özel.",
+ "在 Apple Podcasts 里找不到这一集的音频（可能太早了，只能找到最近 200 集）。可以换成这一集在其他平台的链接。": "Bu bölümün sesi Apple Podcasts'ta bulunamadı (yalnızca en son 200 bölüm listeleniyor). Bu bölümün başka bir platformdaki bağlantısını deneyebilirsiniz.",
+ "小宇宙这一集的页面里没有找到音频，可能需要登录或已下架。": "Bu Xiaoyuzhou bölümünün sayfasında ses kaydı bulunamadı; giriş yapmanız gerekebilir veya bölüm kaldırılmış olabilir.",
+ "下载播客音频…": "Podcast sesi indiriliyor…",
+ "播客音频下载失败：": "Podcast sesi indirilemedi: ",
+ "播客音频下载失败：文件是空的": "Podcast sesi indirilemedi: dosya boş",
+ "只下载到": "Yalnızca indirilen",
+ "的试看片段（完整": "önizleme (tamamı"
 }

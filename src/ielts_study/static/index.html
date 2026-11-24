@@ -18,7 +18,7 @@
       <form class="paste" id="form">
         <div class="composer-input">
           <span class="link-glyph" aria-hidden="true">↗</span>
-          <input id="url" type="url" aria-label="视频链接" placeholder="粘贴 YouTube、Bilibili 或 TED 视频链接" autocomplete="off">
+          <input id="url" type="url" aria-label="视频链接" placeholder="粘贴视频或播客链接：YouTube、Bilibili、TED、Apple Podcasts、小宇宙…" autocomplete="off">
         </div>
         <div class="composer-actions">
           <a class="import-quality" href="/settings/download">下载上限 <b id="importQuality"></b></a>
@@ -68,6 +68,7 @@ async function loadLibrary() {
         </div>
         <div class="body">
           <div class="t">${esc(v.title)}</div>
+          ${v.preview ? `<div class="preview-note" title="这个视频要登录会员才能看全，没登录时平台只给试看片段">仅试看片段 · 完整 ${fmtTime(v.preview.full)}</div>` : ""}
           <div class="meta">${v.cueCount} 句字幕 · ${v.phraseCount} 个重点短语${v.bytes ? ` · ${v.bytes >= 1e9 ? (v.bytes / 1e9).toFixed(1) + " GB" : Math.max(1, Math.round(v.bytes / 1e6)) + " MB"}` : ""}</div>
         </div>
       </a>

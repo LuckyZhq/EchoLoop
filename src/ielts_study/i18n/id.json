@@ -862,5 +862,17 @@
  "生态保护": "Konservasi",
  "科技与经济": "Teknologi dan ekonomi",
  "用 API 写新文章需要先配置翻译 API。": "Untuk menulis bacaan baru, siapkan dulu API terjemahan.",
- "用 API 写文章需要先在设置里配置翻译 API。": "Menulis bacaan memerlukan API terjemahan: siapkan dulu di Pengaturan."
+ "用 API 写文章需要先在设置里配置翻译 API。": "Menulis bacaan memerlukan API terjemahan: siapkan dulu di Pengaturan.",
+ "粘贴视频或播客链接：YouTube、Bilibili、TED、Apple Podcasts、小宇宙…": "Tempel tautan video atau podcast: YouTube, Bilibili, TED, Apple Podcasts, Xiaoyuzhou…",
+ "这个视频要登录会员才能看全，没登录时平台只给试看片段": "Video ini khusus anggota; jika tidak masuk, platform hanya menampilkan cuplikan",
+ "仅试看片段 · 完整": "Hanya cuplikan · versi lengkap",
+ "只下载到试看片段（完整": "Hanya cuplikan yang terunduh (versi lengkap",
+ "）：这个视频要登录会员才能看全。": "): video ini khusus anggota.",
+ "在 Apple Podcasts 里找不到这一集的音频（可能太早了，只能找到最近 200 集）。可以换成这一集在其他平台的链接。": "Audio episode ini tidak dapat ditemukan di Apple Podcasts (mungkin terlalu lama; hanya 200 episode terbaru yang tercantum). Coba tautan ke episode ini di platform lain.",
+ "小宇宙这一集的页面里没有找到音频，可能需要登录或已下架。": "Tidak ada audio yang ditemukan di halaman episode Xiaoyuzhou ini; mungkin perlu masuk atau episode ini sudah dihapus.",
+ "下载播客音频…": "Mengunduh audio podcast…",
+ "播客音频下载失败：": "Unduhan audio podcast gagal: ",
+ "播客音频下载失败：文件是空的": "Unduhan audio podcast gagal: file-nya kosong",
+ "只下载到": "Hanya mengunduh",
+ "的试看片段（完整": "cuplikan (versi lengkap"
 }

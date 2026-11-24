@@ -6,8 +6,10 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 from .config import APPLE_SILICON, DATA_DIR, QUALITY_FORMATS, WHISPER_MODEL
@@ -42,10 +44,16 @@ def local_thumbnail(vdir: Path) -> Path | None:
     return next((f for f in (vdir / f"thumb{ext}" for ext in THUMB_TYPES.values()) if f.is_file()), None)
 
 
+def https(url: str) -> str:
+    """Bilibili (and some others) give cover addresses as http://; the same image is served over https."""
+    return "https://" + url[len("http://"):] if url.startswith("http://") else url
+
+
 def save_thumbnail(url: str, vdir: Path) -> Path | None:
     """Download the cover image into vdir as thumb.jpg/png/webp. Returns None if it can't be fetched."""
     from urllib.request import Request, urlopen
 
+    url = https(url)
     if not url.startswith("https://"):
         return None
     try:
@@ -88,10 +96,62 @@ def _base_opts(log) -> dict:
     }
 
 
+APPLE_EPISODE = re.compile(r"^https://podcasts\.apple\.com/.*?/id(\d+)\?(?:.*&)?i=(\d+)")
+XIAOYUZHOU_EPISODE = re.compile(r"^https://www\.xiaoyuzhoufm\.com/episode/([0-9a-f]{24})")
+
+
+def _fetch(url: str, limit: int = 3_000_000) -> bytes:
+    from urllib.request import Request, urlopen
+
+    with urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=20) as r:
+        return r.read(limit)
+
+
+@lru_cache(maxsize=64)
+def resolve_podcast(url: str) -> dict | None:
+    """Episode pages whose audio yt-dlp can't find, as an info dict pointing at the audio file ("_media_url").
+    Apple Podcasts: Apple's public lookup API lists a show's latest 200 episodes with their audio files.
+    小宇宙: the episode page names its audio in og:audio. Anything else: None (yt-dlp handles it)."""
+    m = APPLE_EPISODE.match(url)
+    if m:
+        show, episode = m.groups()
+        data = json.loads(_fetch(f"https://itunes.apple.com/lookup?id={show}&entity=podcastEpisode&limit=200"))
+        ep = next((r for r in data.get("results", []) if str(r.get("trackId")) == episode), None)
+        if not ep or not ep.get("episodeUrl"):
+            raise RuntimeError("在 Apple Podcasts 里找不到这一集的音频（可能太早了，只能找到最近 200 集）。"
+                               "可以换成这一集在其他平台的链接。")
+        return {"id": episode, "extractor_key": "ApplePodcasts", "title": ep.get("trackName") or episode,
+                "uploader": ep.get("collectionName") or "", "duration": (ep.get("trackTimeMillis") or 0) / 1000 or None,
+                "thumbnail": ep.get("artworkUrl600") or "", "webpage_url": url, "_media_url": ep["episodeUrl"]}
+    m = XIAOYUZHOU_EPISODE.match(url)
+    if m:
+        page = _fetch(url).decode("utf-8", "replace")
+        meta = {k: html.unescape(v) for k, v in re.findall(r'<meta property="og:(\w+)" content="([^"]*)"', page)}
+        if not meta.get("audio"):
+            raise RuntimeError("小宇宙这一集的页面里没有找到音频，可能需要登录或已下架。")
+        return {"id": m.group(1), "extractor_key": "Xiaoyuzhou", "title": meta.get("title") or m.group(1),
+                "uploader": "", "duration": None, "thumbnail": meta.get("image", ""), "webpage_url": url,
+                "_media_url": meta["audio"]}
+    from urllib.parse import unquote, urlparse
+
+    path = urlparse(url).path
+    if url.startswith(("http://", "https://")) and Path(path).suffix.lower() in (".mp3", ".m4a", ".aac", ".ogg", ".opus"):
+        import hashlib  # a direct link to an audio file, e.g. from a podcast's RSS feed
+
+        name = unquote(Path(path).stem)
+        return {"id": hashlib.sha1(url.encode()).hexdigest()[:16], "extractor_key": "Audio", "title": name,
+                "uploader": "", "duration": None, "thumbnail": "", "webpage_url": url, "_media_url": url}
+    return None
+
+
 def probe(url: str, log=print) -> dict:
     import yt_dlp
 
-    with yt_dlp.YoutubeDL({**_base_opts(log), "skip_download": True}) as ydl:
+    podcast = resolve_podcast(url)
+    if podcast:
+        return podcast
+    # a show or feed address: only its newest item is read (resolving a whole feed takes minutes)
+    with yt_dlp.YoutubeDL({**_base_opts(log), "skip_download": True, "playlist_items": "1"}) as ydl:
         info = ydl.extract_info(url, download=False)
     if info.get("_type") == "playlist" and info.get("entries"):
         info = next(e for e in info["entries"] if e)
@@ -111,12 +171,50 @@ def english_sub_langs(info: dict) -> list[str]:
     return langs[:1]
 
 
+AUDIO_TYPES = {"audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/mp4": ".m4a", "audio/x-m4a": ".m4a",
+               "audio/aac": ".aac", "audio/ogg": ".ogg", "audio/opus": ".opus", "audio/wav": ".wav", "audio/x-wav": ".wav"}
+
+
+def download_audio(url: str, out_dir: Path, log=print, progress=None) -> Path:
+    """Download a podcast episode's audio file. (yt-dlp's generic downloader trips over some podcast
+    tracking redirects, e.g. BBC's, that a plain download follows fine.)"""
+    from urllib.parse import urlparse
+    from urllib.request import Request, urlopen
+
+    log("下载播客音频…")
+    try:
+        with urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=60) as r:
+            ext = AUDIO_TYPES.get(r.headers.get_content_type()) or Path(urlparse(r.url).path).suffix.lower()
+            if ext not in MEDIA_TYPES:
+                ext = ".mp3"
+            total = int(r.headers.get("Content-Length") or 0)
+            target = out_dir / f"video{ext}"
+            done = 0
+            with target.open("wb") as f:
+                while chunk := r.read(1 << 20):
+                    f.write(chunk)
+                    done += len(chunk)
+                    if total and progress:
+                        progress(min(0.99, done / total))
+    except OSError as error:
+        raise RuntimeError(f"播客音频下载失败：{error}") from None
+    if done < 10_000:
+        raise RuntimeError("播客音频下载失败：文件是空的")
+    return target
+
+
+# video files, and the audio files podcasts come as
+MEDIA_TYPES = (".mp4", ".mkv", ".webm", ".mov", ".m4a", ".mp3", ".aac", ".ogg", ".opus", ".wav", ".flac")
+
+
 def download(url: str, out_dir: Path, quality: str, log=print, progress=None) -> tuple[Path, Path | None]:
     """Returns (video_path, subtitle_path_or_None)."""
     import yt_dlp
 
     out_dir.mkdir(parents=True, exist_ok=True)
     info = probe(url, log)
+    if info.get("_media_url"):  # a podcast episode: its audio is a plain file
+        return download_audio(info["_media_url"], out_dir, log, progress), None
     sub_langs = english_sub_langs(info)
 
     def hook(d):
@@ -141,12 +239,12 @@ def download(url: str, out_dir: Path, quality: str, log=print, progress=None) ->
         "overwrites": True,
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
-        ydl.download([info.get("webpage_url") or url])
+        ydl.download([info.get("_media_url") or info.get("webpage_url") or url])
 
-    video = next((p for p in out_dir.glob("video.*") if p.suffix.lower() in (".mp4", ".mkv", ".webm", ".mov")), None)
+    video = next((p for p in out_dir.glob("video.*") if p.suffix.lower() in MEDIA_TYPES), None)
     if video is None:
         raise RuntimeError("视频下载失败：没有找到输出文件")
-    if video.suffix.lower() != ".mp4":
+    if video.suffix.lower() not in (".mp4", ".m4a", ".mp3", ".webm"):
         log(f"⚠ 视频格式为 {video.suffix}，部分浏览器可能无法播放")
     sub = next((p for p in out_dir.glob("video.*") if p.suffix.lower() in (".vtt", ".srt")), None)
     return video, sub

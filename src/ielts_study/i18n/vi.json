@@ -862,5 +862,17 @@
  "生态保护": "Bảo tồn",
  "科技与经济": "Công nghệ và kinh tế",
  "用 API 写新文章需要先配置翻译 API。": "Để viết bài mới, trước tiên hãy thiết lập API dịch.",
- "用 API 写文章需要先在设置里配置翻译 API。": "Viết bài mới cần có API dịch: trước tiên hãy thiết lập một API trong Cài đặt."
+ "用 API 写文章需要先在设置里配置翻译 API。": "Viết bài mới cần có API dịch: trước tiên hãy thiết lập một API trong Cài đặt.",
+ "粘贴视频或播客链接：YouTube、Bilibili、TED、Apple Podcasts、小宇宙…": "Dán liên kết video hoặc podcast: YouTube, Bilibili, TED, Apple Podcasts, Xiaoyuzhou…",
+ "这个视频要登录会员才能看全，没登录时平台只给试看片段": "Video này chỉ dành cho thành viên; nếu chưa đăng nhập, nền tảng chỉ cho xem đoạn xem trước",
+ "仅试看片段 · 完整": "Chỉ xem trước · bản đầy đủ",
+ "只下载到试看片段（完整": "Chỉ tải được đoạn xem trước (bản đầy đủ",
+ "）：这个视频要登录会员才能看全。": "): video này chỉ dành cho thành viên.",
+ "在 Apple Podcasts 里找不到这一集的音频（可能太早了，只能找到最近 200 集）。可以换成这一集在其他平台的链接。": "Không tìm thấy âm thanh của tập này trên Apple Podcasts (chỉ hiển thị 200 tập gần nhất). Bạn có thể đổi sang liên kết của tập này trên nền tảng khác.",
+ "小宇宙这一集的页面里没有找到音频，可能需要登录或已下架。": "Không tìm thấy âm thanh trên trang tập Xiaoyuzhou này; có thể cần đăng nhập hoặc tập đã bị gỡ.",
+ "下载播客音频…": "Đang tải âm thanh podcast…",
+ "播客音频下载失败：": "Tải âm thanh podcast thất bại: ",
+ "播客音频下载失败：文件是空的": "Tải âm thanh podcast thất bại: tệp trống",
+ "只下载到": "Chỉ tải được",
+ "的试看片段（完整": "đoạn xem trước (bản đầy đủ"
 }

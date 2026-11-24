@@ -862,5 +862,17 @@
  "生态保护": "Conservación",
  "科技与经济": "Tecnología y economía",
  "用 API 写新文章需要先配置翻译 API。": "Para escribir textos nuevos, primero configura una API de traducción.",
- "用 API 写文章需要先在设置里配置翻译 API。": "Para escribir textos hace falta una API de traducción: configúrala primero en Ajustes."
+ "用 API 写文章需要先在设置里配置翻译 API。": "Para escribir textos hace falta una API de traducción: configúrala primero en Ajustes.",
+ "粘贴视频或播客链接：YouTube、Bilibili、TED、Apple Podcasts、小宇宙…": "Pega un enlace de vídeo o pódcast: YouTube, Bilibili, TED, Apple Podcasts, Xiaoyuzhou…",
+ "这个视频要登录会员才能看全，没登录时平台只给试看片段": "Este vídeo es solo para miembros; si no inicias sesión, el sitio solo ofrece una vista previa",
+ "仅试看片段 · 完整": "Solo vista previa · duración completa",
+ "只下载到试看片段（完整": "Solo se descargó una vista previa (duración completa",
+ "）：这个视频要登录会员才能看全。": ") : este vídeo es solo para miembros.",
+ "在 Apple Podcasts 里找不到这一集的音频（可能太早了，只能找到最近 200 集）。可以换成这一集在其他平台的链接。": "No se encontró el audio de este episodio en Apple Podcasts (solo se muestran los últimos 200 episodios). Prueba con un enlace al episodio en otra plataforma.",
+ "小宇宙这一集的页面里没有找到音频，可能需要登录或已下架。": "No se encontró audio en la página de este episodio de Xiaoyuzhou; puede que haya que iniciar sesión o que se haya eliminado.",
+ "下载播客音频…": "Descargando el audio del pódcast…",
+ "播客音频下载失败：": "Error al descargar el audio del pódcast: ",
+ "播客音频下载失败：文件是空的": "Error al descargar el audio del pódcast: el archivo está vacío",
+ "只下载到": "Solo se descargó",
+ "的试看片段（完整": "de la vista previa (duración completa"
 }
