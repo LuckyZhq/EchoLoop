@@ -177,7 +177,7 @@ def code_fingerprint() -> str:
 
     h = hashlib.sha1()
     package = Path(__file__).resolve().parent
-    for f in sorted([*package.glob("*.py"), *package.glob("*.json")]):
+    for f in sorted([*package.glob("*.py"), *package.glob("*.json"), *package.glob("i18n/*.json")]):
         st = f.stat()
         h.update(f"{f.name}:{st.st_mtime_ns}:{st.st_size};".encode())
     return h.hexdigest()[:12]
@@ -251,7 +251,7 @@ def make_handler(app: App):
 
         # ------------------------------------------------------------ helpers
         def _json(self, obj, status=200):
-            lang = i18n.load()
+            lang = i18n.load(self.headers.get("Accept-Language"))
             if lang["ui"] != "zh-CN" or lang["zh"] != "zh-CN":
                 obj = localize(obj, urlparse(self.path).path, lang)
             body = json.dumps(obj, ensure_ascii=False).encode()
@@ -283,7 +283,7 @@ def make_handler(app: App):
                 return self._json({"error": "not found"}, 404)
             if path.suffix in (".html", ".js") and STATIC_DIR.resolve() in path.resolve().parents:
                 # pages and scripts in the interface language; never cached, so a language switch shows at once
-                body = i18n.page(path, i18n.load()["ui"])
+                body = i18n.page(path, i18n.load(self.headers.get("Accept-Language"))["ui"])
                 self.send_response(200)
                 self.send_header("Content-Type", ctype or mimetypes.guess_type(path.name)[0] or "text/plain")
                 self.send_header("Content-Length", str(len(body)))
@@ -360,7 +360,7 @@ def make_handler(app: App):
             if p == "/api/version":
                 return self._json(version_info())
             if p == "/api/language":
-                return self._json(i18n.public())
+                return self._json(i18n.public(self.headers.get("Accept-Language")))
             if p == "/api/storage":
                 from . import storage
 

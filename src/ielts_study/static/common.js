@@ -474,8 +474,9 @@ async function confirmRetranslate(count, what) {
 function showLanguageNotice(el, contentLang, what, onSwitch) {
   loadLanguage().then(lang => {
     if (storedLang(lang.native) === storedLang(contentLang)) { el.hidden = true; return; }
-    el.innerHTML = `<span>${what}的译文是${esc(langName(storedLang(contentLang)))}，你的母语设置是${esc(langName(lang.native))}。</span>
-      <button type="button" class="btn">↻ 换成${esc(langName(lang.native))}</button>`;
+    // label: value pairs read naturally in every interface language (no language name in mid-sentence)
+    el.innerHTML = `<span>译文语言：<b>${esc(langName(storedLang(contentLang)))}</b> · 你的母语：<b>${esc(langName(lang.native))}</b></span>
+      <button type="button" class="btn">↻ 重新翻译：${esc(langName(lang.native))}</button>`;
     el.querySelector("button").onclick = onSwitch;
     el.hidden = false;
   });

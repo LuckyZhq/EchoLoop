@@ -15,6 +15,18 @@
       <p>先估一下你现在认识多少词，再定目标分数。之后视频和文章里只标出你下一步该学的词。</p>
     </header>
 
+    <section class="plan-card" id="plan" hidden aria-labelledby="planTitle">
+      <div class="plan-head">
+        <div>
+          <h2 id="planTitle">今天的计划</h2>
+          <p id="planStage"></p>
+        </div>
+        <div class="plan-streak" id="streak"></div>
+      </div>
+      <div class="plan-tasks" id="planTasks"></div>
+      <p class="plan-note" id="planNote"></p>
+    </section>
+
     <!-- 1. intro -->
     <section class="level-panel" id="intro" hidden>
       <h2>5 分钟词汇测试</h2>
@@ -227,8 +239,29 @@ const PRESET_LABELS = s => [
   ["播放速度", `${s.speed}×`], ["中文", s.zh ? "默认显示" : "默认隐藏（按 C 显示）"], ["逐词/短语释义", s.gloss ? "开" : "关"],
   ["每天新词", `${s.newWords} 个`], ["精听", `${s.listenMin} 分钟`], ["听写", `${s.dictation} 句`], ["精读", `${s.readMin} 分钟`],
 ];
+// Today's plan: progress fills in by itself as you study
+function renderToday(plan) {
+  const p = studyProfile;
+  $("#plan").hidden = p.current === null || p.current === undefined;
+  if ($("#plan").hidden) return;
+  $("#planStage").textContent = `阶段：${plan.stage.name} · 现在 ${p.current} 分 → 目标 ${p.target ?? "未设置"} 分 · ${plan.stage.focus}`;
+  $("#streak").innerHTML = plan.streak ? `<b>${plan.streak}</b><span>天连续学习</span>` : `<span>今天开始第 1 天</span>`;
+  $("#planTasks").innerHTML = plan.tasks.map(t => {
+    const pct = t.goal === null ? (t.complete ? 100 : Math.round(t.done / Math.max(1, t.done + t.left) * 100)) : Math.min(100, Math.round(t.done / t.goal * 100));
+    const amount = t.goal === null ? (t.left ? `还剩 ${t.left} ${t.unit}` : "都复习完了") : `${t.done} / ${t.goal} ${t.unit}`;
+    return `<a class="plan-task${t.complete ? " complete" : ""}" href="${t.href}">
+      <span class="plan-check" aria-hidden="true">${t.complete ? "✓" : ""}</span>
+      <span class="plan-label">${esc(t.label)}${t.note ? `<small>${esc(t.note)}</small>` : ""}</span>
+      <span class="plan-bar" aria-hidden="true"><i style="width:${pct}%"></i></span>
+      <span class="plan-amount">${amount}</span>
+    </a>`;
+  }).join("");
+  $("#planNote").textContent = "";
+}
+
 function renderPlan() {
   if (!planData) return;
+  renderToday(planData);
   const p = studyProfile;
   $("#examDate").value = p.examDate || "";
   const q = planData.quota;

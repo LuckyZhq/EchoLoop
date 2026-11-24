@@ -726,5 +726,21 @@
  "改为只用英文释义，不翻译字幕。": "Switch to English definitions only, without translating the subtitles.",
  "用本地离线翻译翻成": "Translate offline into ",
  "（没有短语对照）。第一次用这种语言时会先下载它的离线翻译模型。": " (no phrase-by-phrase translation). The first time a language is used, its offline model is downloaded first.",
- "英文释义": "English definitions"
+ "英文释义": "English definitions",
+ "选择你的母语": "Choose your native language",
+ "字幕、短语和单词释义会翻译成这种语言，界面也会一起切换。之后可以在设置里随时更改。": "Subtitles, phrases and word meanings will be translated into this language, and the interface switches with it. You can change it any time in Settings.",
+ "当前母语": "Native language",
+ "先测一下水平": "Test my level first",
+ "开始学习": "Start learning",
+ "离线词典、逐词释义和短语对照都可以用。": "The offline dictionary, word-by-word glosses and phrase-by-phrase translations are all available.",
+ "不翻译字幕，只显示英文释义。": "Subtitles aren't translated; meanings are shown in English.",
+ "接上 API（设置 → API）就能看到母语的短语对照和单词释义；没有 API 时显示英文释义。": "Connect an API (Settings → API) for phrase-by-phrase translations and word meanings in your language; without one, meanings are shown in English.",
+ "阶段：": "Stage: ",
+ "· 现在": "· now",
+ "搜索语言": "Search languages",
+ "没有找到这种语言": "No matching language",
+ "更多语言设置": "More language settings",
+ "译文语言：": "Translated into: ",
+ "· 你的母语：": "· Your native language: ",
+ "重新翻译：": "Translate again: "
 }
