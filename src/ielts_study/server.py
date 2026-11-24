@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import placement, reading, review
+from . import placement, plan, reading, review
 from .settings import load_settings, save_settings, settings_from
 
 VOCAB_PATH = LIBRARY_DIR / "vocab.json"
@@ -124,7 +124,25 @@ def sidebar() -> dict:
         })
         if len(recent) == 3:
             break
-    return {"mistakes": len(list_mistakes()), "recent": recent, "review": review.due_count(load_vocab())}
+    return {"mistakes": len(list_mistakes()), "recent": recent, "review": review.due_count(load_vocab(), new_per_day=new_quota())}
+
+
+def new_quota() -> int:
+    """Today's new-word limit from the study plan (stage default, or what the exam date requires)."""
+    return plan.new_per_day(placement.load_profile())["count"]
+
+
+def dictated_counts() -> tuple[int, int]:
+    """(all dictated sentences, dictated today) across the library."""
+    today = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+    total = today_count = 0
+    if LIBRARY_DIR.exists():
+        for d in LIBRARY_DIR.iterdir():
+            records = _read_json(d / "dictation.json", {})
+            if isinstance(records, dict):
+                total += len(records)
+                today_count += sum(1 for r in records.values() if isinstance(r, dict) and r.get("at", 0) >= today)
+    return total, today_count
 
 
 def code_fingerprint() -> str:
@@ -172,13 +190,7 @@ def _spans(value, limit: int) -> list:
 def home_stats() -> dict:
     """Numbers for the home page: what is in each section and what was practised today."""
     today = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
-    dictated = dictated_today = 0
-    if LIBRARY_DIR.exists():
-        for d in LIBRARY_DIR.iterdir():
-            records = _read_json(d / "dictation.json", {})
-            if isinstance(records, dict):
-                dictated += len(records)
-                dictated_today += sum(1 for r in records.values() if isinstance(r, dict) and r.get("at", 0) >= today)
+    dictated, dictated_today = dictated_counts()
     vocab = load_vocab()
     articles = reading.list_articles()
     info = sidebar()
@@ -334,7 +346,9 @@ def make_handler(app: App):
             if p == "/review":
                 return self._file(STATIC_DIR / "review.html", "text/html; charset=utf-8")
             if p == "/api/review":
-                return self._json(review.queue(load_vocab(), LIBRARY_DIR))
+                return self._json(review.queue(load_vocab(), LIBRARY_DIR, new_per_day=new_quota()))
+            if p == "/api/plan":
+                return self._json(plan.daily_plan(placement.load_profile(), load_vocab(), dictated_counts()[1]))
             if p == "/mistakes":
                 return self._file(STATIC_DIR / "mistakes.html", "text/html; charset=utf-8")
             if p == "/api/mistakes":
@@ -513,6 +527,7 @@ def make_handler(app: App):
                         "at": int(time.time()),
                     }
                     save_json(LIBRARY_DIR / vid / "dictation.json", records)
+                plan.log_activity("dictate")
                 return self._json(records[str(i)])
             if p == "/api/placement/check":
                 unknown = {str(i) for i in body.get("unknown") or []}
@@ -538,9 +553,22 @@ def make_handler(app: App):
                     item = next((v for v in items if v.get("en", "").lower() == en), None)
                     if not item:
                         return self._json({"error": "not found"}, 404)
+                    was_new = not item.get("srs")
                     item["srs"] = review.schedule(item.get("srs"), grade, time.time())
                     save_vocab(items)
-                return self._json({"srs": item["srs"], "dueCount": review.due_count(items)})
+                plan.log_activity("review")
+                if was_new:
+                    plan.log_activity("new")
+                return self._json({"srs": item["srs"], "dueCount": review.due_count(items, new_per_day=new_quota())})
+            if p == "/api/activity":
+                kind = body.get("kind")
+                if kind not in ("listen", "read"):
+                    return self._json({"error": "bad kind"}, 400)
+                try:
+                    seconds = min(120.0, max(0.0, float(body.get("seconds") or 0)))
+                except (TypeError, ValueError):
+                    return self._json({"error": "bad seconds"}, 400)
+                return self._json(plan.log_activity(kind, seconds))
             if p == "/api/vocab":
                 item = {
                     "key": str(body.get("key") or "")[:200],

@@ -62,8 +62,23 @@
         <label class="level-field"><span>现在的水平</span><span class="select-wrap"><select class="btn" id="currentBand"></select></span></label>
         <span class="level-arrow" aria-hidden="true">→</span>
         <label class="level-field"><span>目标分数</span><span class="select-wrap"><select class="btn" id="targetBand"></select></span></label>
+        <label class="level-field"><span>考试日期（可不填）</span><input class="btn level-date" type="date" id="examDate"></label>
       </div>
       <p class="level-range" id="rangeText"></p>
+      <p class="level-range" id="quotaText" hidden></p>
+
+      <div class="level-stage" id="stageBlock" hidden>
+        <div class="level-sub"><h3 id="stageTitle"></h3><button type="button" class="btn" id="applyStage">应用推荐的播放设置</button></div>
+        <p class="level-hint" id="stageFocus"></p>
+        <div class="level-presets" id="stagePresets"></div>
+      </div>
+
+      <div class="level-progress-charts" id="charts" hidden>
+        <div class="level-sub"><h3>进步曲线</h3></div>
+        <div class="viz" id="vocabChart"></div>
+        <div class="viz" id="timeChart"></div>
+        <p class="level-hint" id="monthTotals"></p>
+      </div>
 
       <div class="level-unknown" id="unknownBlock" hidden>
         <div class="level-sub"><h3>这次标出的生词</h3><button type="button" class="btn" id="saveUnknown">全部加入收藏词句</button></div>
@@ -178,6 +193,7 @@ function renderResult() {
   bandOptions($("#currentBand"), p.current);
   bandOptions($("#targetBand"), p.target);
   renderRange();
+  loadPlan();
   const words = r ? r.unknownWords : [];
   $("#unknownBlock").hidden = !words.length;
   $("#unknownWords").innerHTML = words.map(([en, zh]) => `<span class="level-chip" title="${esc(zh)}">${esc(en)}</span>`).join("");
@@ -199,6 +215,121 @@ async function saveGoal(changes) {
 // Choosing the current level by hand replaces the tested vocabulary (the range then follows the band).
 $("#currentBand").onchange = e => saveGoal({ current: e.target.value === "" ? null : e.target.value, vocabSize: null });
 $("#targetBand").onchange = e => saveGoal({ target: e.target.value === "" ? null : e.target.value });
+$("#examDate").onchange = e => saveGoal({ examDate: e.target.value || null });
+
+// ---------- stage presets and progress (from /api/plan)
+let planData = null;
+async function loadPlan() {
+  try { planData = await api("/api/plan"); } catch { return; }
+  renderPlan();
+}
+const PRESET_LABELS = s => [
+  ["播放速度", `${s.speed}×`], ["中文", s.zh ? "默认显示" : "默认隐藏（按 C 显示）"], ["逐词/短语释义", s.gloss ? "开" : "关"],
+  ["每天新词", `${s.newWords} 个`], ["精听", `${s.listenMin} 分钟`], ["听写", `${s.dictation} 句`], ["精读", `${s.readMin} 分钟`],
+];
+function renderPlan() {
+  if (!planData) return;
+  const p = studyProfile;
+  $("#examDate").value = p.examDate || "";
+  const q = planData.quota;
+  $("#quotaText").hidden = !q.gap;
+  $("#quotaText").innerHTML = q.daysLeft !== null && q.daysLeft > 0
+    ? `距考试 <b>${q.daysLeft} 天</b>，离目标约差 ${q.gap} 词，每天安排 <b>${q.count} 个新词</b>${q.needed > q.count ? `（按天数需要 ${q.needed} 个，已按上限安排）` : ""}。`
+    : q.daysLeft !== null && q.daysLeft <= 0 ? "考试日期已经过了，可以改一个新的日期。"
+    : `离目标约差 ${q.gap} 词，按每天 ${q.count} 个新词大约需要 ${q.daysAtThisPace} 天。填上考试日期，会按剩余天数安排每天的新词。`;
+  const s = planData.stage;
+  $("#stageBlock").hidden = p.current === null || p.current === undefined;
+  $("#stageTitle").textContent = `你在「${s.name}」阶段`;
+  $("#stageFocus").textContent = s.focus;
+  $("#stagePresets").innerHTML = PRESET_LABELS(s).map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("");
+  renderCharts();
+}
+// Playback settings are saved per browser (like Settings → 播放); the daily amounts follow the stage by themselves.
+$("#applyStage").onclick = () => {
+  const s = planData.stage;
+  try {
+    localStorage.setItem("speed", s.speed);
+    localStorage.setItem("zh", s.zh ? "1" : "0");
+    localStorage.setItem("gloss", s.gloss ? "1" : "0");
+    toast(`已应用：${s.speed}× · 中文${s.zh ? "显示" : "隐藏"} · 释义${s.gloss ? "开" : "关"}`);
+  } catch { toast("浏览器不允许保存设置"); }
+};
+
+// ---------- charts (inline SVG; series colors validated for light and dark surfaces)
+const tip = Object.assign(document.createElement("div"), { className: "viz-tip", hidden: true });
+document.body.append(tip);
+function showTip(event, html) {
+  tip.innerHTML = html;
+  tip.hidden = false;
+  const x = Math.min(event.clientX + 14, innerWidth - tip.offsetWidth - 8);
+  tip.style.left = x + "px";
+  tip.style.top = Math.max(8, event.clientY - tip.offsetHeight - 12) + "px";
+}
+function hideTip() { tip.hidden = true; }
+function niceMax(v) { const step = 10 ** Math.floor(Math.log10(Math.max(1, v))); return Math.ceil(v / step) * step || 1; }
+const shortDate = iso => { const [, m, d] = iso.split("-"); return `${+m}/${+d}`; };
+
+function renderCharts() {
+  const tests = studyProfile.tests || [];
+  const days = planData.history;
+  const studied = days.some(d => d.listenMin || d.readMin || d.dictate || d.review);
+  $("#charts").hidden = !tests.length && !studied;
+  // 1) vocabulary over tests: one series, so no legend box; the heading names it
+  const W = 640, H = 200, L = 44, R = 16, T = 16, B = 28;
+  if (tests.length >= 2) {
+    const max = niceMax(Math.max(...tests.map(t => t.vocabSize)) * 1.1);
+    const x = i => L + (W - L - R) * (tests.length === 1 ? 0.5 : i / (tests.length - 1));
+    const y = v => T + (H - T - B) * (1 - v / max);
+    const ticks = [0, max / 2, max];
+    $("#vocabChart").innerHTML = `<div class="viz-title">词汇量（每次测试）</div>
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="词汇量变化：${tests.map(t => t.vocabSize).join("、")}">
+        ${ticks.map(v => `<line class="viz-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="viz-axis" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join("")}
+        <polyline class="viz-line" points="${tests.map((t, i) => `${x(i)},${y(t.vocabSize)}`).join(" ")}"/>
+        ${tests.map((t, i) => `<circle class="viz-dot" cx="${x(i)}" cy="${y(t.vocabSize)}" r="4.5"/>
+          <rect class="viz-hit" x="${x(i) - 18}" y="${T}" width="36" height="${H - T - B}" data-tip="${new Date(t.at * 1000).toLocaleDateString("zh-CN")}<br><b>${t.vocabSize} 词</b> · ${t.band} 分"/>`).join("")}
+        <text class="viz-axis" x="${x(0)}" y="${H - 8}" text-anchor="start">${new Date(tests[0].at * 1000).toLocaleDateString("zh-CN")}</text>
+        <text class="viz-axis" x="${x(tests.length - 1)}" y="${H - 8}" text-anchor="end">${new Date(tests.at(-1).at * 1000).toLocaleDateString("zh-CN")}</text>
+        <text class="viz-label" x="${x(tests.length - 1) - 8}" y="${y(tests.at(-1).vocabSize) - 10}" text-anchor="end">${tests.at(-1).vocabSize}</text>
+      </svg>`;
+  } else {
+    $("#vocabChart").innerHTML = tests.length ? `<div class="viz-title">词汇量</div><p class="level-hint">目前测了 1 次：约 ${tests[0].vocabSize} 词。过几周再测一次，这里会画出变化。</p>` : "";
+  }
+  // 2) study minutes per day, last 30 days: listening + reading stacked (same unit, one axis)
+  if (studied) {
+    const max = niceMax(Math.max(10, ...days.map(d => d.listenMin + d.readMin)));
+    const bw = (W - L - R) / days.length, gap = 2;
+    const y = v => T + (H - T - B) * (1 - v / max);
+    const bars = days.map((d, i) => {
+      const x = L + i * bw + 1, w = Math.max(2, bw - gap);
+      const top = d.listenMin + d.readMin;
+      const listenTop = y(d.listenMin);
+      // the top segment gets the 4px rounded end; a 2px surface gap separates the two segments
+      const seg = (cls, y0, y1, round) => y1 - y0 < 0.5 ? "" : round
+        ? `<path class="${cls}" d="M${x},${y1} V${y0 + 4} q0,-4 4,-4 H${x + w - 4} q4,0 4,4 V${y1} Z"/>`
+        : `<rect class="${cls}" x="${x}" y="${y0}" width="${w}" height="${y1 - y0}"/>`;
+      const readSeg = d.readMin ? seg("viz-s2", y(top), listenTop - (d.listenMin ? gap : 0), true) : "";
+      const listenSeg = d.listenMin ? seg("viz-s1", listenTop, y(0), !d.readMin) : "";
+      return `${listenSeg}${readSeg}<rect class="viz-hit" x="${L + i * bw}" y="${T}" width="${bw}" height="${H - T - B}"
+        data-tip="${shortDate(d.date)}<br>精听 <b>${d.listenMin}</b> 分钟 · 精读 <b>${d.readMin}</b> 分钟<br>听写 ${d.dictate} 句 · 复习 ${d.review} 次 · 新词 ${d.new} 个"/>`;
+    }).join("");
+    $("#timeChart").innerHTML = `<div class="viz-title">每天学习时间（分钟，最近 30 天）</div>
+      <div class="viz-legend"><span><i class="viz-key s1"></i>精听</span><span><i class="viz-key s2"></i>精读</span></div>
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="最近 30 天每天的精听和精读分钟数">
+        ${[0, max / 2, max].map(v => `<line class="viz-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="viz-axis" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join("")}
+        ${bars}
+        <line class="viz-base" x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}"/>
+        <text class="viz-axis" x="${L}" y="${H - 8}">${shortDate(days[0].date)}</text>
+        <text class="viz-axis" x="${W - R}" y="${H - 8}" text-anchor="end">今天</text>
+      </svg>`;
+    const sum = k => days.reduce((n, d) => n + d[k], 0);
+    $("#monthTotals").textContent = `最近 30 天：精听 ${Math.round(sum("listenMin"))} 分钟 · 精读 ${Math.round(sum("readMin"))} 分钟 · 听写 ${sum("dictate")} 句 · 复习 ${sum("review")} 次 · 新学 ${sum("new")} 个词`;
+  } else {
+    $("#timeChart").innerHTML = "";
+    $("#monthTotals").textContent = "";
+  }
+}
+document.addEventListener("pointermove", e => { const h = e.target.closest?.(".viz-hit"); h ? showTip(e, h.dataset.tip) : hideTip(); });
+document.addEventListener("pointerleave", hideTip);
 document.addEventListener("click", async e => {
   const b = e.target.closest("[data-unknow]");
   if (!b) return;

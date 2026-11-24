@@ -3,7 +3,8 @@
 Each saved word/phrase may carry `srs`:
     {"due": epoch s, "ivl": days, "ease": 1.3–3.0, "reps": successful reviews in a row, "lapses": n,
      "last": epoch s, "seen": epoch s of the first review}
-Words without `srs` are new. At most NEW_PER_DAY new words are introduced per day.
+Words without `srs` are new. At most `new_per_day` new words are introduced per day (from the study plan;
+NEW_PER_DAY when there is none).
 """
 from __future__ import annotations
 
@@ -84,14 +85,14 @@ def _clip(item: dict, library: Path, cache: dict) -> dict | None:
     return {"src": f"/media/{vid}/{data['video']}", "start": cue["start"], "end": cue["end"]}
 
 
-def queue(vocab: list[dict], library: Path, now: float | None = None) -> dict:
+def queue(vocab: list[dict], library: Path, now: float | None = None, new_per_day: int = NEW_PER_DAY) -> dict:
     """Cards to review now: due reviews first (most overdue first), then today's share of new words."""
     now = time.time() if now is None else now
     today = start_of_today(now)
     due = sorted((v for v in vocab if v.get("srs") and v["srs"]["due"] <= now), key=lambda v: v["srs"]["due"])
     started_today = sum(1 for v in vocab if v.get("srs") and v["srs"].get("seen", 0) >= today)
     fresh = sorted((v for v in vocab if not v.get("srs")), key=lambda v: v.get("added", 0))
-    new = fresh[:max(0, NEW_PER_DAY - started_today)]
+    new = fresh[:max(0, new_per_day - started_today)]
     cache: dict = {}
     cards = [{**v, "isNew": not v.get("srs"), "preview": previews(v.get("srs"), now), "clip": _clip(v, library, cache)}
              for v in due + new]
@@ -106,11 +107,11 @@ def queue(vocab: list[dict], library: Path, now: float | None = None) -> dict:
     }
 
 
-def due_count(vocab: list[dict], now: float | None = None) -> int:
+def due_count(vocab: list[dict], now: float | None = None, new_per_day: int = NEW_PER_DAY) -> int:
     """For the sidebar badge and the home page: reviews due plus new words still allowed today."""
     now = time.time() if now is None else now
     today = start_of_today(now)
     due = sum(1 for v in vocab if v.get("srs") and v["srs"]["due"] <= now)
     started_today = sum(1 for v in vocab if v.get("srs") and v["srs"].get("seen", 0) >= today)
     fresh = sum(1 for v in vocab if not v.get("srs"))
-    return due + min(fresh, max(0, NEW_PER_DAY - started_today))
+    return due + min(fresh, max(0, new_per_day - started_today))

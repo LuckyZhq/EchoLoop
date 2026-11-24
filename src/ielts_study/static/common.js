@@ -429,6 +429,19 @@ function translationLabel(translator, model, aligned) {
   return `${name} ${aligned ? "短语对照" : "翻译"}${translator === "api+local" ? "（部分改用本地）" : ""}`;
 }
 
+// Study time for the daily plan ("listen" in the player, "read" in articles). On page exit a beacon is used,
+// because a normal request may be cancelled while the page closes.
+function logStudyTime(kind, seconds, leaving = false) {
+  seconds = Math.min(120, Math.round(seconds));
+  if (seconds < 1) return;
+  const body = { kind, seconds };
+  if (leaving && navigator.sendBeacon) {
+    navigator.sendBeacon("/api/activity", new Blob([JSON.stringify(body)], { type: "application/json" }));
+  } else {
+    api("/api/activity", { method: "POST", body }).catch(() => { /* not important enough to bother the user */ });
+  }
+}
+
 function toast(msg) {
   let el = $(".toast");
   if (!el) { el = document.createElement("div"); el.className = "toast"; document.body.appendChild(el); }

@@ -123,6 +123,15 @@ async function retranslate() {
 }
 $("#retranslate").onclick = retranslate;
 
+// ---------- reading time for the daily plan: page visible and the reader active in the last 2 minutes
+let lastActive = Date.now(), readPending = 0;
+for (const type of ["scroll", "click", "keydown", "pointermove"]) addEventListener(type, () => { lastActive = Date.now(); }, { passive: true });
+setInterval(() => {
+  if (document.visibilityState === "visible" && Date.now() - lastActive < 120000) readPending += 15;
+  if (readPending >= 60) { logStudyTime("read", readPending); readPending = 0; }
+}, 15000);
+addEventListener("pagehide", () => { if (readPending) logStudyTime("read", readPending, true); });
+
 function setZh(on) { zhOn = on; storeFlag("readingZh", on); render(); }
 $("#zhBtn").onclick = () => setZh(!zhOn);
 $("#marksBtn").onclick = () => { marksOn = !marksOn; render(); };

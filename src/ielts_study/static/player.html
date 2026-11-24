@@ -245,6 +245,23 @@ video.addEventListener("timeupdate", () => { if (!video.paused && Date.now() - l
 video.addEventListener("pause", () => saveProgress());
 window.addEventListener("pagehide", () => saveProgress(true));
 
+// ---------- listening time for the daily plan: only while the video is actually playing
+let listenSince = null, listenPending = 0;
+function flushListen(leaving = false) {
+  if (listenSince !== null) {
+    listenPending += (Date.now() - listenSince) / 1000;
+    listenSince = video.paused ? null : Date.now();
+  }
+  if (listenPending >= 5 || (leaving && listenPending >= 1)) {
+    logStudyTime("listen", listenPending, leaving);
+    listenPending = 0;
+  }
+}
+video.addEventListener("play", () => { listenSince = Date.now(); });
+video.addEventListener("pause", () => flushListen());
+setInterval(() => { if (!video.paused) flushListen(); }, 30000);
+window.addEventListener("pagehide", () => flushListen(true));
+
 // ---------- word cards (shared code in common.js)
 document.addEventListener("click", async e => {
   const sp = e.target.closest("[data-speak]");

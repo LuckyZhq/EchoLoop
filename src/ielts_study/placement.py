@@ -166,6 +166,7 @@ def load_profile() -> dict:
     p.setdefault("vocabSize", None)
     p.setdefault("tests", [])
     p.setdefault("known", [])
+    p.setdefault("examDate", None)
     return p
 
 
@@ -184,12 +185,23 @@ def _band_value(v):
     return v if v in BAND_VOCAB else None
 
 
+def _exam_date(value):
+    from datetime import date
+
+    try:
+        return date.fromisoformat(str(value)).isoformat() if value else None
+    except ValueError:
+        return None
+
+
 def update_profile(changes: dict) -> dict:
     with _lock:
         p = load_profile()
         for key in ("current", "target"):
             if key in changes:
                 p[key] = _band_value(changes[key])
+        if "examDate" in changes:
+            p["examDate"] = _exam_date(changes["examDate"])
         if "vocabSize" in changes and changes["vocabSize"] is None:
             p["vocabSize"] = None  # choosing a level by hand replaces the tested vocabulary
         save_profile(p)

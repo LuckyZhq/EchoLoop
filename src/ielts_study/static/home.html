@@ -39,6 +39,18 @@
       </figure>
     </section>
 
+    <section class="plan-card" id="plan" hidden aria-labelledby="planTitle">
+      <div class="plan-head">
+        <div>
+          <h2 id="planTitle">今天的计划</h2>
+          <p id="planStage"></p>
+        </div>
+        <div class="plan-streak" id="streak"></div>
+      </div>
+      <div class="plan-tasks" id="planTasks"></div>
+      <p class="plan-note" id="planNote"></p>
+    </section>
+
     <section class="intro-block" aria-labelledby="modulesTitle">
       <div class="intro-head">
         <div><p class="intro-eyebrow">功能</p><h2 id="modulesTitle">听力、单词、阅读，<br>用同一个词本串起来。</h2></div>
@@ -228,16 +240,49 @@ $$(".intro-band").forEach(b => b.addEventListener("click", () => setBand(b.datas
 setBand(String(Math.min(7, Math.max(3, Math.round(studyProfile.current ?? 5)))));  // near the learner's own level
 if ((studyProfile.tests || []).length) $("#levelLink").textContent = "查看我的水平和目标";
 
-// ---------- a one-line "today" note and a resume link, when there is history
+// ---------- resume link and mistakes, when there is history
 api("/api/home").then(s => {
   const last = s.recent[0];
-  const parts = [`今天听写 ${s.dictatedToday} 句`, `收藏 ${s.savedToday} 个词句`];
-  if (s.reviewDue) parts.push(`<a href="/review">${s.reviewDue} 个词待复习</a>`);
-  if (s.mistakes) parts.push(`<a href="/mistakes">${s.mistakes} 句待重练</a>`);
+  const parts = [];
   if (last) parts.push(`继续上次：<a href="/player/${encodeURIComponent(last.id)}?t=${last.time}">${esc(last.title)}</a>`);
+  if (s.mistakes) parts.push(`<a href="/mistakes">${s.mistakes} 句待重练</a>`);
   $("#today").innerHTML = parts.join(" · ");
-  $("#today").hidden = false;
+  $("#today").hidden = !parts.length;
 }).catch(() => {});
+
+// ---------- today's plan: progress fills in by itself as you study
+async function loadPlan() {
+  let plan;
+  try { plan = await api("/api/plan"); } catch { return; }
+  await syncProfile();
+  const p = studyProfile;
+  $("#plan").hidden = false;
+  if (p.current === null || p.current === undefined) {
+    $("#planStage").textContent = "先花 5 分钟测一下词汇量，计划会按你的水平来安排。";
+    $("#planTasks").innerHTML = `<a class="btn primary" href="/level">做水平测试</a>`;
+    $("#streak").innerHTML = "";
+    $("#planNote").textContent = "";
+    return;
+  }
+  $("#planStage").textContent = `${plan.stage.name}阶段 · 现在 ${p.current} 分 → 目标 ${p.target ?? "未设置"} 分 · ${plan.stage.focus}`;
+  $("#streak").innerHTML = plan.streak ? `<b>${plan.streak}</b><span>天连续学习</span>` : `<span>今天开始第 1 天</span>`;
+  $("#planTasks").innerHTML = plan.tasks.map(t => {
+    const pct = t.goal === null ? (t.complete ? 100 : Math.round(t.done / Math.max(1, t.done + t.left) * 100)) : Math.min(100, Math.round(t.done / t.goal * 100));
+    const amount = t.goal === null ? (t.left ? `还剩 ${t.left} ${t.unit}` : "都复习完了") : `${t.done} / ${t.goal} ${t.unit}`;
+    return `<a class="plan-task${t.complete ? " complete" : ""}" href="${t.href}">
+      <span class="plan-check" aria-hidden="true">${t.complete ? "✓" : ""}</span>
+      <span class="plan-label">${esc(t.label)}${t.note ? `<small>${esc(t.note)}</small>` : ""}</span>
+      <span class="plan-bar" aria-hidden="true"><i style="width:${pct}%"></i></span>
+      <span class="plan-amount">${amount}</span>
+    </a>`;
+  }).join("");
+  const q = plan.quota;
+  $("#planNote").innerHTML = q.daysLeft !== null && q.daysLeft > 0
+    ? `距考试还有 ${q.daysLeft} 天，词汇差距约 ${q.gap} 词，每天学 ${q.count} 个新词${q.needed > q.count ? `（需要 ${q.needed} 个，已按上限 ${q.count} 安排，考前补不完的部分要靠阅读积累）` : ""}。`
+    : q.gap ? `离目标还差约 ${q.gap} 词，按每天 ${q.count} 个新词大约 ${q.daysAtThisPace} 天。<a href="/level">设置考试日期</a>，按剩余天数安排。` : "";
+}
+loadPlan();
+window.addEventListener("pageshow", event => { if (event.persisted) loadPlan(); });
 </script>
 </body>
 </html>
