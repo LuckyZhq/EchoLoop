@@ -98,7 +98,7 @@ function renderLevel() {
   $("#topic").disabled = !api;
   $("#writeHint").innerHTML = api
     ? `按这个等级写一篇新文章，话题可以不填。模型：${esc(MODEL_NAMES[engine.model] || engine.model)}`
-    : `用 API 写新文章需要先<a href="/settings/translation">配置翻译 API</a>。`;
+    : `用 API 写新文章需要先<a href="/settings#translation">配置翻译 API</a>。`;
 }
 
 // Show a job's progress in `box` until it finishes; returns the article id.
@@ -135,8 +135,8 @@ async function loadEngine() {
   try {
     engine = await api("/api/settings");
     $("#engineHint").innerHTML = engine.engine === "api"
-      ? `翻译：${esc(engine.model)} · <a href="/settings/translation">更换</a>`
-      : `翻译：本地（离线） · <a href="/settings/translation">改用 API</a>`;
+      ? `翻译：${esc(engine.model)} · <a href="/settings#translation">更换</a>`
+      : `翻译：本地（离线） · <a href="/settings#translation">改用 API</a>`;
   } catch { /* hint stays empty */ }
 }
 

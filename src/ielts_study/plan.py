@@ -1,15 +1,14 @@
-"""学习计划: stage presets from the current band, a daily plan, and a log of what was studied each day.
+"""学习计划: what each stage recommends, today's tasks, and a log of what was studied each day.
 
-Stages (by current band) recommend playback settings and daily amounts. With an exam date, the daily
-new-word quota comes from the vocabulary still missing for the target band and the days left.
+STAGES is a fixed table (stage → playback presets and daily amounts); it keeps no state. Which stage applies
+and the actual daily amounts are decided in goals.py from the learner's profile.
 """
 from __future__ import annotations
 
 import json
-import math
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from .config import LIBRARY_DIR
@@ -93,38 +92,15 @@ def history(log: dict, days: int = 30, now: float | None = None) -> list[dict]:
     return out
 
 
-# ------------------------------------------------------------------ quota and plan
-def new_per_day(profile: dict, now: float | None = None) -> dict:
-    """Daily new words: the stage default, or what the exam date requires (capped at MAX_NEW_PER_DAY)."""
-    from .placement import BAND_VOCAB
-
-    stage = stage_for(profile.get("current"))
-    current_vocab = profile.get("vocabSize")
-    if current_vocab is None and profile.get("current") is not None:
-        current_vocab = BAND_VOCAB.get(profile["current"])
-    target = profile.get("target")
-    gap = max(0, BAND_VOCAB[target] - current_vocab) if target is not None and current_vocab is not None else None
-    days_left = None
-    if profile.get("examDate"):
-        try:
-            exam = date.fromisoformat(profile["examDate"])
-            days_left = (exam - datetime.fromtimestamp(time.time() if now is None else now).date()).days
-        except ValueError:
-            days_left = None
-    count = stage["newWords"]
-    if gap is not None and days_left is not None and days_left > 0:
-        count = max(count, math.ceil(gap / days_left))
-    return {"count": min(MAX_NEW_PER_DAY, count), "gap": gap, "daysLeft": days_left,
-            "needed": math.ceil(gap / days_left) if gap and days_left and days_left > 0 else None,
-            "daysAtThisPace": math.ceil(gap / count) if gap else None}
-
-
+# ------------------------------------------------------------------ today's plan
 def daily_plan(profile: dict, vocab: list[dict], dictated_today: int, now: float | None = None) -> dict:
+    """Today's tasks with progress. The amounts come from goals.today(), like everywhere else."""
+    from .goals import today as goals_today
     from .review import due_count, start_of_today
 
     now = time.time() if now is None else now
-    stage = stage_for(profile.get("current"))
-    quota = new_per_day(profile, now)
+    goal = goals_today(profile, now)
+    stage, amounts = goal["stage"], goal["quota"]
     log = load_activity()
     today = log.get(today_key(now), {})
     start = start_of_today(now)
@@ -138,17 +114,17 @@ def daily_plan(profile: dict, vocab: list[dict], dictated_today: int, now: float
     tasks = [
         {"id": "review", "label": "复习到期的词", "href": "/review", "unit": "个",
          "done": int(today.get("review", 0)) - int(today.get("new", 0)), "goal": None, "left": reviews_left},
-        {"id": "new", "label": "学新词", "href": "/review", "unit": "个", "done": new_today, "goal": quota["count"],
-         "note": None if new_left_in_book >= quota["count"] - new_today else
+        {"id": "new", "label": "学新词", "href": "/review", "unit": "个", "done": new_today, "goal": amounts["newWords"],
+         "note": None if new_left_in_book >= amounts["newWords"] - new_today else
          "选一本词书，每天自动安排新词" if in_wordbook is None else
          f"只剩 {new_left_in_book} 个新词，换一本词书或多收藏一些"},
         {"id": "listen", "label": "精听视频", "href": "/listening", "unit": "分钟",
-         "done": round(today.get("listen", 0) / 60), "goal": stage["listenMin"]},
-        {"id": "dictate", "label": "听写", "href": "/listening", "unit": "句", "done": dictated_today, "goal": stage["dictation"]},
+         "done": round(today.get("listen", 0) / 60), "goal": amounts["listenMin"]},
+        {"id": "dictate", "label": "听写", "href": "/listening", "unit": "句", "done": dictated_today, "goal": amounts["dictation"]},
         {"id": "read", "label": "精读文章", "href": "/reading", "unit": "分钟",
-         "done": round(today.get("read", 0) / 60), "goal": stage["readMin"]},
+         "done": round(today.get("read", 0) / 60), "goal": amounts["readMin"]},
     ]
     for t in tasks:
         t["complete"] = (t["left"] == 0) if t["goal"] is None else t["done"] >= t["goal"]
-    return {"stage": stage, "stages": STAGES, "quota": quota, "tasks": tasks, "streak": streak(log, now),
+    return {"stage": stage, "stages": STAGES, "goal": goal, "tasks": tasks, "streak": streak(log, now),
             "examDate": profile.get("examDate"), "history": history(log, 30, now)}

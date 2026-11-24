@@ -137,7 +137,7 @@ function setCurrent(i) {
   $(`.cue[data-i="${i}"]`)?.classList.add("active");
   followCurrent();
   const caption = $("#capEn");
-  const layered = glossOn && (Array.isArray(c.gl) || Array.isArray(c.seg));
+  const layered = glossOn && interlinearFor(c, data.translator);
   caption.classList.toggle("interlinear", layered);
   caption.innerHTML = layered ? renderInterlinear(c.text, visibleMarks(c), c.gl, c.seg) : renderMarked(c.text, visibleMarks(c));
   // one Chinese line only: when each phrase shows its Chinese, the whole-sentence translation is left out

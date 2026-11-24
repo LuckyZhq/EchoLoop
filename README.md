@@ -16,9 +16,13 @@ no account, no uploads.
 - **Dictation** – type what you hear; answers are compared word by word (contractions, numbers and UK/US spellings
   count as equal). Sentences below 90 % go to *Mistakes*, where you redo them in place with the original audio.
   Deleting a video keeps its mistakes and the sentences your saved words came from, with a short clip of each.
-- **Level test** – read three short passages, click the words you don't know, answer a short spot-check.
-  You get an estimated vocabulary size and a rough IELTS band; from then on only the words between your level and your
-  target are marked.
+- **My goals** – one page, at the top of the sidebar, decides how much you study and what for. *Current level*: read
+  three short passages, click the words you don't know, answer a short spot-check, and get an estimated vocabulary
+  size and a rough IELTS band (or just pick a band). *Goal*: target band and exam date. *Stage*: worked out from your
+  band (beginner, basic, improving, sprint) with the reason shown, e.g. "5.5 → improving · 1.5 bands to go · exam in
+  120 days"; you can override it. *Daily amounts*: new words, listening, dictation and reading, recommended by the stage
+  and the exam date, each adjustable. Review, word books, today's plan and the words marked in videos all take their
+  numbers from here, so they always agree.
 - **Words** – one place with four tabs. *Today's review*: saved words come back as fill-in-the-blank cards from
   the sentence you met them in, with the original audio, scheduled with a simplified SM-2 (like Anki); a line at the
   top says where today's cards come from (new from the word book · new saved words · reviews · left in the book).
@@ -43,8 +47,7 @@ no account, no uploads.
   and auto-saved drafts, or paste your own question. Your API marks it against the four writing criteria, corrects it
   sentence by sentence (highlighted in your text), suggests better words and rewrites it at Band 8 keeping your ideas.
   Every marked essay is kept, so you can compare over time. The questions are original, in the style of the test.
-- **Study plan** – four stages from beginner to band 7+, daily goals that fill in as you study, streaks, progress charts,
-  and a daily new-word quota that follows your exam date.
+- **Today's plan** – on My goals: daily tasks that fill in as you study, streaks, progress charts.
 
 ## Where videos and podcasts can come from
 
@@ -67,16 +70,21 @@ Any other site [yt-dlp supports](https://github.com/yt-dlp/yt-dlp/blob/master/su
 
 Interface and translations in **16 languages**: 简体中文, 繁體中文 (Taiwan), English (English-only explanations),
 Español, Português, Français, Deutsch, 日本語, 한국어, Tiếng Việt, Bahasa Indonesia, ไทย, Türkçe, Русский, العربية
-(right-to-left) and हिन्दी. Pick yours on the home page.
+(right-to-left) and हिन्दी. There is one choice, your **native language** (on the home page, or Settings → Appearance and
+language): it sets what subtitles and meanings are translated into and the interface language. If you want them to
+differ, say a Chinese speaker with an English interface, turn on "Interface language differs from native language".
+After switching to another language, videos and articles you already have stay in the old one until you click
+"↻ Translate again" on each.
 
 | | Chinese learners | Other languages |
 |---|---|---|
 | Subtitle translation | API, or offline (Argos) | API with phrase-by-phrase translation (any language), or offline Argos (model downloaded on first use) |
 | Word meanings | offline English–Chinese dictionary (ECDICT) | API, cached per language; English definitions offline |
-| Word-by-word glosses | yes | phrase-by-phrase translation instead |
+| Meanings under the English | with an API: each phrase's meaning, other words from the dictionary; offline: whole-sentence translation only, click a word to look it up | the same |
 
 An API is optional but gives the best translations: any OpenAI-compatible provider works (DeepSeek, OpenAI, Gemini,
-Grok, Qwen, Kimi, GLM, Doubao or your own endpoint). Only subtitle text is sent, and only to the provider you choose.
+Grok, Qwen, Kimi, GLM, Doubao, Groq or your own endpoint). Only subtitle text is sent, and only to the provider you
+choose. Each provider's key is entered once, in Settings → Models and services → Providers and keys.
 
 ## Install
 
@@ -112,12 +120,12 @@ Words and sentences are read aloud by a neural voice model, [Kokoro](https://hug
 computer: British (female or male) for IELTS, American for CET. Its model (about 165 MB) is downloaded from Hugging
 Face the first time something is read aloud (hf-mirror.com is tried if Hugging Face can't be reached; an interrupted
 download continues where it stopped); until then, and for the Australian accent, your system's voice is used.
-Choose the voice and accent in Settings → Playback.
+Choose the voice and accent in Settings → Models and services.
 
 ### Speech recognition
 
 Used when a video has no human-made English subtitles, and for your speaking-practice recordings. Choose the method
-and model size in Settings → Speech recognition.
+and model size in Settings → Models and services.
 
 | Computer | Engine | "Auto" model |
 |---|---|---|
@@ -130,20 +138,28 @@ large one in the background; new imports use it as soon as it is there. You can 
 large yourself.
 
 **Cloud recognition** (optional): any OpenAI-compatible `/audio/transcriptions` endpoint with word timestamps, such as
-OpenAI `whisper-1` or Groq `whisper-large-v3-turbo`, with your own API key. It gives computers without a graphics card
+OpenAI `whisper-1` or Groq `whisper-large-v3-turbo`, using the key saved under Providers and keys (saving a key
+there for recognition doesn't change the provider used for translation). It gives computers without a graphics card
 large-model accuracy; the audio is sent as small MP3 pieces, and if the service can't be reached the local model is
 used. `IELTS_WHISPER` still overrides the local model.
 
+### Settings
+
+All settings are on one page with an index on the left, in five groups: Study (a summary of My goals), Models and
+services (providers and keys, speech recognition, voice), Playback, Appearance and language, and Data (download
+quality, storage, backup, phone access). Old addresses such as `/settings/backup` and `/level` redirect to their new
+place.
+
 ### Phone access
 
-Settings → Phone access lets a phone on the same Wi-Fi open the app (review, dictation, reading). After a restart the
+Settings → Data → Phone access lets a phone on the same Wi-Fi open the app (review, dictation, reading). After a restart the
 server listens on the local network, and a QR code carries an access key: phones without it are refused, and API keys,
 backups and settings can only be changed on the computer. Browsers only allow the microphone on HTTPS pages, so
 speaking practice stays on the computer.
 
 ### Backups
 
-Settings → Backup downloads a zip of your learning record (saved words, review history, mistakes, dictation scores,
+Settings → Data → Backup downloads a zip of your learning record (saved words, review history, mistakes, dictation scores,
 articles, speaking and writing history, kept clips; videos optional, API keys never) and restores one: files it
 replaces are first copied to `data/backups/`. It can also back up once a day into a folder you choose, such as an
 iCloud Drive, OneDrive, Dropbox or Nutstore folder, keeping the latest copies.

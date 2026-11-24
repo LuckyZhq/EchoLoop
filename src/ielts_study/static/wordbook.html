@@ -54,7 +54,7 @@ function bookHtml(b) {
 function render() {
   const s = data.state;
   $("#settings").innerHTML = `
-    <span>每天 <b>${data.perDay}</b> 个新词 <a href="/level">调整</a></span>
+    <span>每天 <b>${data.perDay}</b> 个新词 <a href="/goals">调整</a></span>
     <span class="book-easy">${data.easyLimit ? `自动跳过最常用的前 ${data.easyLimit} 个词（按你的词汇量）和已经认识、正在学的词` : "自动跳过已经认识、正在学的词；做一次水平测试后，还会跳过比你水平简单的词"}</span>
     ${s.book ? `<button type="button" class="btn ghost" id="noBook">不用词书</button>` : ""}`;
   $("#books").innerHTML = data.books.map(bookHtml).join("");

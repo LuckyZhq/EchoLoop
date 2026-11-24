@@ -75,7 +75,6 @@ const NAV_GROUPS = [
   ["read", "阅读", [["/reading", "文章精读", "reading"]]],
   ["speak", "口语", [["/speaking", "口语练习", "speaking"]]],
   ["write", "写作", [["/writing", "作文默写", "writing"]]],
-  ["plan", "计划", [["/level", "水平与目标", "level"]]],
 ];
 // 单词 is one entry with four tabs; every word page shows them (in the element with id="wordTabs").
 const WORD_TABS = [["/review", "今日复习"], ["/wordbook", "词书"], ["/vocab", "我的生词"], ["/sentences", "句子收藏"]];
@@ -93,7 +92,7 @@ if (workspaceNav) {
   let current = location.pathname;
   if (current.startsWith("/player/") || current === "/index.html") current = "/listening";
   if (current.startsWith("/reading/")) current = "/reading";
-  if (current.startsWith("/settings/")) current = "/settings";
+  if (current === "/level") current = "/goals";
   if (["/wordbook", "/vocab", "/sentences"].includes(current)) current = "/review";
   const link = (href, label, icon) => `
     <a class="workspace-link" href="${href}"${href === current ? ' aria-current="page"' : ""}>
@@ -105,6 +104,7 @@ if (workspaceNav) {
   workspaceNav.innerHTML = `
     <a class="workspace-label" href="/"${current === "/" ? ' aria-current="page"' : ""} title="首页">
       <span class="workspace-mark" aria-hidden="true"></span><span>IELTS Study</span></a>
+    <div class="workspace-links workspace-top">${link("/goals", "我的目标", "level")}</div>
     <nav class="workspace-groups" aria-label="主要导航">${NAV_GROUPS.map(([id, title, links]) => `
       <section class="nav-group nav-group-${id}" aria-labelledby="navGroup-${id}">
         <div class="nav-group-title" id="navGroup-${id}">${title}</div>
@@ -234,6 +234,20 @@ function renderMarked(text, marks = []) {
 // `seg` (from API translation) groups words into phrases with a Chinese meaning in context;
 // words outside any phrase show their dictionary gloss from `gloss`. Words keep data-k (same numbering
 // as renderMarked), so lookups and the spoken-word highlight keep working.
+// Which Chinese goes under the English. One rule everywhere:
+//  * API translation comes aligned phrase by phrase (seg): each phrase shows the model's Chinese, the other
+//    words their dictionary meaning;
+//  * offline translation has no alignment, and word-by-word dictionary meanings would contradict the sentence
+//    translation: only the whole sentence is shown (click a word to look it up);
+//  * English-only learners have no sentence translation, so English definitions stay under the words.
+function interlinearFor(c, translator) {
+  if (Array.isArray(c.seg) && c.seg.length) return true;
+  return translator === "none" && Array.isArray(c.gl);
+}
+// hover text naming where each line under the English comes from
+const SOURCE_PHRASE = "短语对照：模型翻译";
+const SOURCE_DICT = "单词释义：词典直译";
+
 function renderInterlinear(text, marks = [], gloss = [], seg = []) {
   gloss = gloss || []; seg = seg || [];
   const matches = [...text.matchAll(WORD_RE)];
@@ -265,7 +279,7 @@ function renderInterlinear(text, marks = [], gloss = [], seg = []) {
     }
   });
   return groups.map(g => `<span class="ic${g.phrase ? " ic-phrase" : ""}"><span class="ic-en">${g.html}</span>` +
-    `<span class="ic-zh">${g.zh ? esc(g.zh) : "&nbsp;"}</span></span>`).join("");
+    `<span class="ic-zh"${g.zh ? ` title="${g.phrase ? SOURCE_PHRASE : SOURCE_DICT}"` : ""}>${g.zh ? esc(g.zh) : "&nbsp;"}</span></span>`).join("");
 }
 
 // ---- Vocabulary level: which saved hard-word candidates to highlight.
@@ -311,7 +325,9 @@ function bandLabel(band) { return band === null || band === undefined ? "未设�
 
 // Words worth marking lie between what you already know and a little beyond your target:
 // lo = your vocabulary (tested, or typical for your current band), hi = typical for the target band + 20%.
+// The server works this out (goals.mark_range); the same rule here covers a profile cached before that.
 function markRange(profile = studyProfile) {
+  if (profile.markRange) return profile.markRange;
   const current = profile.current ?? 5.5;
   const target = profile.target ?? Math.min(9, current + 1.5);
   const lo = profile.vocabSize ?? bandVocab(current) ?? 3500;
@@ -468,9 +484,9 @@ async function toggleSaved(btn, cue, source) {
 const MODEL_NAMES = { "deepseek-flash": "DeepSeek V4.1 Flash", "deepseek-v4-flash": "DeepSeek V4.1 Flash", "deepseek-v4-pro": "DeepSeek V4 Pro" };
 function translationLabel(translator, model, aligned) {
   if (translator === "none") return "英文释义";  // English-only learners: nothing is translated
-  if (!translator || translator === "local") return "本地翻译";
+  if (!translator || translator === "local") return "本地翻译（整句，点单词查词典）";
   const name = MODEL_NAMES[model] || model || "API";
-  return `${name} ${aligned ? "短语对照" : "翻译"}${translator === "api+local" ? "（部分改用本地）" : ""}`;
+  return `${name} ${aligned ? "短语对照 · 其余单词用词典释义" : "翻译"}${translator === "api+local" ? "（部分改用本地）" : ""}`;
 }
 
 // Study time for the daily plan ("listen" in the player, "read" in articles). On page exit a beacon is used,

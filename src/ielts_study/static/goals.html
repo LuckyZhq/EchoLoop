@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>水平测试</title>
+<title>我的目标</title>
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -11,8 +11,8 @@
   <aside class="workspace-nav"></aside>
   <main class="wrap level-wrap">
     <header class="hero">
-      <h1>水平与目标</h1>
-      <p>先估一下你现在认识多少词，再定目标分数。之后视频和文章里只标出你下一步该学的词。</p>
+      <h1>我的目标</h1>
+      <p>现在的水平、目标、阶段和每天学多少，都只在这里定。今日复习、词书、今天的计划和视频里标出的难词都按这里的数字来。</p>
     </header>
 
     <section class="plan-card" id="plan" hidden aria-labelledby="planTitle">
@@ -66,23 +66,36 @@
 
     <!-- 4. result / profile -->
     <section class="level-panel" id="result" hidden>
-      <div class="level-result-top" id="resultTop"></div>
-      <div class="level-bars" id="bars"></div>
-      <p class="level-note" id="resultNote"></p>
+      <div class="goal-grid">
+        <section class="goal-block" aria-labelledby="levelTitle">
+          <div class="level-sub"><h2 id="levelTitle">当前水平</h2><button type="button" class="btn" id="retest">重新测试</button></div>
+          <div class="level-result-top" id="resultTop"></div>
+          <div class="level-bars" id="bars"></div>
+          <p class="level-note" id="resultNote"></p>
+          <label class="level-field"><span>现在的水平</span><span class="select-wrap"><select class="btn" id="currentBand"></select></span></label>
+        </section>
 
-      <div class="level-goal">
-        <label class="level-field"><span>现在的水平</span><span class="select-wrap"><select class="btn" id="currentBand"></select></span></label>
-        <span class="level-arrow" aria-hidden="true">→</span>
-        <label class="level-field"><span>目标分数</span><span class="select-wrap"><select class="btn" id="targetBand"></select></span></label>
-        <label class="level-field"><span>考试日期（可不填）</span><input class="btn level-date" type="date" id="examDate"></label>
-      </div>
-      <p class="level-range" id="rangeText"></p>
-      <p class="level-range" id="quotaText" hidden></p>
+        <section class="goal-block" aria-labelledby="targetTitle">
+          <h2 id="targetTitle">目标</h2>
+          <label class="level-field"><span>目标分数</span><span class="select-wrap"><select class="btn" id="targetBand"></select></span></label>
+          <label class="level-field"><span>考试日期（可不填）</span><input class="btn level-date" type="date" id="examDate"></label>
+          <p class="level-range" id="rangeText"></p>
+        </section>
 
-      <div class="level-stage" id="stageBlock" hidden>
-        <div class="level-sub"><h3 id="stageTitle"></h3><button type="button" class="btn" id="applyStage">应用推荐的播放设置</button></div>
-        <p class="level-hint" id="stageFocus"></p>
-        <div class="level-presets" id="stagePresets"></div>
+        <section class="goal-block" aria-labelledby="stageTitle">
+          <div class="level-sub"><h2 id="stageTitle">当前阶段</h2><span class="goal-mode" id="stageMode" hidden>手动</span></div>
+          <label class="level-field"><span>阶段</span><span class="select-wrap"><select class="btn" id="stageSelect"></select></span></label>
+          <p class="level-range" id="stageReason"></p>
+          <p class="level-hint" id="stageFocus"></p>
+          <div class="level-presets" id="stagePresets"></div>
+          <button type="button" class="btn" id="applyStage">应用这个阶段的播放设置</button>
+        </section>
+
+        <section class="goal-block" aria-labelledby="quotaTitle">
+          <h2 id="quotaTitle">每日配额</h2>
+          <div class="goal-quotas" id="quotas"></div>
+          <p class="level-range" id="quotaText" hidden></p>
+        </section>
       </div>
 
       <div class="level-progress-charts" id="charts" hidden>
@@ -103,7 +116,6 @@
       </div>
 
       <div class="level-actions">
-        <button type="button" class="btn" id="retest">重新测试</button>
         <a class="btn primary" href="/listening">去视频精听</a>
       </div>
       <div class="level-history" id="history"></div>
@@ -229,15 +241,15 @@ $("#currentBand").onchange = e => saveGoal({ current: e.target.value === "" ? nu
 $("#targetBand").onchange = e => saveGoal({ target: e.target.value === "" ? null : e.target.value });
 $("#examDate").onchange = e => saveGoal({ examDate: e.target.value || null });
 
-// ---------- stage presets and progress (from /api/plan)
+// ---------- stage, daily amounts and today's plan (all from /api/plan, which takes them from goals.today)
 let planData = null;
 async function loadPlan() {
   try { planData = await api("/api/plan"); } catch { return; }
   renderPlan();
 }
+const QUOTA_ROWS = [["newWords", "每天新词", "个"], ["listenMin", "精听", "分钟"], ["dictation", "听写", "句"], ["readMin", "精读", "分钟"]];
 const PRESET_LABELS = s => [
   ["播放速度", `${s.speed}×`], ["中文", s.zh ? "默认显示" : "默认隐藏（按 C 显示）"], ["逐词/短语释义", s.gloss ? "开" : "关"],
-  ["每天新词", `${s.newWords} 个`], ["精听", `${s.listenMin} 分钟`], ["听写", `${s.dictation} 句`], ["精读", `${s.readMin} 分钟`],
 ];
 // Today's plan: progress fills in by itself as you study
 function renderToday(plan) {
@@ -259,27 +271,73 @@ function renderToday(plan) {
   $("#planNote").textContent = "";
 }
 
+// Why this stage: the bands it covers, how far the target is and how many days are left.
+function stageReason(g) {
+  const r = g.reason, stages = g.stages;
+  const auto = stages.find(s => s.id === g.autoStage);
+  const next = stages[stages.indexOf(auto) + 1];
+  const bands = next ? `${auto.from}–${next.from} 分` : `${auto.from} 分以上`;
+  const parts = [r.current === null
+    ? `还没有设置现在的水平，先按 5.5 分算：「${auto.name}」阶段（${bands}）`
+    : `现在 ${r.current} 分 →「${auto.name}」阶段（${bands}）`];
+  if (r.bandGap !== null) parts.push(r.bandGap > 0 ? `距目标还差 ${r.bandGap} 分` : "已经达到目标分数");
+  if (r.daysLeft !== null) parts.push(r.daysLeft > 0 ? `离考试还剩 ${r.daysLeft} 天` : "考试日期已经过了");
+  if (g.stageMode === "manual") parts.push(`现在手动用「${g.stage.name}」阶段，选「自动」可恢复`);
+  return parts.map(esc).join(" · ");
+}
+
+function renderGoal(g) {
+  const auto = g.stages.find(s => s.id === g.autoStage);
+  $("#stageSelect").replaceChildren(new Option(`自动（${auto.name}）`, "auto"),
+    ...g.stages.map(s => new Option(s.name, s.id)));
+  $("#stageSelect").value = g.stageMode === "manual" ? g.stage.id : "auto";
+  $("#stageMode").hidden = g.stageMode !== "manual";
+  $("#stageReason").innerHTML = stageReason(g);
+  $("#stageFocus").textContent = g.stage.focus;
+  $("#stagePresets").innerHTML = PRESET_LABELS(g.stage).map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("");
+  $("#quotas").innerHTML = QUOTA_ROWS.map(([key, label, unit]) => {
+    const manual = key in g.overrides;
+    return `<div class="goal-quota${manual ? " manual" : ""}">
+      <label for="q-${key}">${label}</label>
+      <span class="goal-quota-input"><input class="btn" type="number" id="q-${key}" data-quota="${key}" min="1" step="1" value="${g.quota[key]}"><span>${unit}</span></span>
+      ${manual ? `<button type="button" class="linkbtn" data-reset="${key}" title="恢复推荐的数量">手动 · 恢复推荐 ${g.recommended[key]}</button>`
+        : `<small>推荐</small>`}
+    </div>`;
+  }).join("");
+  const q = g.newWords;
+  $("#quotaText").hidden = !q.gap;
+  $("#quotaText").innerHTML = q.daysLeft !== null && q.daysLeft > 0
+    ? `距考试 <b>${q.daysLeft} 天</b>，离目标约差 ${q.gap} 词，推荐每天 <b>${q.count} 个新词</b>${q.needed > q.count ? `（按天数需要 ${q.needed} 个，已按上限安排）` : ""}。`
+    : q.daysLeft !== null && q.daysLeft <= 0 ? "考试日期已经过了，可以改一个新的日期。"
+    : `离目标约差 ${q.gap} 词，按每天 ${q.count} 个新词大约需要 ${q.daysAtThisPace} 天。填上考试日期，会按剩余天数推荐每天的新词。`;
+}
+
 function renderPlan() {
   if (!planData) return;
   renderToday(planData);
-  const p = studyProfile;
-  $("#examDate").value = p.examDate || "";
-  const q = planData.quota;
-  $("#quotaText").hidden = !q.gap;
-  $("#quotaText").innerHTML = q.daysLeft !== null && q.daysLeft > 0
-    ? `距考试 <b>${q.daysLeft} 天</b>，离目标约差 ${q.gap} 词，每天安排 <b>${q.count} 个新词</b>${q.needed > q.count ? `（按天数需要 ${q.needed} 个，已按上限安排）` : ""}。`
-    : q.daysLeft !== null && q.daysLeft <= 0 ? "考试日期已经过了，可以改一个新的日期。"
-    : `离目标约差 ${q.gap} 词，按每天 ${q.count} 个新词大约需要 ${q.daysAtThisPace} 天。填上考试日期，会按剩余天数安排每天的新词。`;
-  const s = planData.stage;
-  $("#stageBlock").hidden = p.current === null || p.current === undefined;
-  $("#stageTitle").textContent = `你在「${s.name}」阶段`;
-  $("#stageFocus").textContent = s.focus;
-  $("#stagePresets").innerHTML = PRESET_LABELS(s).map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join("");
+  $("#examDate").value = studyProfile.examDate || "";
+  renderGoal(planData.goal);
   renderCharts();
 }
-// Playback settings are saved per browser (like Settings → 播放); the daily amounts follow the stage by themselves.
+async function saveQuota(key, value) {
+  const g = planData.goal;
+  const quotas = { ...g.overrides };
+  if (value === null || value === g.recommended[key]) delete quotas[key];
+  else quotas[key] = value;
+  await saveGoal({ quotas });
+}
+$("#stageSelect").onchange = e => saveGoal({ stage: e.target.value });
+$("#quotas").addEventListener("change", e => {
+  const input = e.target.closest("[data-quota]");
+  if (!input) return;
+  const n = Math.round(Number(input.value));
+  if (!(n >= 1)) { input.value = planData.goal.quota[input.dataset.quota]; return toast("请填 1 以上的整数"); }
+  saveQuota(input.dataset.quota, n);
+});
+$("#quotas").addEventListener("click", e => { const b = e.target.closest("[data-reset]"); if (b) saveQuota(b.dataset.reset, null); });
+// Playback settings are saved per browser (like Settings → 播放).
 $("#applyStage").onclick = () => {
-  const s = planData.stage;
+  const s = planData.goal.stage;
   try {
     localStorage.setItem("speed", s.speed);
     localStorage.setItem("zh", s.zh ? "1" : "0");

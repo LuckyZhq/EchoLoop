@@ -1,4 +1,4 @@
-"""水平测试 and the learner profile (current level, target, words marked 我认识).
+"""水平测试 and the learner profile: current level, target, exam date, stage and daily amounts (see goals.py).
 
 The test: three short passages from easy to hard. The learner clicks every word they don't know; a short
 spot-check then asks the meaning of a few harder words they did *not* click, because people tend to skip
@@ -187,6 +187,8 @@ def load_profile() -> dict:
     p.setdefault("vocabSize", None)
     p.setdefault("tests", [])
     p.setdefault("examDate", None)
+    p.setdefault("stage", "auto")
+    p.setdefault("quotas", {})
     return p
 
 
@@ -224,6 +226,12 @@ def update_profile(changes: dict) -> dict:
             p["examDate"] = _exam_date(changes["examDate"])
         if "vocabSize" in changes and changes["vocabSize"] is None:
             p["vocabSize"] = None  # choosing a level by hand replaces the tested vocabulary
+        if "stage" in changes:  # a stage id chosen by hand, or "auto"
+            from .goals import STAGE_IDS
+            p["stage"] = changes["stage"] if changes["stage"] in STAGE_IDS else "auto"
+        if "quotas" in changes:  # per-item daily amounts; a missing item follows the recommendation
+            from .goals import clean_overrides
+            p["quotas"] = clean_overrides(changes["quotas"])
         save_profile(p)
         return p
 
@@ -244,9 +252,9 @@ def record_test(result: dict) -> dict:
 def public_profile(items: list[dict]) -> dict:
     """Profile for the pages, with the words to stop marking from the word ledger: known words, and words
     already well remembered in 单词复习."""
-    from . import words
+    from . import goals, words
 
     p = load_profile()
     p.pop("known", None)  # a profile saved before the word ledger
     return {**p, "known": words.known_words(items), "mature": words.mature_words(items),
-            "bandVocab": {str(k): v for k, v in BAND_VOCAB.items()}}
+            "bandVocab": {str(k): v for k, v in BAND_VOCAB.items()}, "markRange": goals.mark_range(p)}

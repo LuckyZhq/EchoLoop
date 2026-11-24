@@ -47,3 +47,12 @@ def test_unknown_engine_or_provider_is_refused():
         settings_from({"engine": "cloud"}, SAVED)
     with pytest.raises(ValueError):
         settings_from({"engine": "api", "provider": "nope"}, SAVED)
+
+
+def test_a_key_can_be_saved_without_switching_translation():
+    s = settings_from({"engine": "api", "provider": "groq", "apiKey": "gsk-1", "keepActive": True}, SAVED)
+    assert (s.engine, s.provider, s.api_key) == ("api", "deepseek", "sk-saved")
+    assert s.profiles["groq"]["api_key"] == "gsk-1" and "deepseek" not in s.profiles
+    # keepActive on the provider already in use is an ordinary save
+    s = settings_from({"engine": "api", "provider": "deepseek", "model": "deepseek-v4-pro", "keepActive": True}, SAVED)
+    assert (s.provider, s.model, s.api_key) == ("deepseek", "deepseek-v4-pro", "sk-saved")

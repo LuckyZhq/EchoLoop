@@ -6,12 +6,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from ielts_study import asr
+from ielts_study import asr, settings
 
 
 @pytest.fixture
 def settings_file(tmp_path, monkeypatch):
     monkeypatch.setattr(asr, "ASR_PATH", tmp_path / "asr.json")
+    monkeypatch.setattr(settings, "SETTINGS_PATH", tmp_path / "settings.json")  # the providers and their keys
     return tmp_path / "asr.json"
 
 
@@ -47,12 +48,29 @@ def test_chosen_size_is_used_as_is(monkeypatch, settings_file):
     assert asr.local_model() == "medium"
 
 
-def test_cloud_needs_a_key(settings_file):
-    with pytest.raises(ValueError):
+def test_cloud_uses_the_one_saved_key(settings_file):
+    with pytest.raises(ValueError, match="服务商与密钥"):
         asr.save_settings({"engine": "cloud", "provider": "groq"})
-    s = asr.save_settings({"engine": "cloud", "provider": "groq", "apiKey": "gsk_test123"})
+    # the key is typed once, in the provider list; translation keeps using its own provider
+    settings.save_settings({"engine": "local"})
+    settings.save_settings({"engine": "api", "provider": "groq", "apiKey": "gsk_test123", "keepActive": True})
+    assert settings.load_settings().engine == "local"
+    s = asr.save_settings({"engine": "cloud", "provider": "groq", "apiKey": "ignored"})
     assert s.endpoint() == ("https://api.groq.com/openai/v1", "whisper-large-v3-turbo", "gsk_test123")
-    assert "gsk_test123" not in json.dumps(s.public())
+    assert "gsk_test123" not in json.dumps(s.public()) and "gsk_test123" not in settings_file.read_text()
+    assert [p["hasKey"] for p in s.public()["providers"]] == [False, True, False]
+
+
+def test_keys_from_the_old_form_move_to_the_provider_list(settings_file):
+    settings.save_settings({"engine": "api", "provider": "deepseek", "model": "deepseek-flash", "apiKey": "sk-ds"})
+    settings_file.write_text(json.dumps({"engine": "cloud", "provider": "openai", "keys": {"openai": "sk-old", "groq": "gsk-old"}}))
+    assert asr.migrate_keys() == 2
+    assert settings.provider_access("openai") == ("https://api.openai.com/v1", "sk-old")
+    assert settings.provider_access("groq")[1] == "gsk-old"
+    saved = settings.load_settings()
+    assert (saved.engine, saved.provider, saved.api_key) == ("api", "deepseek", "sk-ds")  # translation unchanged
+    assert "keys" not in settings_file.read_text() or json.loads(settings_file.read_text())["keys"] == {}
+    assert asr.load_settings().endpoint()[2] == "sk-old" and asr.migrate_keys() == 0
 
 
 def test_punctuation_comes_from_segments():
@@ -108,7 +126,8 @@ def test_cloud_transcription(cloud):
 
 
 def test_cloud_failure_falls_back_to_local(monkeypatch, settings_file):
-    asr.save_settings({"engine": "cloud", "provider": "openai", "apiKey": "sk-test"})
+    settings.store_key("openai", "sk-test")
+    asr.save_settings({"engine": "cloud", "provider": "openai"})
 
     def broken(*a, **k):
         raise asr.CloudError("连不上云端识别服务")

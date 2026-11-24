@@ -58,23 +58,30 @@ CHUNK_SECONDS = 600  # cloud services take files up to 25 MB; 10 minutes of 32 k
 class AsrSettings:
     engine: str = "local"        # local | cloud
     model: str = "auto"          # auto | base | small | medium | large
-    provider: str = "openai"
-    base_url: str = ""
+    provider: str = "openai"     # openai | groq | custom: the provider's address and key come from settings.py
+    base_url: str = ""           # an address saved here before the keys moved to settings.py (custom only)
     cloud_model: str = ""
-    keys: dict = field(default_factory=dict, repr=False)  # provider -> API key
+    keys: dict = field(default_factory=dict, repr=False)  # keys saved here before; moved by migrate_keys()
 
     def endpoint(self) -> tuple[str, str, str]:
-        _, url, model, _ = CLOUD_PROVIDERS.get(self.provider, CLOUD_PROVIDERS["custom"])
-        return (self.base_url or url).rstrip("/"), self.cloud_model or model, self.keys.get(self.provider, "")
+        from .settings import provider_access
+
+        _, default_url, model, _ = CLOUD_PROVIDERS.get(self.provider, CLOUD_PROVIDERS["custom"])
+        url, key = provider_access(self.provider)
+        if self.provider == "custom" and self.base_url and self.base_url.rstrip("/") != url:
+            url, key = self.base_url, self.keys.get("custom", "")  # a separate recognition server set up before
+        return (url or default_url).rstrip("/"), self.cloud_model or model, key or self.keys.get(self.provider, "")
 
     def public(self) -> dict:
+        from .settings import API_PROVIDERS, provider_access
+
         url, model, key = self.endpoint()
         return {
             "engine": self.engine, "model": self.model, "provider": self.provider, "baseUrl": url,
             "cloudModel": model, "hasKey": bool(key),
-            "providers": [{"id": pid, "name": name, "baseUrl": u, "model": m, "console": c,
-                           "hasKey": bool(self.keys.get(pid))}
-                          for pid, (name, u, m, c) in CLOUD_PROVIDERS.items()],
+            "providers": [{"id": pid, "name": API_PROVIDERS[pid][0], "baseUrl": provider_access(pid)[0] or u,
+                           "model": m, "hasKey": bool(provider_access(pid)[1] or self.keys.get(pid))}
+                          for pid, (_, u, m, _) in CLOUD_PROVIDERS.items()],
             "local": local_status(self),
         }
 
@@ -87,9 +94,45 @@ def load_settings() -> AsrSettings:
         return AsrSettings()
 
 
-def save_settings(payload: dict) -> AsrSettings:
-    from .settings import _base_url
+def _write(settings: AsrSettings) -> None:
+    ASR_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".asr-", dir=ASR_PATH.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(asdict(settings), f, ensure_ascii=False, indent=2)
+        os.replace(name, ASR_PATH)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
 
+
+def migrate_keys() -> int:
+    """Keys typed into the old speech-recognition form move to the one list of providers (settings.py).
+    A provider that already has a key there keeps it. Returns how many keys moved."""
+    from . import settings as provider_settings
+
+    with _lock:
+        current = load_settings()
+        if not current.keys:
+            return 0
+        moved = 0
+        for pid, key in current.keys.items():
+            if pid not in CLOUD_PROVIDERS or not key:
+                continue
+            address = current.base_url.rstrip("/") if pid == "custom" else ""
+            shared_url, shared_key = provider_settings.provider_access(pid)
+            if pid == "custom" and shared_url and shared_url != address:
+                continue  # a recognition server of its own: its key stays with it (see endpoint)
+            if not shared_key:
+                provider_settings.store_key(pid, key, address)
+                moved += 1
+        keep = {"custom": current.keys["custom"]} if current.keys.get("custom") and current.base_url and \
+            provider_settings.provider_access("custom")[0] != current.base_url.rstrip("/") else {}
+        _write(AsrSettings(current.engine, current.model, current.provider, current.base_url, current.cloud_model, keep))
+        return moved
+
+
+def save_settings(payload: dict) -> AsrSettings:
     with _lock:
         current = load_settings()
         engine = payload.get("engine", current.engine)
@@ -97,35 +140,17 @@ def save_settings(payload: dict) -> AsrSettings:
         provider = payload.get("provider", current.provider)
         if engine not in ("local", "cloud") or model not in ("auto", *SIZES) or provider not in CLOUD_PROVIDERS:
             raise ValueError("请选择有效的识别方式。")
-        base_url = str(payload.get("baseUrl", current.base_url if provider == current.provider else "") or "").strip()
-        if base_url:
-            base_url = _base_url(base_url)
-        if provider != "custom" and base_url == CLOUD_PROVIDERS[provider][1]:
-            base_url = ""
         cloud_model = str(payload.get("cloudModel", current.cloud_model if provider == current.provider else "")
                           or "").strip()[:200]
-        keys = dict(current.keys)
-        key = str(payload.get("apiKey") or "").strip()
-        if key:
-            if len(key) > 4096 or not re.fullmatch(r"[\x21-\x7e]+", key):
-                raise ValueError("API Key 含有无效字符，请重新复制。")
-            keys[provider] = key
-        if payload.get("clearKey") is True:
-            keys.pop(provider, None)
-        if engine == "cloud" and not keys.get(provider) and provider != "custom":
-            raise ValueError("请填写这个服务商的 API Key。")
-        if engine == "cloud" and provider == "custom" and not base_url:
-            raise ValueError("请填写 API 地址。")
-        settings = AsrSettings(engine, model, provider, base_url, cloud_model, keys)
-        ASR_PATH.parent.mkdir(parents=True, exist_ok=True)
-        fd, name = tempfile.mkstemp(prefix=".asr-", dir=ASR_PATH.parent)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(asdict(settings), f, ensure_ascii=False, indent=2)
-            os.replace(name, ASR_PATH)
-        finally:
-            if os.path.exists(name):
-                os.unlink(name)
+        settings = AsrSettings(engine, model, provider, current.base_url if provider == "custom" else "",
+                               cloud_model, current.keys)
+        if engine == "cloud":
+            url, _, key = settings.endpoint()
+            if provider == "custom" and not url:
+                raise ValueError("先在「服务商与密钥」里填写自定义 API 的地址。")
+            if provider != "custom" and not key:
+                raise ValueError("先在「服务商与密钥」里填写这个服务商的 API Key。")
+        _write(settings)
     if engine == "local":
         _start_upgrade(settings)
     return settings

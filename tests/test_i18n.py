@@ -29,7 +29,7 @@ def test_english_table_is_valid_and_has_no_untranslated_values():
             assert not i18n.HAN.search(value), (key, value)
 
 
-@pytest.mark.parametrize("name", ["home.html", "player.html", "settings.html", "level.html", "review.html", "common.js"])
+@pytest.mark.parametrize("name", ["home.html", "player.html", "settings.html", "goals.html", "review.html", "common.js"])
 def test_english_pages_keep_their_markup(name):
     path = server.STATIC_DIR / name
     out = i18n.page(path, "en").decode()

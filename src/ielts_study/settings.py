@@ -1,4 +1,9 @@
-"""Local translation settings. The API key stays on the server."""
+"""API providers and the translation engine. The API keys stay on the server.
+
+Each provider's address, model and key are saved once here (TranslationSettings.profiles, plus the provider in
+use for translation). Everything that calls a provider reads them from here: subtitle translation, AI
+marking and articles (the provider in use), and cloud speech recognition (asr.py, through provider_access).
+"""
 from __future__ import annotations
 
 import json
@@ -23,6 +28,7 @@ API_PROVIDERS = {
     "kimi": ("Kimi · 月之暗面", "https://api.moonshot.cn/v1", "", "https://platform.moonshot.cn/"),
     "glm": ("GLM · 智谱", "https://open.bigmodel.cn/api/paas/v4", "", "https://open.bigmodel.cn/"),
     "doubao": ("豆包 · 火山方舟", "https://ark.cn-beijing.volces.com/api/v3", "doubao-seed-2-1-pro-260915", "https://console.volcengine.com/ark/"),
+    "groq": ("Groq", "https://api.groq.com/openai/v1", "", "https://console.groq.com/keys"),
     "custom": ("自定义 OpenAI 兼容 API", "", "", ""),
 }
 
@@ -114,9 +120,9 @@ def settings_from(payload: dict, current: TranslationSettings, *, require_model:
         base_url = _base_url(base_url)
     if not base_url:
         raise ValueError("请填写 API 地址。")
-    if require_model and not model:
+    keep_active = payload.get("keepActive") is True and not (current.engine == "api" and current.provider == provider)
+    if require_model and not model and not keep_active:
         raise ValueError("请填写 API 地址和模型名称。")
-
     supplied_key = _text(payload, "apiKey", "", 4096)
     if supplied_key and not re.fullmatch(r"[\x21-\x7e]+", supplied_key):
         raise ValueError("API Key 含有无效字符，请重新复制。")
@@ -124,6 +130,12 @@ def settings_from(payload: dict, current: TranslationSettings, *, require_model:
     key = "" if payload.get("clearKey") is True else supplied_key or saved_key
     if not key and provider != "custom" and payload.get("clearKey") is not True:
         raise ValueError("请填写这个服务商的 API Key。")
+    if keep_active:  # save this provider's key (for speech recognition, say) without switching translation to it
+        profiles[provider] = {"base_url": base_url, "model": model, "api_key": key}
+        if current.engine == "api":
+            profiles.pop(current.provider, None)
+        return TranslationSettings(current.engine, current.base_url, current.model, current.api_key,
+                                   current.provider, profiles)
     profiles.pop(provider, None)
     return TranslationSettings(engine, base_url, model, key, provider, profiles)
 
@@ -131,13 +143,46 @@ def settings_from(payload: dict, current: TranslationSettings, *, require_model:
 def save_settings(payload: dict) -> TranslationSettings:
     with _lock:
         settings = settings_from(payload, load_settings())
-        SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        fd, name = tempfile.mkstemp(prefix=".settings-", dir=SETTINGS_PATH.parent)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as file:
-                json.dump(asdict(settings), file, ensure_ascii=False, indent=2)
-            os.replace(name, SETTINGS_PATH)
-        finally:
-            if os.path.exists(name):
-                os.unlink(name)
+        _write(settings)
         return settings
+
+
+def _write(settings: TranslationSettings) -> None:
+    SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".settings-", dir=SETTINGS_PATH.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as file:
+            json.dump(asdict(settings), file, ensure_ascii=False, indent=2)
+        os.replace(name, SETTINGS_PATH)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def provider_access(provider: str, settings: TranslationSettings | None = None) -> tuple[str, str]:
+    """(address, API key) saved for a provider; the default address and no key when none is saved."""
+    settings = load_settings() if settings is None else settings
+    profile = settings.api_profiles().get(provider, {})
+    default = API_PROVIDERS.get(provider, ("", "", "", ""))[1]
+    return (profile.get("base_url") or default).rstrip("/"), profile.get("api_key", "")
+
+
+def store_key(provider: str, key: str, base_url: str = "") -> None:
+    """Save a key for a provider that has none yet (moving keys saved elsewhere before), keeping everything else."""
+    with _lock:
+        current = load_settings()
+        if provider not in API_PROVIDERS or provider_access(provider, current)[1]:
+            return
+        profiles = current.api_profiles()
+        old = profiles.get(provider, {})
+        profiles[provider] = {"base_url": base_url or old.get("base_url") or API_PROVIDERS[provider][1],
+                              "model": old.get("model", API_PROVIDERS[provider][2]), "api_key": key}
+        if current.engine == "api" and current.provider == provider:
+            new = TranslationSettings(current.engine, profiles[provider]["base_url"], current.model, key, provider,
+                                      {k: v for k, v in profiles.items() if k != provider})
+        else:
+            if current.engine == "api":
+                profiles.pop(current.provider, None)
+            new = TranslationSettings(current.engine, current.base_url, current.model, current.api_key,
+                                      current.provider, profiles)
+        _write(new)

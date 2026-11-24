@@ -20,14 +20,17 @@ from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlpars
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import asr, backup, graded, i18n, keep, languages, placement, plan, reading, review, network, speaking, tts, wordbook, words, writing
+from . import asr, backup, goals, graded, i18n, keep, languages, placement, plan, reading, review, network, speaking, tts, wordbook, words, writing
 from .settings import load_settings, save_settings, settings_from
 
 _vocab_lock = words._lock  # held while a deleted video's sentences are kept for its words
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
-SETTINGS_PATHS = {"/settings", "/settings/appearance", "/settings/download", "/settings/storage",
-                  "/settings/playback", "/settings/study", "/settings/translation", "/settings/speech",
-                  "/settings/devices", "/settings/backup"}
+# Settings is one page; the old sub-pages go to their place on it, so bookmarks and links keep working.
+OLD_SETTINGS = {"/settings/appearance": "appearance", "/settings/download": "download", "/settings/storage": "storage",
+                "/settings/playback": "playback", "/settings/study": "study", "/settings/translation": "translation",
+                "/settings/speech": "speech", "/settings/devices": "devices", "/settings/backup": "backup"}
+# Old page → its new address (the 水平与目标 page is now 我的目标).
+MOVED = {**{old: f"/settings#{anchor}" for old, anchor in OLD_SETTINGS.items()}, "/level": "/goals"}
 
 
 def load_vocab() -> list[dict]:
@@ -222,7 +225,7 @@ def wordbook_overview(dic, lang: str) -> dict:
 
 def new_quota() -> int:
     """Today's new-word limit from the study plan (stage default, or what the exam date requires)."""
-    return plan.new_per_day(placement.load_profile())["count"]
+    return goals.new_per_day()
 
 
 def dictated_counts() -> tuple[int, int]:
@@ -347,6 +350,7 @@ class App:
         merged = words.migrate()  # once: fold vocab.json, the known list and wordbook.json into words.json
         if merged:
             say("单词记录已合并：", str(merged["words"]), "个词，其中", str(merged["known"]), "个已掌握")
+        asr.migrate_keys()  # once: keys typed into the old recognition form join the one provider list
         wordbook.attach(self.dic)
         self.pipeline = Pipeline(self.dic)
 
@@ -430,6 +434,13 @@ def make_handler(app: App):
                 return False
             self._json({"error": "forbidden"}, 403)
             return False
+
+        def _redirect(self, target: str, query: str = ""):
+            path, _, anchor = target.partition("#")
+            self.send_response(302)
+            self.send_header("Location", path + (f"?{query}" if query else "") + (f"#{anchor}" if anchor else ""))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
 
         def _file(self, path, ctype=None, download_name=None):
             if not path.exists() or not path.is_file():
@@ -595,8 +606,12 @@ def make_handler(app: App):
                 return self._json(reading.ensure_article_annotation(data, app.dic))
             if p.startswith("/player/"):
                 return self._file(STATIC_DIR / "player.html", "text/html; charset=utf-8")
-            if p == "/level":
-                return self._file(STATIC_DIR / "level.html", "text/html; charset=utf-8")
+            if p.rstrip("/") in MOVED:
+                return self._redirect(MOVED[p.rstrip("/")], urlparse(self.path).query)
+            if p == "/goals":
+                return self._file(STATIC_DIR / "goals.html", "text/html; charset=utf-8")
+            if p == "/api/goals":
+                return self._json(goals.today())
             if p == "/api/profile":
                 return self._json(placement.public_profile(load_vocab()))
             if p == "/api/placement":
@@ -624,7 +639,7 @@ def make_handler(app: App):
                 return self._file(STATIC_DIR / "sentences.html", "text/html; charset=utf-8")
             if p == "/vocab":
                 return self._file(STATIC_DIR / "vocab.html", "text/html; charset=utf-8")
-            if p.rstrip("/") in SETTINGS_PATHS:
+            if p.rstrip("/") == "/settings":
                 return self._file(STATIC_DIR / "settings.html", "text/html; charset=utf-8")
             if p.startswith("/static/"):
                 target = (STATIC_DIR / p[len("/static/") :]).resolve()

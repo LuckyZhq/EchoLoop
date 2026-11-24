@@ -10,233 +10,40 @@
 <div class="workspace">
   <aside class="workspace-nav"></aside>
   <main class="wrap settings-wrap">
-    <header class="hero"><h1>设置</h1><p>按你的学习习惯调整外观、播放和 API。所有设置都只保存在这台电脑上。</p></header>
+    <header class="hero"><h1>设置</h1><p>所有设置都在这一页，分五组，只保存在这台电脑上。</p></header>
     <div class="settings-layout">
       <nav class="settings-index" aria-label="设置分类">
-        <a href="/settings/appearance"><b>外观</b><small>语言、主题、字幕字号</small></a>
-        <a href="/settings/download"><b>下载</b><small>视频清晰度</small></a>
-        <a href="/settings/storage"><b>存储</b><small>视频占用的空间</small></a>
-        <a href="/settings/playback"><b>播放</b><small>倍速、字幕和高亮</small></a>
-        <a href="/settings/study"><b>学习</b><small>雅思词汇水平</small></a>
-        <a href="/settings/translation"><b>API</b><small>服务商和模型</small></a>
-        <a href="/settings/speech"><b>语音识别</b><small>本地模型大小、云端识别</small></a>
-        <a href="/settings/devices"><b>手机访问</b><small>同一个 Wi-Fi 下用手机复习</small></a>
-        <a href="/settings/backup"><b>备份</b><small>导出、恢复、自动备份</small></a>
+        <a href="#study"><b>学习</b><small>水平、目标和每天学多少</small></a>
+        <a href="#services"><b>模型与服务</b><small>服务商、密钥、识别和朗读</small></a>
+        <a href="#playback"><b>播放</b><small>倍速、字幕和高亮</small></a>
+        <a href="#appearance"><b>外观与语言</b><small>母语、主题、字幕字号</small></a>
+        <a href="#data"><b>数据</b><small>下载、存储、备份、手机访问</small></a>
       </nav>
-      <div class="settings-content"></div>
-      <template id="page-appearance">
-        <section class="settings-section" id="appearance" aria-labelledby="appearanceTitle">
-          <h2 id="appearanceTitle">外观</h2>
-          <p class="settings-lead">界面语言、颜色和学习文字的大小。</p>
+      <div class="settings-content">
+      <section class="settings-group" id="study" aria-labelledby="studyGroup">
+        <header class="settings-group-head"><h2 id="studyGroup">学习</h2><p>学多少、考什么只在「我的目标」里定，这里是一份摘要。</p></header>
+        <section class="settings-section" id="studySummary" aria-labelledby="studyTitle">
+          <h3 id="studyTitle">水平、目标和每天学多少</h3>
           <div class="settings-row">
-            <label class="settings-label" for="uiLang"><span>界面语言</span><small>按钮、菜单和提示文字的语言</small></label>
-            <span class="select-wrap wide"><select class="btn" id="uiLang"></select></span>
-          </div>
-          <div class="settings-row">
-            <label class="settings-label" for="nativeLang"><span>母语</span><small>字幕、短语和单词释义翻译成这种语言。简体和繁体之间马上切换；换成其他语言后，已导入的视频点「重新翻译」即可</small></label>
-            <span class="select-wrap wide"><select class="btn" id="nativeLang"></select></span>
-          </div>
-          <div class="settings-row">
-            <label class="settings-label" for="theme"><span>界面主题</span><small>选「跟随系统」时会随 macOS 的浅色、深色自动切换</small></label>
-            <span class="select-wrap"><select class="btn" id="theme" data-preference="appearance"></select></span>
-          </div>
-          <div class="settings-row stack">
-            <label class="settings-label" for="textSize"><span>字幕字号</span><small>视频字幕、逐句原文、听写和错句本；点百分比恢复默认</small></label>
-            <span class="range-wrap">
-              <span class="range-end small" aria-hidden="true">A</span>
-              <input type="range" id="textSize" data-preference="textSize" min="0.8" max="1.8" step="0.05">
-              <span class="range-end big" aria-hidden="true">A</span>
-              <button type="button" class="range-value" id="textSizeValue" title="恢复默认大小"></button>
-            </span>
-          </div>
-          <div class="text-preview" aria-hidden="true">
-            <div class="text-preview-label">预览</div>
-            <div class="caption"><div class="en">I swear listening to podcasts is going to <mark class="phrase">improve</mark> your English.</div><div class="zh">我发誓听播客会提高你的英语水平。</div></div>
-          </div>
-          <p class="settings-help">整个页面要放大缩小，可以用浏览器的 ⌘+ / ⌘−。</p>
-        </section>
-      </template>
-
-      <template id="page-download">
-        <section class="settings-section" id="download" aria-labelledby="downloadTitle">
-          <h2 id="downloadTitle">下载</h2>
-          <p class="settings-lead">导入视频时下载的画质。不影响字幕和翻译。</p>
-          <div class="settings-row">
-            <label class="settings-label" for="downloadQuality"><span>视频清晰度上限</span><small>越高画面越清楚，文件也越大；720p 适合大多数学习场景</small></label>
-            <span class="select-wrap"><select class="btn" id="downloadQuality" data-preference="quality"></select></span>
-          </div>
-          <p class="settings-help" id="qualityHint" hidden>YouTube 的 1440p 及以上不提供 H.264 编码，会下载 VP9 或 AV1。Chrome 可以正常播放，Safari 可能无法播放。</p>
-        </section>
-      </template>
-
-      <template id="page-storage">
-        <section class="settings-section" id="storage" aria-labelledby="storageTitle">
-          <h2 id="storageTitle">存储</h2>
-          <p class="settings-lead">视频文件占了资料库的大部分空间。听力练习用 720p 就够清楚；只做听写的话，可以只保留音频。字幕、翻译、听写记录和收藏都不受影响。</p>
-          <div class="storage-total" id="storageTotal">正在统计…</div>
-          <div class="storage-list" id="storageList"></div>
-          <p class="settings-help">压缩用 Mac 的硬件编码，不会占满 CPU。新文件生成完、确认变小后才会替换原视频；压缩不能撤销。</p>
-        </section>
-      </template>
-
-      <template id="page-playback">
-        <section class="settings-section" id="playback" aria-labelledby="playbackTitle">
-          <h2 id="playbackTitle">播放</h2>
-          <p class="settings-lead">打开视频时的默认状态。播放器里用快捷键可以临时切换。</p>
-          <div class="settings-row">
-            <label class="settings-label" for="playbackSpeed"><span>默认倍速</span><small>听不清时可以先用 0.75× 精听</small></label>
-            <span class="select-wrap"><select class="btn" id="playbackSpeed" data-preference="speed"></select></span>
-          </div>
-          <div class="settings-row">
-            <label class="settings-label" for="ttsEngine"><span>朗读声音</span><small id="ttsState">神经语音在本机生成，听起来接近真人录音；第一次使用时下载模型（约 165 MB）</small></label>
-            <span class="settings-inline">
-              <button type="button" class="btn" id="ttsDownload" hidden>下载</button>
-              <span class="select-wrap"><select class="btn" id="ttsEngine" data-preference="ttsEngine"></select></span>
-            </span>
-          </div>
-          <div class="settings-row">
-            <label class="settings-label" for="voiceAccent"><span>朗读口音</span><small id="voiceName">今日复习、错句本和文章里的朗读用这个口音。雅思录音以英式为主，四六级以美式为主</small></label>
-            <span class="settings-inline">
-              <button type="button" class="btn" id="voiceTry">▶ 试听</button>
-              <span class="select-wrap"><select class="btn" id="voiceAccent" data-preference="voice"></select></span>
-            </span>
-          </div>
-          <label class="settings-row"><span class="settings-label"><span>显示中文字幕</span><small>播放器里按 C 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="zh"></label>
-          <label class="settings-row"><span class="settings-label"><span>高亮重点词句</span><small>重点短语和难词的底色，按 M 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="marks"></label>
-          <label class="settings-row"><span class="settings-label"><span>字幕跟随播放</span><small>右侧逐句原文自动滚到正在播放的那句</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="follow"></label>
-          <label class="settings-row"><span class="settings-label"><span>逐词中文释义</span><small>视频字幕里每个英文单词下面显示简短中文，按 G 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="gloss"></label>
-          <label class="settings-row"><span class="settings-label"><span>高亮正在读的单词</span><small>播放时标出读到哪个词</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="karaoke"></label>
-          <div class="settings-row">
-            <label class="settings-label" for="nowColor"><span>朗读高亮颜色</span><small>正在读的那个单词的底色</small></label>
-            <span class="select-wrap"><select class="btn" id="nowColor" data-preference="nowColor"></select></span>
-          </div>
-          <label class="settings-row"><span class="settings-label"><span>逐句暂停</span><small>每句播完自动暂停，适合跟读，按 P 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="autoPause"></label>
-          <label class="settings-row"><span class="settings-label"><span>单句循环</span><small>反复播放当前这一句，按 L 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="loop"></label>
-        </section>
-      </template>
-
-      <template id="page-study">
-        <section class="settings-section" id="study" aria-labelledby="studyTitle">
-          <h2 id="studyTitle">学习</h2>
-          <p class="settings-lead">决定播放器里标出哪些难词。改了之后所有视频立即生效，不用重新导入。</p>
-          <div class="settings-row">
-            <div class="settings-label"><span>现在的水平和目标</span><small id="levelSummary">只标出比你现在水平难、又不超出目标太多的词</small></div>
-            <a class="btn" href="/level">测试 / 调整</a>
+            <div class="settings-label"><span id="levelSummary">还没有设置。做一次 5 分钟测试，或者直接选分数。</span><small id="quotaSummary"></small></div>
+            <a class="btn" href="/goals">在「我的目标」里调整</a>
           </div>
         </section>
-      </template>
-
-      <template id="page-speech">
-        <section class="settings-section" id="speech" aria-labelledby="speechTitle">
-          <h2 id="speechTitle">语音识别</h2>
-          <p class="settings-lead">视频没有字幕时，以及口语练习的录音，都用这里选的方式转成英文。</p>
-          <div class="settings-row">
-            <label class="settings-label" for="asrEngine"><span>识别方式</span><small>本地识别不联网；云端识别更快，没有显卡的电脑也能用大模型，连不上时自动改用本地</small></label>
-            <span class="select-wrap wide"><select class="btn" id="asrEngine"><option value="local">本地</option><option value="cloud">云端</option></select></span>
-          </div>
-          <div class="settings-row">
-            <label class="settings-label" for="asrModel"><span>本地模型</span><small id="asrModelHint"></small></label>
-            <span class="settings-inline">
-              <button type="button" class="btn" id="asrDownload" hidden>下载</button>
-              <span class="select-wrap wide"><select class="btn" id="asrModel"></select></span>
-            </span>
-          </div>
-          <div class="asr-sizes" id="asrSizes"></div>
-          <form id="cloudForm" class="cloud-form" hidden>
-            <h3>云端识别</h3>
-            <div class="settings-grid">
-              <label class="settings-field" for="cloudProvider"><span>服务商</span>
-                <span class="select-wrap"><select id="cloudProvider"></select></span></label>
-              <label class="settings-field" for="cloudModel"><span>模型</span>
-                <input id="cloudModel" type="text" maxlength="200" spellcheck="false" autocapitalize="none"></label>
-              <label class="settings-field span-2" for="cloudUrl"><span>API 地址</span>
-                <input id="cloudUrl" type="url" maxlength="2048" spellcheck="false" autocapitalize="none"></label>
-              <label class="settings-field span-2" for="cloudKey"><span>API Key</span>
-                <input id="cloudKey" type="password" maxlength="4096" autocomplete="off" spellcheck="false">
-                <small id="cloudKeyHint">密钥保存在这台电脑上。</small>
-                <a id="cloudConsole" target="_blank" rel="noopener noreferrer" hidden>获取 API Key ↗</a></label>
-            </div>
-            <p class="settings-help">需要支持逐词时间的 OpenAI 兼容接口，例如 OpenAI 的 whisper-1 或 Groq 的 whisper-large-v3-turbo。音频会压缩成小的 MP3 分段上传给你选的服务商。</p>
-            <div class="settings-actions"><button type="submit" class="btn primary">保存云端识别设置</button></div>
-          </form>
-          <p id="asrStatus" class="settings-status" role="status" aria-live="polite"></p>
-        </section>
-      </template>
-
-      <template id="page-devices">
-        <section class="settings-section" id="devices" aria-labelledby="devicesTitle">
-          <h2 id="devicesTitle">手机访问</h2>
-          <p class="settings-lead">手机和电脑连同一个 Wi-Fi，就能在手机浏览器里复习单词、听写、读文章。电脑需要开着 IELTS Study。</p>
-          <label class="settings-row"><span class="settings-label"><span>允许同一个 Wi-Fi 里的手机访问</span><small>打开后需要重启一次。只有扫过二维码（带访问密钥）的手机能打开，API Key、备份和这些设置仍然只能在电脑上改</small></span><input type="checkbox" role="switch" class="settings-switch" id="lanSwitch"></label>
-          <div class="lan-box" id="lanBox" hidden>
-            <img id="lanQr" alt="用手机相机扫描这个二维码" width="220" height="220">
-            <div>
-              <b>用手机相机扫描二维码</b>
-              <p class="muted">或者在手机浏览器里打开：</p>
-              <code id="lanUrl"></code>
-              <p class="muted" id="lanOthers" hidden></p>
-              <p class="muted">口语练习需要麦克风，手机浏览器只允许 HTTPS 页面录音，所以口语请在电脑上练。第一次打开时，电脑可能会询问是否允许传入连接，请选择允许。</p>
-              <button type="button" class="btn" id="lanNewKey">换一个访问密钥</button>
-            </div>
-          </div>
-          <div class="restart-note" id="lanRestart" hidden>
-            <span>重启后生效</span><button type="button" class="btn primary" id="lanRestartBtn">立即重启</button>
-          </div>
-          <p id="lanStatus" class="settings-status" role="status" aria-live="polite"></p>
-        </section>
-      </template>
-
-      <template id="page-backup">
-        <section class="settings-section" id="backup" aria-labelledby="backupTitle">
-          <h2 id="backupTitle">备份</h2>
-          <p class="settings-lead">收藏的词句、复习进度、错句本、听写成绩、文章、口语和作文记录都在资料库里。备份不含 API Key；视频文件很大，默认不放进备份。</p>
-          <div class="settings-row">
-            <div class="settings-label"><span>导出备份</span><small>下载一个 zip 文件，换电脑时在新电脑上恢复</small></div>
-            <span class="settings-inline">
-              <label class="settings-check"><input type="checkbox" id="withVideos"> 包含视频</label>
-              <a class="btn" id="exportBtn" href="/api/backup/export" download>下载备份</a>
-            </span>
-          </div>
-          <div class="settings-row">
-            <div class="settings-label"><span>从备份恢复</span><small>用备份里的文件替换现在的同名文件；被替换的文件会先另存一份，不会丢</small></div>
-            <span class="settings-inline">
-              <input type="file" id="restoreFile" accept=".zip,application/zip" hidden>
-              <button type="button" class="btn" id="restoreBtn">选择备份文件…</button>
-            </span>
-          </div>
-          <form class="cloud-form" id="autoForm">
-            <h3>每天自动备份到文件夹</h3>
-            <p class="settings-help">选一个会同步到网盘的文件夹（iCloud Drive、OneDrive、Dropbox、坚果云等），电脑开着 IELTS Study 时每天备份一次，保留最近几份。</p>
-            <div class="backup-suggest" id="backupSuggest"></div>
-            <div class="settings-grid">
-              <label class="settings-field span-2" for="backupFolder"><span>文件夹</span>
-                <input id="backupFolder" type="text" placeholder="文件夹的完整路径，可以点上面的同步文件夹" spellcheck="false" autocapitalize="none"></label>
-              <label class="settings-field" for="backupKeep"><span>保留份数</span>
-                <input id="backupKeep" type="number" min="1" max="60"></label>
-            </div>
-            <p class="muted" id="backupLast"></p>
-            <div class="settings-actions">
-              <button type="button" class="btn" id="backupNow">立即备份</button>
-              <button type="submit" class="btn primary">保存</button>
-            </div>
-          </form>
-          <p id="backupStatus" class="settings-status" role="status" aria-live="polite"></p>
-        </section>
-      </template>
-
-      <template id="page-translation">
+      </section>
+      <section class="settings-group" id="services" aria-labelledby="servicesGroup">
+        <header class="settings-group-head"><h2 id="servicesGroup">模型与服务</h2><p>选哪个模型、填哪个密钥都在这一组。每个 API Key 只填一次，翻译、AI 批改和云端识别共用。</p></header>
         <form id="translation" class="settings-section" aria-labelledby="translationTitle">
-          <h2 id="translationTitle">API</h2>
-          <p class="settings-lead">选择导入视频时使用的字幕翻译服务。</p>
+          <h3 id="translationTitle">服务商与密钥</h3>
+          <p class="settings-lead">选中的服务商用来翻译字幕，AI 批改作文、口语评分和写文章也用它。每个服务商的 API Key 只在这里填一次，云端语音识别也从这里取。</p>
           <fieldset id="settingsControls" disabled>
             <fieldset id="providerPicker" class="provider-picker">
               <legend class="visually-hidden">服务商</legend>
               <section class="provider-box" aria-labelledby="ownedTitle">
-                <div class="provider-box-head"><h3 id="ownedTitle">已拥有</h3><small>点一下就切换，不用再填写。</small></div>
+                <div class="provider-box-head"><h4 id="ownedTitle">已拥有</h4><small>点一下就切换，不用再填写。</small></div>
                 <div id="ownedProviders" class="provider-options"></div>
               </section>
               <section class="provider-box" aria-labelledby="otherTitle">
-                <div class="provider-box-head"><h3 id="otherTitle">未拥有</h3><small>选择后填写 API Key，保存后会移到「已拥有」。</small></div>
+                <div class="provider-box-head"><h4 id="otherTitle">未拥有</h4><small>选择后填写 API Key，保存后会移到「已拥有」。</small></div>
                 <div id="otherProviders" class="provider-options"></div>
               </section>
             </fieldset>
@@ -264,37 +71,232 @@
               </div>
             </div>
 
+            <p class="settings-help" id="keyOnlyHelp" hidden>只保存这个服务商的地址和密钥，翻译仍用原来的服务商。</p>
             <p class="settings-help" id="externalHelp">测试连接会发送一条示例。翻译时只发送英文字幕文本。</p>
             <div class="settings-actions">
               <button type="button" id="cancelEdit" class="btn ghost" hidden>收起</button>
               <button type="button" id="testApi" class="btn">测试连接</button>
-              <button type="submit" class="btn primary">保存 API 设置</button>
+              <button type="submit" class="btn primary" id="saveApi">保存 API 设置</button>
             </div>
             </div>
           </fieldset>
           <p id="settingsStatus" class="settings-status" role="status" aria-live="polite"></p>
         </form>
-      </template>
+        <section class="settings-section" id="speech" aria-labelledby="speechTitle">
+          <h3 id="speechTitle">语音识别</h3>
+          <p class="settings-lead">视频没有字幕时，以及口语练习的录音，都用这里选的方式转成英文。</p>
+          <div class="settings-row">
+            <label class="settings-label" for="asrEngine"><span>识别方式</span><small>本地识别不联网；云端识别更快，没有显卡的电脑也能用大模型，连不上时自动改用本地</small></label>
+            <span class="select-wrap wide"><select class="btn" id="asrEngine"><option value="local">本地</option><option value="cloud">云端</option></select></span>
+          </div>
+          <div class="settings-row">
+            <label class="settings-label" for="asrModel"><span>本地模型</span><small id="asrModelHint"></small></label>
+            <span class="settings-inline">
+              <button type="button" class="btn" id="asrDownload" hidden>下载</button>
+              <span class="select-wrap wide"><select class="btn" id="asrModel"></select></span>
+            </span>
+          </div>
+          <div class="asr-sizes" id="asrSizes"></div>
+          <form id="cloudForm" class="cloud-form" hidden>
+            <h4>云端识别</h4>
+            <div class="settings-grid">
+              <label class="settings-field" for="cloudProvider"><span>服务商</span>
+                <span class="select-wrap"><select id="cloudProvider"></select></span></label>
+              <label class="settings-field" for="cloudModel"><span>模型</span>
+                <input id="cloudModel" type="text" maxlength="200" spellcheck="false" autocapitalize="none"></label>
+            </div>
+            <p class="settings-help cloud-key" id="cloudKeyState"></p>
+            <p class="settings-help">需要支持逐词时间的 OpenAI 兼容接口，例如 OpenAI 的 whisper-1 或 Groq 的 whisper-large-v3-turbo。音频会压缩成小的 MP3 分段上传给你选的服务商。</p>
+            <div class="settings-actions"><button type="submit" class="btn primary">保存云端识别设置</button></div>
+          </form>
+          <p id="asrStatus" class="settings-status" role="status" aria-live="polite"></p>
+        </section>
+        <section class="settings-section" id="voice" aria-labelledby="voiceTitle">
+          <h3 id="voiceTitle">朗读声音</h3>
+          <p class="settings-lead">今日复习、错句本、文章和口语跟读里的英文朗读。</p>
+          <div class="settings-row">
+            <label class="settings-label" for="ttsEngine"><span>朗读声音</span><small id="ttsState">神经语音在本机生成，听起来接近真人录音；第一次使用时下载模型（约 165 MB）</small></label>
+            <span class="settings-inline">
+              <button type="button" class="btn" id="ttsDownload" hidden>下载</button>
+              <span class="select-wrap"><select class="btn" id="ttsEngine" data-preference="ttsEngine"></select></span>
+            </span>
+          </div>
+          <div class="settings-row">
+            <label class="settings-label" for="voiceAccent"><span>朗读口音</span><small id="voiceName">今日复习、错句本和文章里的朗读用这个口音。雅思录音以英式为主，四六级以美式为主</small></label>
+            <span class="settings-inline">
+              <button type="button" class="btn" id="voiceTry">▶ 试听</button>
+              <span class="select-wrap"><select class="btn" id="voiceAccent" data-preference="voice"></select></span>
+            </span>
+          </div>
+        </section>
+      </section>
+      <section class="settings-group" id="playback" aria-labelledby="playbackGroup">
+        <header class="settings-group-head"><h2 id="playbackGroup">播放</h2><p>打开视频时的默认状态。播放器里用快捷键可以临时切换。</p></header>
+        <section class="settings-section" id="playerPrefs" aria-labelledby="playbackTitle">
+          <h3 id="playbackTitle">播放器</h3>
+          <div class="settings-row">
+            <label class="settings-label" for="playbackSpeed"><span>默认倍速</span><small>听不清时可以先用 0.75× 精听</small></label>
+            <span class="select-wrap"><select class="btn" id="playbackSpeed" data-preference="speed"></select></span>
+          </div>
+          <label class="settings-row"><span class="settings-label"><span>显示中文字幕</span><small>播放器里按 C 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="zh"></label>
+          <label class="settings-row"><span class="settings-label"><span>高亮重点词句</span><small>重点短语和难词的底色，按 M 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="marks"></label>
+          <label class="settings-row"><span class="settings-label"><span>字幕跟随播放</span><small>右侧逐句原文自动滚到正在播放的那句</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="follow"></label>
+          <label class="settings-row"><span class="settings-label"><span>短语对照释义</span><small>用 API 翻译的视频，英文下面按短语显示中文，其余单词显示词典释义；本地翻译只显示整句。按 G 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="gloss"></label>
+          <label class="settings-row"><span class="settings-label"><span>高亮正在读的单词</span><small>播放时标出读到哪个词</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="karaoke"></label>
+          <div class="settings-row">
+            <label class="settings-label" for="nowColor"><span>朗读高亮颜色</span><small>正在读的那个单词的底色</small></label>
+            <span class="select-wrap"><select class="btn" id="nowColor" data-preference="nowColor"></select></span>
+          </div>
+          <label class="settings-row"><span class="settings-label"><span>逐句暂停</span><small>每句播完自动暂停，适合跟读，按 P 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="autoPause"></label>
+          <label class="settings-row"><span class="settings-label"><span>单句循环</span><small>反复播放当前这一句，按 L 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="loop"></label>
+        </section>
+      </section>
+      <section class="settings-group" id="appearance" aria-labelledby="appearanceGroup">
+        <header class="settings-group-head"><h2 id="appearanceGroup">外观与语言</h2><p>母语决定翻译成什么语言，也决定界面语言；还有颜色和学习文字的大小。</p></header>
+        <section class="settings-section" id="display" aria-labelledby="appearanceTitle">
+          <h3 id="appearanceTitle">语言与显示</h3>
+          <div class="settings-row">
+            <label class="settings-label" for="nativeLang"><span>母语</span><small>字幕、短语和单词释义翻译成这种语言，按钮和提示也用这种语言</small></label>
+            <span class="select-wrap wide"><select class="btn" id="nativeLang"></select></span>
+          </div>
+          <label class="settings-row"><span class="settings-label"><span>界面语言与母语不同</span><small>高级：例如母语是中文，但想用英文界面</small></span><input type="checkbox" role="switch" class="settings-switch" id="uiSeparate"></label>
+          <div class="settings-row" id="uiLangRow" hidden>
+            <label class="settings-label" for="uiLang"><span>界面语言</span><small>按钮、菜单和提示文字的语言</small></label>
+            <span class="select-wrap wide"><select class="btn" id="uiLang"></select></span>
+          </div>
+          <p id="langStatus" class="settings-status" role="status" aria-live="polite"></p>
+          <div class="settings-row">
+            <label class="settings-label" for="theme"><span>界面主题</span><small>选「跟随系统」时会随 macOS 的浅色、深色自动切换</small></label>
+            <span class="select-wrap"><select class="btn" id="theme" data-preference="appearance"></select></span>
+          </div>
+          <div class="settings-row stack">
+            <label class="settings-label" for="textSize"><span>字幕字号</span><small>视频字幕、逐句原文、听写和错句本；点百分比恢复默认</small></label>
+            <span class="range-wrap">
+              <span class="range-end small" aria-hidden="true">A</span>
+              <input type="range" id="textSize" data-preference="textSize" min="0.8" max="1.8" step="0.05">
+              <span class="range-end big" aria-hidden="true">A</span>
+              <button type="button" class="range-value" id="textSizeValue" title="恢复默认大小"></button>
+            </span>
+          </div>
+          <div class="text-preview" aria-hidden="true">
+            <div class="text-preview-label">预览</div>
+            <div class="caption"><div class="en">I swear listening to podcasts is going to <mark class="phrase">improve</mark> your English.</div><div class="zh">我发誓听播客会提高你的英语水平。</div></div>
+          </div>
+          <p class="settings-help">整个页面要放大缩小，可以用浏览器的 ⌘+ / ⌘−。</p>
+        </section>
+      </section>
+      <section class="settings-group" id="data" aria-labelledby="dataGroup">
+        <header class="settings-group-head"><h2 id="dataGroup">数据</h2><p>视频的下载画质和占用空间、备份与恢复，以及让手机也能用。</p></header>
+        <section class="settings-section" id="download" aria-labelledby="downloadTitle">
+          <h3 id="downloadTitle">下载</h3>
+          <p class="settings-lead">导入视频时下载的画质。不影响字幕和翻译。</p>
+          <div class="settings-row">
+            <label class="settings-label" for="downloadQuality"><span>视频清晰度上限</span><small>越高画面越清楚，文件也越大；720p 适合大多数学习场景</small></label>
+            <span class="select-wrap"><select class="btn" id="downloadQuality" data-preference="quality"></select></span>
+          </div>
+          <p class="settings-help" id="qualityHint" hidden>YouTube 的 1440p 及以上不提供 H.264 编码，会下载 VP9 或 AV1。Chrome 可以正常播放，Safari 可能无法播放。</p>
+        </section>
+        <section class="settings-section" id="storage" aria-labelledby="storageTitle">
+          <h3 id="storageTitle">存储</h3>
+          <p class="settings-lead">视频文件占了资料库的大部分空间。听力练习用 720p 就够清楚；只做听写的话，可以只保留音频。字幕、翻译、听写记录和收藏都不受影响。</p>
+          <div class="storage-total" id="storageTotal">正在统计…</div>
+          <div class="storage-list" id="storageList"></div>
+          <p class="settings-help">压缩用 Mac 的硬件编码，不会占满 CPU。新文件生成完、确认变小后才会替换原视频；压缩不能撤销。</p>
+        </section>
+        <section class="settings-section" id="backup" aria-labelledby="backupTitle">
+          <h3 id="backupTitle">备份</h3>
+          <p class="settings-lead">收藏的词句、复习进度、错句本、听写成绩、文章、口语和作文记录都在资料库里。备份不含 API Key；视频文件很大，默认不放进备份。</p>
+          <div class="settings-row">
+            <div class="settings-label"><span>导出备份</span><small>下载一个 zip 文件，换电脑时在新电脑上恢复</small></div>
+            <span class="settings-inline">
+              <label class="settings-check"><input type="checkbox" id="withVideos"> 包含视频</label>
+              <a class="btn" id="exportBtn" href="/api/backup/export" download>下载备份</a>
+            </span>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label"><span>从备份恢复</span><small>用备份里的文件替换现在的同名文件；被替换的文件会先另存一份，不会丢</small></div>
+            <span class="settings-inline">
+              <input type="file" id="restoreFile" accept=".zip,application/zip" hidden>
+              <button type="button" class="btn" id="restoreBtn">选择备份文件…</button>
+            </span>
+          </div>
+          <form class="cloud-form" id="autoForm">
+            <h4>每天自动备份到文件夹</h4>
+            <p class="settings-help">选一个会同步到网盘的文件夹（iCloud Drive、OneDrive、Dropbox、坚果云等），电脑开着 IELTS Study 时每天备份一次，保留最近几份。</p>
+            <div class="backup-suggest" id="backupSuggest"></div>
+            <div class="settings-grid">
+              <label class="settings-field span-2" for="backupFolder"><span>文件夹</span>
+                <input id="backupFolder" type="text" placeholder="文件夹的完整路径，可以点上面的同步文件夹" spellcheck="false" autocapitalize="none"></label>
+              <label class="settings-field" for="backupKeep"><span>保留份数</span>
+                <input id="backupKeep" type="number" min="1" max="60"></label>
+            </div>
+            <p class="muted" id="backupLast"></p>
+            <div class="settings-actions">
+              <button type="button" class="btn" id="backupNow">立即备份</button>
+              <button type="submit" class="btn primary">保存</button>
+            </div>
+          </form>
+          <p id="backupStatus" class="settings-status" role="status" aria-live="polite"></p>
+        </section>
+        <section class="settings-section" id="devices" aria-labelledby="devicesTitle">
+          <h3 id="devicesTitle">手机访问</h3>
+          <p class="settings-lead">手机和电脑连同一个 Wi-Fi，就能在手机浏览器里复习单词、听写、读文章。电脑需要开着 IELTS Study。</p>
+          <label class="settings-row"><span class="settings-label"><span>允许同一个 Wi-Fi 里的手机访问</span><small>打开后需要重启一次。只有扫过二维码（带访问密钥）的手机能打开，API Key、备份和这些设置仍然只能在电脑上改</small></span><input type="checkbox" role="switch" class="settings-switch" id="lanSwitch"></label>
+          <div class="lan-box" id="lanBox" hidden>
+            <img id="lanQr" alt="用手机相机扫描这个二维码" width="220" height="220">
+            <div>
+              <b>用手机相机扫描二维码</b>
+              <p class="muted">或者在手机浏览器里打开：</p>
+              <code id="lanUrl"></code>
+              <p class="muted" id="lanOthers" hidden></p>
+              <p class="muted">口语练习需要麦克风，手机浏览器只允许 HTTPS 页面录音，所以口语请在电脑上练。第一次打开时，电脑可能会询问是否允许传入连接，请选择允许。</p>
+              <button type="button" class="btn" id="lanNewKey">换一个访问密钥</button>
+            </div>
+          </div>
+          <div class="restart-note" id="lanRestart" hidden>
+            <span>重启后生效</span><button type="button" class="btn primary" id="lanRestartBtn">立即重启</button>
+          </div>
+          <p id="lanStatus" class="settings-status" role="status" aria-live="polite"></p>
+        </section>
+      </section>
+      </div>
     </div>
   </main>
 </div>
 
 <script src="/static/common.js"></script>
 <script>
+// One page, five groups. The old sub-pages (/settings/backup …) are redirected here by the server with an
+// anchor; #agent is an even older name of the provider list.
 const settingsLinks = $$(".settings-index a");
-const currentPath = location.pathname.replace(/\/+$/, "");
-const oldSection = location.hash.slice(1);
-const requestedPath = currentPath === "/settings"
-  ? "/settings/" + (oldSection === "agent" ? "translation" : oldSection)
-  : currentPath;
-const activeLink = settingsLinks.find(link => link.pathname === requestedPath) || settingsLinks[0];
-const section = activeLink.pathname.split("/").pop();
-activeLink.setAttribute("aria-current", "page");
-document.title = (activeLink.querySelector("b") || activeLink).textContent + " · 设置";
-$(".settings-content").append($("#page-" + section).content.cloneNode(true));
-if (location.pathname !== activeLink.pathname || location.hash) {
-  history.replaceState(history.state, "", activeLink.pathname + location.search);
+if (location.hash === "#agent") history.replaceState(history.state, "", "#translation");
+function markGroup(id) {
+  for (const link of settingsLinks) {
+    if (link.hash === "#" + id) link.setAttribute("aria-current", "true");
+    else link.removeAttribute("aria-current");
+  }
 }
+// the group whose top is nearest above the upper third of the window
+function currentGroup() {
+  const line = innerHeight / 3;
+  const groups = $$(".settings-group");
+  let id = groups[0].id;
+  for (const g of groups) if (g.getBoundingClientRect().top <= line) id = g.id;
+  if (innerHeight + scrollY >= document.documentElement.scrollHeight - 4) id = groups.at(-1).id;
+  return id;
+}
+let spyFrame = 0;
+addEventListener("scroll", () => { cancelAnimationFrame(spyFrame); spyFrame = requestAnimationFrame(() => markGroup(currentGroup())); }, { passive: true });
+function goToAnchor() {
+  const target = location.hash && document.getElementById(location.hash.slice(1));
+  if (!target) return markGroup(currentGroup());
+  target.scrollIntoView({ block: "start" });
+  markGroup(target.closest(".settings-group")?.id || currentGroup());
+}
+addEventListener("hashchange", goToAnchor);
+// sections fill in from the server after load; land on the anchor again once they have their height
+requestAnimationFrame(goToAnchor);
+addEventListener("load", () => setTimeout(goToAnchor, 300), { once: true });
 
 const preferenceControls = $$("[data-preference]");
 function showPreference(control) {
@@ -394,25 +396,48 @@ if (textSizeReset) textSizeReset.onclick = () => {
 function fmtBytes(n) {
   return n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
 }
-// ---------- 外观: languages (saved on the server, which serves pages and data in them)
-if ($("#uiLang")) {
-  api("/api/language").then(lang => {
-    $("#uiLang").replaceChildren(...Object.entries(lang.uiOptions).map(([v, label]) => new Option(label, v)));
-    $("#nativeLang").replaceChildren(...Object.entries(lang.nativeOptions).map(([v, label]) => new Option(label, v)));
-    $("#uiLang").value = lang.ui;
-    $("#nativeLang").value = lang.native;
+// ---------- 外观与语言: one 母语, and the interface language follows it unless asked otherwise
+if ($("#nativeLang")) {
+  let lang = null;
+  const follows = l => l.ui === l.native || !(l.native in l.uiOptions) && l.ui === "en";
+  api("/api/language").then(l => {
+    lang = l;
+    $("#uiLang").replaceChildren(...Object.entries(l.uiOptions).map(([v, label]) => new Option(label, v)));
+    $("#nativeLang").replaceChildren(...Object.entries(l.nativeOptions).map(([v, label]) => new Option(label, v)));
+    $("#uiLang").value = l.ui;
+    $("#nativeLang").value = l.native;
+    $("#uiSeparate").checked = !follows(l);
+    $("#uiLangRow").hidden = follows(l);
   }).catch(() => {});
-  const switchLanguage = async changes => {
+  try {
+    if (sessionStorage.getItem("nativeChanged")) {
+      sessionStorage.removeItem("nativeChanged");
+      $("#langStatus").textContent = "已有视频和文章的译文仍是旧语言，在播放器或文章里点「↻ 重新翻译」可逐个重译。";
+    }
+  } catch { /* private mode */ }
+  const switchLanguage = async (changes, note) => {
     try {
       await api("/api/language", { method: "POST", body: changes });
+      if (note) try { sessionStorage.setItem("nativeChanged", "1"); } catch { /* private mode */ }
       location.reload();  // the page itself is served in the new language
     } catch (error) { toast(error.message); }
   };
+  const chinese = code => code === "zh-CN" || code === "zh-TW";
+  $("#nativeLang").onchange = e => {
+    const native = e.target.value;
+    // Simplified and Traditional Chinese share the stored translations; any other change needs translating again
+    const note = !(chinese(native) && chinese(lang.native));
+    const ui = native in lang.uiOptions ? native : "en";
+    switchLanguage($("#uiSeparate").checked ? { native } : { native, ui }, note);
+  };
+  $("#uiSeparate").onchange = e => {
+    $("#uiLangRow").hidden = !e.target.checked;
+    if (!e.target.checked && !follows(lang)) switchLanguage({ ui: lang.native in lang.uiOptions ? lang.native : "en" });
+  };
   $("#uiLang").onchange = e => switchLanguage({ ui: e.target.value });
-  $("#nativeLang").onchange = e => switchLanguage({ native: e.target.value });
 }
 
-// ---------- 学习: summary of the level and target (edited on /level)
+// ---------- 学习: a summary of 我的目标 (edited only there)
 if ($("#levelSummary")) {
   const showLevel = () => {
     const p = studyProfile, r = markRange();
@@ -422,6 +447,10 @@ if ($("#levelSummary")) {
   };
   showLevel();
   window.addEventListener("profilechange", showLevel);
+  api("/api/goals").then(g => {
+    const q = g.quota;
+    $("#quotaSummary").textContent = `「${g.stage.name}」阶段${g.stageMode === "manual" ? "（手动）" : ""} · 每天 ${q.newWords} 个新词 · 精听 ${q.listenMin} 分钟 · 听写 ${q.dictation} 句 · 精读 ${q.readMin} 分钟`;
+  }).catch(() => {});
 }
 
 const storageList = $("#storageList");
@@ -491,6 +520,7 @@ if (form) {
   let modelsTimer;
   let keepModel = false;
   let committedAddress = "";
+  let keyOnly = null;  // provider whose key is being saved for speech recognition, without switching translation
 
   function showMessage(message, error = false) {
     const status = $("#settingsStatus");
@@ -579,6 +609,7 @@ if (form) {
   // Close the form without saving: the selection goes back to the provider in use.
   function closeForm() {
     editing = null;
+    keyOnly = null;
     showMessage("");
     form.elements.engine.value = activeValue(savedSettings);
     updateProvider();
@@ -594,6 +625,8 @@ if (form) {
     const selected = form.elements.engine.value;
     provider = savedSettings.providers.find(item => item.id === selected);
     const showForm = Boolean(provider) && (!isOwned(provider) || editing === provider.id);
+    $("#keyOnlyHelp").hidden = !(showForm && keyOnly === provider.id);
+    $("#saveApi").textContent = showForm && keyOnly === provider.id ? "保存密钥" : "保存 API 设置";
     const formBox = $("#providerForm");
     formBox.hidden = !showForm;
     $("#cancelEdit").hidden = !showForm;
@@ -741,7 +774,8 @@ if (form) {
     const selection = form.elements.engine.value;
     const body = {engine: selection === "local" ? "local" : "api"};
     if (body.engine === "api") {
-      if (!model.value.trim()) {
+      if (keyOnly === selection) body.keepActive = true;
+      else if (!model.value.trim()) {
         showMessage("请选择或填写模型名称。", true);
         (model.hidden ? modelSelect : model).focus();
         return;
@@ -756,8 +790,10 @@ if (form) {
     showMessage(test ? "正在测试连接…" : "正在保存…");
     try {
       const settings = await api(test ? "/api/settings/test" : "/api/settings", {method: "POST", body});
-      if (!test) render(settings);  // a newly saved provider moves to 已拥有 and the form closes
-      showMessage(test ? "连接成功，可以保存设置。" : "设置已保存，将用于下一次翻译。");
+      const savedKey = !test && body.keepActive;
+      if (!test) { keyOnly = null; render(settings); }  // a newly saved provider moves to 已拥有 and the form closes
+      showMessage(test ? "连接成功，可以保存设置。" : savedKey ? "密钥已保存，语音识别可以用了；翻译仍用原来的服务商。" : "设置已保存，将用于下一次翻译。");
+      if (!test) window.dispatchEvent(new Event("providerschange"));
     } catch (error) {
       showMessage(error.message, true);
     } finally {
@@ -791,11 +827,24 @@ if (form) {
     editing = null;
     const choice = event.target.value;
     const item = savedSettings.providers.find(entry => entry.id === choice);
+    keyOnly = null;
     if (choice === "local") return quickSave({engine: "local"}, "本地翻译");
+    if (item && isOwned(item) && !item.model) { editing = choice; return updateProvider(); }  // a key saved for recognition: pick a model first
     if (item && isOwned(item)) return quickSave({engine: "api", provider: choice, model: item.model}, item.name);
     updateProvider();  // not owned yet: open the form under this row
   };
   $("#cancelEdit").onclick = closeForm;
+  // 语音识别 → "填写 Groq 的 Key": the same form, saving only the key
+  window.openProviderKey = id => {
+    if (!savedSettings) return;
+    keyOnly = id;
+    editing = id;
+    showMessage("");
+    form.elements.engine.value = id;
+    updateProvider();
+    $("#providerForm").scrollIntoView({ block: "center", behavior: "smooth" });
+    setTimeout(() => apiKey.focus(), 400);
+  };
   $("#testApi").onclick = () => submit(true);
   form.onsubmit = event => { event.preventDefault(); submit(false); };
   api("/api/settings").then(settings => {
@@ -840,12 +889,11 @@ if ($("#asrEngine")) {
   const fillCloud = () => {
     const p = asr.providers.find(x => x.id === $("#cloudProvider").value);
     const same = p.id === asr.provider;
-    $("#cloudUrl").value = same ? asr.baseUrl : p.baseUrl;
     $("#cloudModel").value = same ? asr.cloudModel : p.model;
-    $("#cloudKey").value = "";
-    $("#cloudKey").placeholder = p.hasKey ? "已保存，留空就继续用" : "填写这个服务商的 API Key";
-    $("#cloudConsole").hidden = !p.console;
-    $("#cloudConsole").href = p.console || "#";
+    $("#cloudKeyState").innerHTML = p.id === "custom"
+      ? `用「服务商与密钥」里自定义 API 的地址${p.baseUrl ? `：<code>${esc(p.baseUrl)}</code>` : "（还没有填写）"}。 <button type="button" class="linkbtn" data-provider-key="custom">${p.baseUrl ? "修改" : "去填写"}</button>`
+      : p.hasKey ? `用「服务商与密钥」里 ${esc(p.name)} 的 API Key ✓ <button type="button" class="linkbtn" data-provider-key="${p.id}">修改</button>`
+      : `还没有 ${esc(p.name)} 的 API Key。 <button type="button" class="linkbtn" data-provider-key="${p.id}">在「服务商与密钥」里填写</button>`;
   };
   const load = () => api("/api/asr").then(render).catch(e => status(e.message, true));
   const save = async body => {
@@ -856,17 +904,18 @@ if ($("#asrEngine")) {
   $("#asrEngine").onchange = async () => {
     if ($("#asrEngine").value === "cloud") {
       const p = asr.providers.find(x => x.id === asr.provider);
-      if (!p.hasKey) { editingCloud = true; $("#cloudForm").hidden = false; status("填写云端服务商的 API Key 后保存。"); return; }
+      if (!p.hasKey && p.id !== "custom") { editingCloud = true; $("#cloudForm").hidden = false; status("先在「服务商与密钥」里填写这个服务商的 API Key，再保存。"); return; }
     }
     editingCloud = false;
     save({ engine: $("#asrEngine").value });
   };
   $("#cloudProvider").onchange = fillCloud;
+  $("#cloudKeyState").onclick = e => { const b = e.target.closest("[data-provider-key]"); if (b) window.openProviderKey?.(b.dataset.providerKey); };
+  window.addEventListener("providerschange", () => { const keep = $("#cloudProvider").value; load().then(() => { if (asr) { $("#cloudProvider").value = keep; fillCloud(); } }); });
   $("#asrDownload").onclick = async () => { render(await api("/api/asr/download", { method: "POST", body: { size: $("#asrDownload").dataset.size } })); };
   $("#cloudForm").onsubmit = async e => {
     e.preventDefault();
-    if (await save({ engine: "cloud", provider: $("#cloudProvider").value, baseUrl: $("#cloudUrl").value,
-      cloudModel: $("#cloudModel").value, apiKey: $("#cloudKey").value })) editingCloud = false;
+    if (await save({ engine: "cloud", provider: $("#cloudProvider").value, cloudModel: $("#cloudModel").value })) editingCloud = false;
   };
   load();
 }

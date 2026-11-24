@@ -374,7 +374,7 @@ function renderAnswer() {
     ${statsHtml(a.stats)}
     <div class="speak-actions">
       ${info.hasApi ? `<button type="button" class="btn primary" id="getFeedback"${enough ? "" : " disabled"}>AI 评分和修改建议</button>`
-        : `<span class="muted">按雅思四项标准评分需要先<a href="/settings/translation">配置 API</a>。</span>`}
+        : `<span class="muted">按雅思四项标准评分需要先<a href="/settings#translation">配置 API</a>。</span>`}
       ${question.part === 2 ? `<button type="button" class="btn" id="toPart3">接着练这个话题的 Part 3</button>` : ""}
     </div>
     <div id="feedback"></div>`;

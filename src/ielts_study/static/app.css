@@ -399,11 +399,11 @@ mark.word { padding: 0 2px; border-radius: 3px; background: var(--word-bg); colo
 .settings-index a b { color: var(--text); font-size: 14.5px; font-weight: 600; }
 .settings-index a small { font-size: 12px; }
 .settings-index a:hover { background: var(--surface-2); color: var(--text); }
-.settings-index a[aria-current="page"] { background: var(--surface); border-color: var(--border); box-shadow: var(--panel-shadow); }
-.settings-index a[aria-current="page"] b { color: var(--accent); }
+.settings-index a[aria-current] { background: var(--surface); border-color: var(--border); box-shadow: var(--panel-shadow); }
+.settings-index a[aria-current] b { color: var(--accent); }
 .settings-content { min-width: 0; }
 .settings-section { min-width: 0; margin: 0; padding: clamp(18px, 3vw, 34px); border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
-.settings-section h2 { margin: 0 0 4px; font-size: 20px; font-weight: 680; letter-spacing: -.01em; }
+.settings-section h3 { margin: 0 0 4px; font-size: 18px; font-weight: 680; letter-spacing: -.01em; }
 .settings-lead { margin: 0 0 18px; color: var(--muted); font-size: 13.5px; }
 .settings-section fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
 .settings-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; min-height: 66px; padding-block: 12px; border-top: 1px solid var(--border); }
@@ -437,7 +437,7 @@ mark.word { padding: 0 2px; border-radius: 3px; background: var(--word-bg); colo
 /* Settings → API: 已拥有 and 未拥有 as two boxes, one provider per full-width row */
 .provider-box { padding: 14px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface-2); }
 .provider-box-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0 4px 10px; }
-.provider-box-head h3 { margin: 0; font-size: 14px; }
+.provider-box-head h4 { margin: 0; font-size: 14px; }
 .provider-box-head small { color: var(--muted); font-size: 12px; }
 .provider-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .provider-option { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-height: 48px; padding: 6px 8px 6px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-size: 13.5px; }
@@ -1018,7 +1018,7 @@ mark.cloze-answer { padding: 0 3px; border-radius: 5px; background: var(--word-b
 .asr-sizes span { padding: 3px 10px; border: 1px solid var(--border); border-radius: var(--capsule); color: var(--muted); font-size: 12px; }
 .asr-sizes span.ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, var(--border)); }
 .cloud-form { margin-top: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
-.cloud-form h3 { margin: 0 0 10px; font-size: 15px; }
+.cloud-form h4 { margin: 0 0 10px; font-size: 15px; }
 .lan-box { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; margin: 6px 0 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .lan-box img { width: 220px; height: 220px; border-radius: 10px; background: #fff; }
 .lan-box > div { display: grid; gap: 8px; flex: 1; min-width: 220px; align-content: start; }
@@ -1046,3 +1046,38 @@ mark.cloze-answer { padding: 0 3px; border-radius: 5px; background: var(--word-b
 .save-sent { margin-inline-start: 4px; padding: 0 5px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--muted); font-size: 11px; line-height: 1.5; cursor: pointer; }
 .save-sent:hover, .save-sent.saved { color: var(--accent); border-color: var(--accent); }
 .cue .tm .save-sent { display: block; margin: 4px 0 0; }
+
+/* ---------- 我的目标: four blocks (level, target, stage, daily amounts) */
+.workspace-top { margin: 6px 0 2px; }
+.goal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 14px; }
+.goal-block { display: grid; align-content: start; gap: 12px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.goal-block h2 { margin: 0; font-size: 17px; }
+.goal-block .level-sub { margin-bottom: 0; }
+.goal-block .level-field select, .goal-block .level-date { width: 100%; min-width: 0; }
+.goal-mode { padding: 2px 9px; border-radius: var(--capsule); background: color-mix(in srgb, var(--warn) 16%, var(--surface)); color: var(--text); font-size: 12px; font-weight: 600; }
+.goal-quotas { display: grid; gap: 8px; }
+.goal-quota { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; }
+.goal-quota label { font-weight: 600; font-size: 14px; }
+.goal-quota-input { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.goal-quota-input input { width: 84px; text-align: right; font: inherit; font-variant-numeric: tabular-nums; }
+.goal-quota small, .goal-quota .linkbtn { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+.goal-quota.manual input { border-color: color-mix(in srgb, var(--warn) 60%, var(--border)); }
+.linkbtn { justify-self: start; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+#result > .level-progress-charts, #result > .level-unknown, #result > .level-known { margin-top: 18px; }
+@media (max-width: 700px) { .workspace-top { margin: 0; } }
+
+/* ---------- 设置: one page, five groups */
+.settings-content { display: grid; gap: clamp(36px, 5vw, 56px); }
+.settings-group { display: grid; gap: 16px; scroll-margin-top: 16px; }
+.settings-group-head { display: grid; gap: 4px; }
+.settings-group-head h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.settings-group-head p { max-width: 46em; margin: 0; color: var(--muted); font-size: 13.5px; }
+.settings-section { scroll-margin-top: 16px; }
+.settings-section > h3 + .settings-row, .settings-section > h3 + fieldset { margin-top: 10px; }
+.cloud-key { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; color: var(--text); font-size: 13px; }
+.cloud-key code { font-size: 12px; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .settings-index { position: sticky; top: 0; z-index: 5; flex-wrap: nowrap; overflow-x: auto; margin-inline: -16px; padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--border); }
+  .settings-index a { flex: none; }
+  .settings-group, .settings-section { scroll-margin-top: 60px; }
+}
