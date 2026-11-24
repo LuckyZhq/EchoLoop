@@ -67,7 +67,7 @@ async function loadLibrary() {
         </div>
         <div class="body">
           <div class="t">${esc(v.title)}</div>
-          <div class="meta">${v.cueCount} 句字幕 · ${v.phraseCount} 个重点短语</div>
+          <div class="meta">${v.cueCount} 句字幕 · ${v.phraseCount} 个重点短语${v.bytes ? ` · ${v.bytes >= 1e9 ? (v.bytes / 1e9).toFixed(1) + " GB" : Math.max(1, Math.round(v.bytes / 1e6)) + " MB"}` : ""}</div>
         </div>
       </a>
       <div class="card-foot">

@@ -23,7 +23,7 @@ from .settings import load_settings, save_settings, settings_from
 VOCAB_PATH = LIBRARY_DIR / "vocab.json"
 _vocab_lock = threading.Lock()
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
-SETTINGS_PATHS = {"/settings", "/settings/appearance", "/settings/download",
+SETTINGS_PATHS = {"/settings", "/settings/appearance", "/settings/download", "/settings/storage",
                   "/settings/playback", "/settings/study", "/settings/translation"}
 
 
@@ -298,6 +298,10 @@ def make_handler(app: App):
                 return self._json(home_stats())
             if p == "/api/version":
                 return self._json(version_info())
+            if p == "/api/storage":
+                from . import storage
+
+                return self._json(storage.overview())
             if p == "/api/reading":
                 return self._json(reading.list_articles())
             if p.startswith("/api/reading/"):
@@ -429,6 +433,16 @@ def make_handler(app: App):
                     return self._json({"error": f"文章太长了，请控制在 {reading.MAX_CHARS // 1000}k 字符以内，或分几次粘贴。"}, 400)
                 title = re.sub(r"\s+", " ", str(body.get("title") or "")).strip()[:120]
                 return self._json(reading.submit_article(app.pipeline, text, title).to_json())
+            if p.startswith("/api/video/") and p.endswith("/shrink"):
+                from .storage import SHRINK_MODES
+
+                vid = p.split("/")[3]
+                if not SAFE_ID.match(vid) or not (LIBRARY_DIR / vid / "data.json").exists():
+                    return self._json({"error": "not found"}, 404)
+                mode = str(body.get("mode") or "")
+                if mode not in SHRINK_MODES:
+                    return self._json({"error": "请选择压缩方式。"}, 400)
+                return self._json(app.pipeline.shrink(vid, mode).to_json())
             if p.startswith("/api/video/") and p.endswith("/retranslate"):
                 vid = p.split("/")[3]
                 if not SAFE_ID.match(vid) or not (LIBRARY_DIR / vid / "data.json").exists():

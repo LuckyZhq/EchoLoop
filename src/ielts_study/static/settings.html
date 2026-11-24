@@ -15,6 +15,7 @@
       <nav class="settings-index" aria-label="设置分类">
         <a href="/settings/appearance"><b>外观</b><small>主题、字幕字号</small></a>
         <a href="/settings/download"><b>下载</b><small>视频清晰度</small></a>
+        <a href="/settings/storage"><b>存储</b><small>视频占用的空间</small></a>
         <a href="/settings/playback"><b>播放</b><small>倍速、字幕和高亮</small></a>
         <a href="/settings/study"><b>学习</b><small>雅思词汇水平</small></a>
         <a href="/settings/translation"><b>API</b><small>服务商和模型</small></a>
@@ -54,6 +55,16 @@
             <span class="select-wrap"><select class="btn" id="downloadQuality" data-preference="quality"></select></span>
           </div>
           <p class="settings-help" id="qualityHint" hidden>YouTube 的 1440p 及以上不提供 H.264 编码，会下载 VP9 或 AV1。Chrome 可以正常播放，Safari 可能无法播放。</p>
+        </section>
+      </template>
+
+      <template id="page-storage">
+        <section class="settings-section" id="storage" aria-labelledby="storageTitle">
+          <h2 id="storageTitle">存储</h2>
+          <p class="settings-lead">视频文件占了资料库的大部分空间。听力练习用 720p 就够清楚；只做听写的话，可以只保留音频。字幕、翻译、听写记录和收藏都不受影响。</p>
+          <div class="storage-total" id="storageTotal">正在统计…</div>
+          <div class="storage-list" id="storageList"></div>
+          <p class="settings-help">压缩用 Mac 的硬件编码，不会占满 CPU。新文件生成完、确认变小后才会替换原视频；压缩不能撤销。</p>
         </section>
       </template>
 
@@ -216,6 +227,58 @@ if (textSizeReset) textSizeReset.onclick = () => {
   slider.value = "1";
   slider.dispatchEvent(new Event("change"));
 };
+
+// ---------- 存储: sizes and shrinking
+function fmtBytes(n) {
+  return n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
+}
+const storageList = $("#storageList");
+if (storageList) {
+  // an array, not an object: number-like keys would be reordered (480 before 720)
+  const SHRINK_OPTIONS = [["720", "压缩到 720p"], ["480", "压缩到 480p"], ["audio", "只保留音频"]];
+  const SHRINK = Object.fromEntries(SHRINK_OPTIONS);
+  async function loadStorage() {
+    const s = await api("/api/storage");
+    $("#storageTotal").innerHTML = `<b>${fmtBytes(s.libraryBytes + s.articleBytes)}</b><span>其中视频 ${fmtBytes(s.videoBytes)} · ${s.videos.length} 个</span>`;
+    storageList.innerHTML = s.videos.length ? s.videos.map(v => {
+      const options = SHRINK_OPTIONS.filter(([mode]) => mode === "audio" ? !v.audioOnly : v.height > +mode);
+      return `<div class="storage-item" data-id="${esc(v.id)}">
+        <div class="storage-info">
+          <a href="/player/${encodeURIComponent(v.id)}" class="storage-title">${esc(v.title)}</a>
+          <span class="storage-meta">${v.audioOnly ? "只有音频" : `${v.height}p`} · ${fmtTime(v.duration)}</span>
+        </div>
+        <b class="storage-size">${fmtBytes(v.bytes)}</b>
+        <div class="storage-actions">${options.length
+          ? options.map(([mode, label]) => `<button type="button" class="btn" data-shrink="${mode}">${label}</button>`).join("")
+          : `<span class="storage-meta">已经很小了</span>`}</div>
+      </div>`;
+    }).join("") : `<div class="empty">还没有视频。</div>`;
+  }
+  storageList.addEventListener("click", async event => {
+    const btn = event.target.closest("[data-shrink]");
+    if (!btn) return;
+    const item = btn.closest(".storage-item");
+    const mode = btn.dataset.shrink;
+    const title = $(".storage-title", item).textContent;
+    const warn = mode === "audio" ? "播放器里将只有声音、没有画面。" : "画面会变得没那么清楚。";
+    if (!confirm(`「${title}」${SHRINK[mode]}？\n${warn}这一步不能撤销。`)) return;
+    $$("button", item).forEach(b => { b.disabled = true; });
+    try {
+      let job = await api(`/api/video/${encodeURIComponent(item.dataset.id)}/shrink`, { method: "POST", body: { mode } });
+      while (job.stage !== "done" && job.stage !== "error") {
+        btn.textContent = job.stage === "queued" ? "排队中…" : `压缩中 ${Math.round(job.percent)}%`;
+        await new Promise(r => setTimeout(r, 800));
+        job = await api(`/api/jobs/${job.id}`);
+      }
+      if (job.stage === "error") throw new Error(job.error || "压缩失败");
+      toast(`已压缩：${fmtBytes(job.result.before)} → ${fmtBytes(job.result.after)}`);
+    } catch (error) {
+      alert(error.message);
+    }
+    loadStorage();
+  });
+  loadStorage().catch(error => { $("#storageTotal").textContent = error.message; });
+}
 
 const form = $("#translation");
 if (form) {

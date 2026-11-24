@@ -22,7 +22,7 @@ STAGES = [
     ("annotate", "标注重点"),
     ("done", "完成"),
 ]
-STAGE_LABEL = {**dict(STAGES), "queued": "排队中", "error": "处理失败", "split": "拆分句子"}
+STAGE_LABEL = {**dict(STAGES), "queued": "排队中", "error": "处理失败", "split": "拆分句子", "compress": "压缩视频"}
 
 
 @dataclass
@@ -38,6 +38,7 @@ class Job:
     title: str | None = None
     error: str | None = None
     exists: bool = False
+    result: dict | None = None  # e.g. {"before": bytes, "after": bytes} for a shrink job
 
     def to_json(self) -> dict:
         return {
@@ -53,6 +54,7 @@ class Job:
             "title": self.title,
             "error": self.error,
             "exists": self.exists,
+            "result": self.result,
         }
 
 
@@ -116,6 +118,33 @@ class Pipeline:
                 job.error = friendly_error(str(e))
                 job.stage = "error"
                 log(traceback.format_exc(limit=3))
+
+    def shrink(self, vid: str, mode: str) -> Job:
+        """Make a video smaller (720p / 480p / audio only). Runs like an import: one heavy job at a time."""
+        key = f"shrink:{vid}"
+        with self._jobs_lock:
+            for job in self.jobs.values():
+                if job.url == key and job.stage not in ("done", "error"):
+                    return job
+            job = Job(url=key, quality=mode)
+            job.video_id = vid
+            self.jobs[job.id] = job
+            threading.Thread(target=self._shrink, args=(job,), daemon=True).start()
+        return job
+
+    def _shrink(self, job: Job):
+        from .storage import shrink
+
+        with self._run_lock:
+            try:
+                self._set(job, "compress")
+                result = shrink(LIBRARY_DIR / job.video_id, job.quality,
+                                progress=lambda p: setattr(job, "percent", p), log=job.log.append)
+                job.result = result
+                self._set(job, "done", 1.0)
+            except Exception as e:
+                job.error = str(e)
+                job.stage = "error"
 
     def _set(self, job: Job, stage: str, pct: float = 0.0):
         job.stage, job.percent = stage, pct
@@ -237,6 +266,13 @@ def friendly_error(msg: str) -> str:
     return msg
 
 
+def _file_size(f: Path) -> int:
+    try:
+        return f.stat().st_size if f.is_file() else 0
+    except OSError:
+        return 0
+
+
 def list_library() -> list[dict]:
     items = []
     if not LIBRARY_DIR.exists():
@@ -264,6 +300,7 @@ def list_library() -> list[dict]:
                 # videos imported before this field existed were all translated locally
                 "translator": data.get("translator") or "local",
                 "aligned": any(c.get("seg") for c in cues),
+                "bytes": _file_size(d / (data.get("video") or "")),
             }
         )
     items.sort(key=lambda x: -x["created"])
