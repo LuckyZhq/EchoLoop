@@ -88,6 +88,14 @@ uv lock --upgrade-package yt-dlp && uv sync
 - `articles/<文章ID>/data.json`：文章精读的句子、翻译和标注
 - `data/ecdict.csv`、`data/ecdict.db`：离线词典
 
+## 开发
+
+```bash
+uv run pytest
+```
+
+测试覆盖短语对齐、翻译设置校验、文章拆句，以及「只接受本机页面的写请求」和版本检查。改了 Python 代码后，后台服务会提示重启：页面顶部出现「立即重启」，或者再运行一次 `uv run ielts-study`、双击桌面图标，都会自动换成最新代码。
+
 ## 已知局限
 
 - 离线翻译质量不如大模型，偶尔会直译或误译（如 trunks → 树干）。可在播放器里按 C 隐藏中文，先自己理解。
