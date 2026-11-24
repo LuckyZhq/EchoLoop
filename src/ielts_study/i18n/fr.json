@@ -760,7 +760,7 @@
  "词典下载不完整或已损坏，请检查网络后重试。": "Le téléchargement du dictionnaire est incomplet ou endommagé. Vérifiez votre réseau et réessayez.",
  "下载离线词典失败，请检查网络后重试：": "Échec du téléchargement du dictionnaire hors ligne. Vérifiez votre réseau et réessayez : ",
  "已下载": "Téléchargé",
- "词典就绪：": "Dictionnaire prêt :",
- "个单词，": "mots,",
+ "词典就绪：": "Dictionnaire prêt : ",
+ "个单词，": "mots, ",
  "条短语": "expressions"
 }

@@ -760,7 +760,7 @@
  "词典下载不完整或已损坏，请检查网络后重试。": "Unduhan kamus tidak lengkap atau rusak. Periksa jaringan Anda dan coba lagi.",
  "下载离线词典失败，请检查网络后重试：": "Tidak dapat mengunduh kamus offline. Periksa jaringan Anda dan coba lagi: ",
  "已下载": "Telah diunduh",
- "词典就绪：": "Kamus siap:",
- "个单词，": "kata,",
+ "词典就绪：": "Kamus siap: ",
+ "个单词，": "kata, ",
  "条短语": "frasa"
 }

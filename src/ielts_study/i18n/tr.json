@@ -760,7 +760,7 @@
  "词典下载不完整或已损坏，请检查网络后重试。": "Sözlük indirmesi eksik veya bozuk. Ağınızı kontrol edip yeniden deneyin.",
  "下载离线词典失败，请检查网络后重试：": "Çevrimdışı sözlük indirilemedi. Ağınızı kontrol edip yeniden deneyin: ",
  "已下载": "İndirildi",
- "词典就绪：": "Sözlük hazır:",
- "个单词，": "kelime,",
+ "词典就绪：": "Sözlük hazır: ",
+ "个单词，": "kelime, ",
  "条短语": "ifade"
 }

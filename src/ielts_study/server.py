@@ -742,8 +742,11 @@ def cli_language() -> str:
     return i18n.from_browser(env.split(".")[0].replace("_", "-")) or "en"
 
 
-def say(message: str) -> None:
-    print(i18n.to_ui(message, cli_language()), flush=True)
+def say(*parts: str) -> None:
+    """Print a terminal message in the user's language. Pass addresses and numbers as separate parts, so the
+    translatable text around them stays recognizable."""
+    lang = cli_language()
+    print(" ".join(i18n.to_ui(str(part), lang) for part in parts), flush=True)
 
 
 def _request_shutdown(url: str) -> bool:
@@ -799,13 +802,13 @@ def main(open_browser: bool = True, restart: bool = False):
         if error.errno not in (errno.EADDRINUSE, 10048):  # 10048: WSAEADDRINUSE on Windows
             raise
         if _already_running(url):
-            say(f"IELTS Study 已经在运行：{url}")
+            say("IELTS Study 已经在运行：", url)
             if open_browser:
                 webbrowser.open(url)
             raise SystemExit(0) from None  # not an error: the page is open
-        say(f"端口 {PORT} 被其他程序占用。可以设置环境变量 IELTS_PORT 换一个端口，例如 8766。")
+        say("端口", str(PORT), "被其他程序占用。可以设置环境变量 IELTS_PORT 换一个端口，例如 8766。")
         raise SystemExit(1) from None
-    say(f"已启动：{url}  （按 Ctrl+C 退出）")
+    say("已启动：", url, "（按 Ctrl+C 退出）")
     if open_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:
