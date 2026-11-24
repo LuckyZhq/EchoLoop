@@ -271,6 +271,72 @@ function visibleMarks(cue, level = readPreference("vocabLevel")) {
 }
 
 let toastTimer;
+// ---- Word and phrase cards, the lookup popover and 收藏: shared by the player and the article reader.
+// Each page has a <div class="pop" id="pop"> and passes the sentence (cue) a card belongs to.
+const savedWords = new Set();  // lower-case English of everything in 收藏词句
+const lookedUp = new Map();    // "w:word" → card for a word looked up in the dictionary
+
+async function loadSavedWords() {
+  try { for (const v of await api("/api/vocab")) savedWords.add(v.en.toLowerCase()); } catch { /* none yet */ }
+}
+
+function saveKey(n) { return (n.type === "phrase" ? "p:" : "w:") + n.en; }
+
+function noteHtml(n, cueIndex, { bare = false } = {}) {
+  const isSaved = savedWords.has(n.en.toLowerCase());
+  return `<div class="note ${n.type}"${bare ? ' style="border:0;padding:0"' : ""}>
+    <div class="h"><b>${esc(n.en)}</b>${n.phonetic ? `<span class="ph">/${esc(n.phonetic)}/</span>` : ""}
+      <span class="badge ${n.type}">${n.type === "phrase" ? "重点短语" : n.lookup ? "查词" : "难词"}</span>
+      <span class="act">
+        <button class="iconbtn" data-speak="${esc(n.en)}" title="发音">🔊</button>
+        <button class="iconbtn ${isSaved ? "saved" : ""}" data-save="${esc(saveKey(n))}" data-cue="${cueIndex}">${isSaved ? "★ 已收藏" : "☆ 收藏"}</button>
+      </span></div>
+    <div class="zh">${esc(n.zh || "（词典里没有找到）")}</div>
+    ${n.note ? `<div class="tip">${esc(n.note)}</div>` : ""}
+  </div>`;
+}
+
+async function lookupNote(word) {
+  const info = await api(`/api/lookup?w=${encodeURIComponent(word)}`);
+  const n = { type: "word", lookup: true, en: info.en || word, zh: info.zh || "", phonetic: info.phonetic || "", note: "" };
+  lookedUp.set(saveKey(n), n);
+  return n;
+}
+
+function showPop(anchor, html) {
+  const pop = $("#pop");
+  pop.innerHTML = html;
+  pop.classList.add("show");
+  const r = anchor.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const x = Math.min(Math.max(16, r.left + r.width / 2 - pw / 2), innerWidth - pw - 16);
+  let y = r.bottom + 8;
+  if (y + ph > innerHeight - 8) y = r.top - ph - 8;
+  pop.style.left = x + "px"; pop.style.top = Math.max(8, y) + "px";
+}
+function hidePop() { $("#pop")?.classList.remove("show"); }
+
+// Card for a clicked word: a marked phrase/hard word uses the sentence's note, any other word the dictionary.
+async function showWordCard(target, cue) {
+  const n = target.tagName === "MARK" ? cue.notes?.[target.dataset.key] : await lookupNote(target.dataset.w);
+  if (n) showPop(target, noteHtml(n, cue.i, { bare: true }));
+}
+
+// ☆ 收藏 / ★ 已收藏. `source` says where it came from: {videoId, time} or {articleId, sentenceIndex}.
+async function toggleSaved(btn, cue, source) {
+  const key = btn.dataset.save;
+  const n = cue.notes?.[key] || lookedUp.get(key) || await lookupNote(key.slice(2));
+  const k = n.en.toLowerCase();
+  if (savedWords.has(k)) {
+    await api(`/api/vocab/${encodeURIComponent(k)}`, { method: "DELETE" });
+    savedWords.delete(k); toast("已取消收藏");
+  } else {
+    await api("/api/vocab", { method: "POST", body: { ...n, key, sentence: cue.text, sentenceZh: cue.zh, ...source } });
+    savedWords.add(k); toast("已收藏");
+  }
+  $$(`[data-save="${CSS.escape(key)}"]`).forEach(b => { const on = savedWords.has(k); b.classList.toggle("saved", on); b.textContent = on ? "★ 已收藏" : "☆ 收藏"; });
+}
+
 function toast(msg) {
   let el = $(".toast");
   if (!el) { el = document.createElement("div"); el.className = "toast"; document.body.appendChild(el); }

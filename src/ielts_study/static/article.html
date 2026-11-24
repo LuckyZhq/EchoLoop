@@ -28,7 +28,7 @@
 <script src="/static/common.js"></script>
 <script>
 const aid = decodeURIComponent(location.pathname.split("/").pop());
-let data = null, cues = [], saved = new Set();
+let data = null, cues = [];
 let zhOn = storedFlag("readingZh");
 let marksOn = readPreference("marks");
 
@@ -54,55 +54,10 @@ function render() {
   $("#marksBtn").classList.toggle("on", marksOn);
 }
 
-// ---------- popover: word / phrase card, or one sentence's translation
-const pop = $("#pop");
-function showPop(anchor, html) {
-  pop.innerHTML = html;
-  pop.classList.add("show");
-  const r = anchor.getBoundingClientRect();
-  const pw = pop.offsetWidth, ph = pop.offsetHeight;
-  const x = Math.min(Math.max(16, r.left + r.width / 2 - pw / 2), innerWidth - pw - 16);
-  let y = r.bottom + 8;
-  if (y + ph > innerHeight - 8) y = r.top - ph - 8;
-  pop.style.left = x + "px"; pop.style.top = Math.max(8, y) + "px";
-}
-function hidePop() { pop.classList.remove("show"); }
-
-function noteHtml(n, c) {
-  const isSaved = saved.has(n.en.toLowerCase());
-  const key = (n.type === "phrase" ? "p:" : "w:") + n.en;
-  return `<div class="note ${n.type}" style="border:0;padding:0">
-    <div class="h"><b>${esc(n.en)}</b>${n.phonetic ? `<span class="ph">/${esc(n.phonetic)}/</span>` : ""}
-      <span class="badge ${n.type}">${n.type === "phrase" ? "重点短语" : n.lookup ? "查词" : "难词"}</span>
-      <span class="act">
-        <button class="iconbtn" data-speak="${esc(n.en)}" title="发音">🔊</button>
-        <button class="iconbtn ${isSaved ? "saved" : ""}" data-save="${esc(key)}" data-cue="${c.i}">${isSaved ? "★ 已收藏" : "☆ 收藏"}</button>
-      </span></div>
-    <div class="zh">${esc(n.zh)}</div>
-    ${n.note ? `<div class="tip">${esc(n.note)}</div>` : ""}
-  </div>`;
-}
-
-const lookups = new Map();  // "w:word" → note for words looked up in the dictionary
-async function lookupNote(w) {
-  const info = await api(`/api/lookup?w=${encodeURIComponent(w)}`);
-  const n = { type: "word", lookup: true, en: info.en || w, zh: info.zh || "（词典里没有找到）", phonetic: info.phonetic || "", note: "" };
-  lookups.set("w:" + n.en, n);
-  return n;
-}
-
-async function toggleSave(btn) {
-  const key = btn.dataset.save, c = cues[+btn.dataset.cue];
-  const n = c.notes?.[key] || lookups.get(key) || await lookupNote(key.slice(2));
-  const k = n.en.toLowerCase();
-  if (saved.has(k)) {
-    await api(`/api/vocab/${encodeURIComponent(k)}`, { method: "DELETE" });
-    saved.delete(k); toast("已取消收藏");
-  } else {
-    await api("/api/vocab", { method: "POST", body: { ...n, key, sentence: c.text, sentenceZh: c.zh, articleId: aid, sentenceIndex: c.i } });
-    saved.add(k); toast("已收藏");
-  }
-  $$(`[data-save="${CSS.escape(key)}"]`).forEach(b => { const on = saved.has(k); b.classList.toggle("saved", on); b.textContent = on ? "★ 已收藏" : "☆ 收藏"; });
+// ---------- word cards (shared code in common.js)
+function toggleSave(btn) {
+  const c = cues[+btn.dataset.cue];
+  return toggleSaved(btn, c, { articleId: aid, sentenceIndex: c.i });
 }
 
 document.addEventListener("click", async e => {
@@ -120,14 +75,7 @@ document.addEventListener("click", async e => {
   }
   const word = e.target.closest(".article-body .w, .article-body mark");
   if (word) {
-    const c = cues[+word.closest(".sent").dataset.i];
-    if (word.tagName === "MARK") {
-      const n = c.notes?.[word.dataset.key];
-      if (n) showPop(word, noteHtml(n, c));
-      return;
-    }
-    showPop(word, noteHtml(await lookupNote(word.dataset.w), c));
-    return;
+    return showWordCard(word, cues[+word.closest(".sent").dataset.i]);
   }
   if (!e.target.closest(".pop")) hidePop();
 });
@@ -192,8 +140,7 @@ window.addEventListener("storage", event => { if (event.key === null || event.ke
   $("#title").textContent = data.title;
   showMeta();
   render();
-  const vocab = await api("/api/vocab").catch(() => []);
-  saved = new Set(vocab.map(v => v.en.toLowerCase()));
+  await loadSavedWords();
   const target = location.hash && document.getElementById(location.hash.slice(1));
   if (target) { target.scrollIntoView({ block: "center" }); target.classList.add("flash"); }
 })();

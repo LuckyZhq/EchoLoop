@@ -80,24 +80,10 @@
 const vid = decodeURIComponent(location.pathname.split("/").pop());
 const video = $("#video");
 const player = $("#player");
-let data = null, cues = [], cur = -1, loop = false, autoPause = false, saved = new Set();
+let data = null, cues = [], cur = -1, loop = false, autoPause = false;
 let pauseAt = null;
 
 function noteFor(cue, key) { return cue?.notes?.[key]; }
-
-function noteHtml(n, cue) {
-  const isSaved = saved.has(n.en.toLowerCase());
-  return `<div class="note ${n.type}">
-    <div class="h"><b>${esc(n.en)}</b>${n.phonetic ? `<span class="ph">/${esc(n.phonetic)}/</span>` : ""}
-      <span class="badge ${n.type}">${n.type === "phrase" ? "重点短语" : n.lookup ? "查词" : "难词"}</span>
-      <span class="act">
-        <button class="iconbtn" data-speak="${esc(n.en)}" title="发音">🔊</button>
-        <button class="iconbtn ${isSaved ? "saved" : ""}" data-save="${esc(n.type === "phrase" ? "p:" : "w:")}${esc(n.en)}" data-cue="${cue.i}">${isSaved ? "★ 已收藏" : "☆ 收藏"}</button>
-      </span></div>
-    <div class="zh">${esc(n.zh)}</div>
-    ${n.note ? `<div class="tip">${esc(n.note)}</div>` : ""}
-  </div>`;
-}
 
 function renderList() {
   $("#list").innerHTML = cues.map(c => `
@@ -118,7 +104,7 @@ function renderFocusList() {
   $("#focusCount").textContent = entries.size;
   $("#focusList").innerHTML = entries.size ? [...entries.values()].map(({ note, cue }) => `
     <article class="focus-entry">
-      ${noteHtml(note, cue)}
+      ${noteHtml(note, cue.i)}
       <button type="button" class="focus-source" data-focus-cue="${cue.i}">
         <span class="focus-time">${fmtTime(cue.start)}</span>
         <span>${esc(cue.text)}</span>
@@ -165,7 +151,7 @@ function renderNotes() {
   if (!c) return;
   const seen = new Set();
   const ns = visibleMarks(c).filter(m => !seen.has(m.key) && seen.add(m.key)).map(m => noteFor(c, m.key)).filter(Boolean);
-  $("#notes").innerHTML = ns.map(n => noteHtml(n, c)).join("");
+  $("#notes").innerHTML = ns.map(n => noteHtml(n, c.i)).join("");
 }
 
 // ---------- highlight the word being spoken
@@ -257,33 +243,7 @@ video.addEventListener("timeupdate", () => { if (!video.paused && Date.now() - l
 video.addEventListener("pause", () => saveProgress());
 window.addEventListener("pagehide", () => saveProgress(true));
 
-// ---------- popover / lookup
-const pop = $("#pop");
-function showPop(anchor, html) {
-  pop.innerHTML = html;
-  pop.classList.add("show");
-  const r = anchor.getBoundingClientRect();
-  const pw = pop.offsetWidth, ph = pop.offsetHeight;
-  let x = Math.min(Math.max(16, r.left + r.width / 2 - pw / 2), innerWidth - pw - 16);
-  let y = r.bottom + 8;
-  if (y + ph > innerHeight - 8) y = r.top - ph - 8;
-  pop.style.left = x + "px"; pop.style.top = Math.max(8, y) + "px";
-}
-function hidePop() { pop.classList.remove("show"); }
-
-async function onWordClick(target, cueIdx) {
-  const c = cues[cueIdx];
-  if (target.tagName === "MARK") {
-    const n = noteFor(c, target.dataset.key);
-    if (n) showPop(target, noteHtml(n, c).replace('class="note', 'style="border:0;padding:0" class="note'));
-    return;
-  }
-  const w = target.dataset.w;
-  const info = await api(`/api/lookup?w=${encodeURIComponent(w)}`);
-  const n = { type: "word", lookup: true, en: info.en || w, zh: info.zh || "（词典里没有找到）", phonetic: info.phonetic || "", note: "" };
-  showPop(target, noteHtml(n, c).replace('class="note', 'style="border:0;padding:0" class="note'));
-}
-
+// ---------- word cards (shared code in common.js)
 document.addEventListener("click", async e => {
   const sp = e.target.closest("[data-speak]");
   if (sp) { e.stopPropagation(); speak(sp.dataset.speak); return; }
@@ -296,7 +256,7 @@ document.addEventListener("click", async e => {
     const ci = row ? +row.dataset.i : cur;
     if (row && ci !== cur) seekCue(ci, false);
     video.pause();
-    return onWordClick(word, ci);
+    return showWordCard(word, cues[ci]);
   }
   if (!e.target.closest(".pop")) hidePop();
   const source = e.target.closest("[data-focus-cue]");
@@ -310,23 +270,9 @@ document.addEventListener("click", async e => {
   if (row) dict.on ? dictPlay(+row.dataset.i) : seekCue(+row.dataset.i);
 });
 
-async function toggleSave(btn) {
-  const key = btn.dataset.save, c = cues[+btn.dataset.cue];
-  let n = noteFor(c, key);
-  if (!n) { // ad-hoc lookup card
-    const en = key.slice(2);
-    const info = await api(`/api/lookup?w=${encodeURIComponent(en)}`);
-    n = { type: "word", en: info.en || en, zh: info.zh || "", phonetic: info.phonetic || "", note: "" };
-  }
-  const k = n.en.toLowerCase();
-  if (saved.has(k)) {
-    await api(`/api/vocab/${encodeURIComponent(k)}`, { method: "DELETE" });
-    saved.delete(k); toast("已取消收藏");
-  } else {
-    await api("/api/vocab", { method: "POST", body: { ...n, key, sentence: c.text, sentenceZh: c.zh, videoId: vid, time: c.start } });
-    saved.add(k); toast("已收藏");
-  }
-  $$(`[data-save="${CSS.escape(key)}"]`).forEach(b => { const on = saved.has(k); b.classList.toggle("saved", on); b.textContent = on ? "★ 已收藏" : "☆ 收藏"; });
+function toggleSave(btn) {
+  const c = cues[+btn.dataset.cue];
+  return toggleSaved(btn, c, { videoId: vid, time: c.start });
 }
 
 // ---------- dictation (听写)
@@ -659,8 +605,7 @@ document.addEventListener("keydown", e => {
   $("#cueCount").textContent = [`${cues.length} 句字幕`, data.subtitleSource === "whisper" ? "本地识别" : "平台字幕", translator].filter(Boolean).join(" · ");
   video.src = `/media/${encodeURIComponent(vid)}/${encodeURIComponent(data.video)}`;
   if (data.poster) video.poster = data.poster;  // shown before playing, and all the time for audio-only videos
-  const vocab = await api("/api/vocab").catch(() => []);
-  saved = new Set(vocab.map(v => v.en.toLowerCase()));
+  await loadSavedWords();
   dict.records = await api(`/api/dictation/${encodeURIComponent(vid)}`).catch(() => ({}));
   $("#dictSourceNote").hidden = data.subtitleSource !== "whisper";
   renderList();
