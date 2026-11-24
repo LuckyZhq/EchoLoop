@@ -1,221 +1,71 @@
-# IELTS Study
+<p align="center"><img src="assets/icon-1024.png" width="96" alt=""></p>
+<h1 align="center">IELTS Study</h1>
+<p align="center"><strong>Prepare for IELTS with videos and articles you want to study.</strong></p>
+<p align="center"><a href="README.zh-CN.md" lang="zh-CN" hreflang="zh-CN">简体中文</a> | <a href="README.md" lang="en" hreflang="en" aria-current="page">English</a></p>
 
-Learn English for the IELTS from real videos and articles, in your own language.
+![IELTS Study player showing phrase-by-phrase subtitles and a synced transcript](assets/readme/listening.png)
 
-Paste a YouTube, Bilibili, TED or podcast link and IELTS Study gives you bilingual subtitles with the translation written
-under each phrase, the spoken word highlighted, key phrases and IELTS-level words marked for *your* level,
-sentence-by-sentence dictation, and spaced-repetition review of the words you save. It runs on your own computer:
-no account, no uploads.
+*Practise listening with subtitles that follow the recording.*
 
-[简体中文说明](README.zh-CN.md)
+IELTS Study is a local study app for macOS, Windows, and Linux. Paste a YouTube, Bilibili, TED, or podcast link to start a listening session. Replay a sentence, look up the words you missed, and save them for review.
 
 ## What you can do
 
-- **Video listening** – subtitles split into words and phrases with the translation underneath, the word being spoken
-  lit up, sentence loop, auto-pause, 0.6×–1.5× speed. Videos without English subtitles are transcribed locally with Whisper.
-- **Dictation** – type what you hear; answers are compared word by word (contractions, numbers and UK/US spellings
-  count as equal). Sentences below 90 % go to *Mistakes*, where you redo them in place with the original audio.
-  Deleting a video keeps its mistakes and the sentences your saved words came from, with a short clip of each.
-- **My goals** – one page, a highlighted card at the top of the sidebar (goal band, stage, today's progress), decides how much you study and what for. *Current level*: read
-  three short passages, click the words you don't know, answer a short spot-check, and get an estimated vocabulary
-  size and a rough IELTS band (or just pick a band). *Goal*: target band and exam date. *Stage*: worked out from your
-  band (beginner, basic, improving, sprint) with the reason shown, e.g. "5.5 → improving · 1.5 bands to go · exam in
-  120 days"; you can override it. *Daily amounts*: new words, listening, dictation and reading, recommended by the stage
-  and the exam date, each adjustable. Review, word books, today's plan and the words marked in videos all take their
-  numbers from here, so they always agree.
-- **Words** – one place with four tabs. *Today's review*: saved words come back as fill-in-the-blank cards from
-  the sentence you met them in, with the original audio, scheduled with a simplified SM-2 (like Anki); a line at the
-  top says where today's cards come from (new from the word book · new saved words · reviews · left in the book).
-  *Word books*: pick a list (the 3,000 most common words, IELTS, TOEFL; for Chinese learners also CET-4, CET-6 and the
-  postgraduate exam) and new words arrive every day: one click skips a word you know, the others are learned with an
-  example sentence from your own videos and articles, or one written by your API. Words you know or are learning, and
-  words more frequent than your tested vocabulary size, are skipped. The lists come from ECDICT's exam tags.
-  *My words*: every word, filterable by status (learning, known) and source. *Saved sentences*: whole sentences saved
-  with ☆ in the player's transcript or an article.
-  Each word has a single record (`library/words.json`) with one status, so highlighting, review, word-book progress
-  and the word list always agree: marking a word as known anywhere stops it being highlighted, reviewed and offered.
-- **Close reading** – graded passages by level (CET-4, CET-6 for Chinese learners; IELTS 5.5, 6.5, 7+), each translated
-  sentence by sentence with key words marked. The built-in passages are original texts modelled on each exam's topics,
-  length and difficulty; your API can write more at any level, on a topic you choose. Or paste your own article.
-- **Speaking** – *Shadowing*: hear a sentence (the original audio from your videos, or the neural voice for passage
-  sentences), say it, and see word by word what was recognised, with your pace against the original. *Mock test*:
-  IELTS-style Part 1, 2 (with a one-minute preparation timer and cue card) and 3 questions, read out by the examiner
-  voice; your answer is recorded, transcribed, and measured (words per minute, pauses, fillers, unclear words). With an
-  API, it estimates the four speaking bands and gives corrections, better phrasing and a sample answer. Recordings are
-  recognised on your computer.
-- **Writing** – Task 2 essays, Task 1 charts (bar, line, table) and General Training letters, with a timer, word count
-  and auto-saved drafts, or paste your own question. Your API marks it against the four writing criteria, corrects it
-  sentence by sentence (highlighted in your text), suggests better words and rewrites it at Band 8 keeping your ideas.
-  Every marked essay is kept, so you can compare over time. The questions are original, in the style of the test.
-- **Today's plan** – on My goals: daily tasks that fill in as you study, streaks, progress charts.
+- **Video listening.** Follow bilingual captions with word-by-word highlighting and key phrases marked for your level. Loop a sentence, pause at its end, change playback speed, or click a word to look it up. A compatible translation API can put each phrase’s translation underneath it.
+- **Dictation and mistakes.** Listen, type, and compare your answer word by word. Sentences below 90% similarity appear in the mistakes notebook for another try with the original audio. The app can keep the relevant clips when you delete a video.
+- **Close reading.** Choose original passages at IELTS 5.5, 6.5 or 7+, with CET-4 and CET-6 material for Chinese-speaking learners. You can also paste your own article, toggle sentence translations, look up words, and save sentences.
+- **Words and sentences.** Use four tabs for today’s review, word books, your saved words, and saved sentences. Spaced repetition brings words back as fill-in-the-blank cards using sentences you saw while studying, with the original audio when available. Mark a word as known to skip it across the app.
+- **Speaking.** Record yourself shadowing a sentence or practise IELTS-style Part 1–3 questions, including a one-minute Part 2 timer. Compare transcripts, pace, pauses, and filler words. An optional API can give feedback against IELTS speaking criteria.
+- **Writing.** Practise Task 1 charts, General Training letters, or Task 2 essays. Use the timer, live word count, and autosaved drafts. An optional API can give feedback by criterion, highlight sentences to revise, and suggest a rewritten version.
+- **Goals and progress.** Take a vocabulary check for a rough band estimate, or enter your level manually. Set a target band and exam date, adjust daily tasks, and track study streaks and progress.
 
-## Where videos and podcasts can come from
+## Local tools and optional services
 
-| Source | Works | Notes |
-|---|---|---|
-| YouTube | yes | uses the video's English subtitles when it has them |
-| Bilibili | yes | members-only videos (most 番剧) give only a short preview without signing in; the library marks them |
-| TED | yes | English subtitles included |
-| Apple Podcasts | yes, episode links | the latest 200 episodes of a show; covers almost every public podcast (BBC 6 Minute English, TED Talks Daily, All Ears English…) |
-| 小宇宙 (Xiaoyuzhou) | yes, episode links | |
-| Spreaker, Internet Archive | yes | |
-| Direct audio links (.mp3, .m4a) | yes | e.g. the download link of a podcast episode |
-| Vimeo | no | now requires signing in |
-| Spotify, Netflix and other DRM services | no | protected, cannot be downloaded |
+- **Translation, recognition and read-aloud.** Use the ECDICT offline dictionary, Argos local translation, Whisper speech recognition, and Kokoro read-aloud. Some resources download on first use. The app also supports compatible cloud translation and speech recognition.
+- **Languages.** Choose from 16 languages. Set your interface language separately from the language used for translations and explanations.
+- **Phone access.** Enable access on the same Wi-Fi and scan a QR code to review words, practise dictation, or read on your phone.
+- **Backups.** Export your study history to ZIP, with videos optional. Restore from a ZIP or schedule daily backups to a folder of your choice.
 
-Podcasts have no subtitles, so they are transcribed locally with Whisper (see Speech recognition).
-Any other site [yt-dlp supports](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) may work too.
+Local study features work without an IELTS Study account. Cloud features send the text or audio needed for the request to the provider you configure. Playback and dictation can also start from links to individual Apple Podcasts or Xiaoyuzhou episodes and direct audio files.
 
-## Languages
+## Screenshots
 
-Interface and translations in **16 languages**: 简体中文, 繁體中文 (Taiwan), English (English-only explanations),
-Español, Português, Français, Deutsch, 日本語, 한국어, Tiếng Việt, Bahasa Indonesia, ไทย, Türkçe, Русский, العربية
-(right-to-left) and हिन्दी. There is one choice, your **native language** (on the home page, or Settings → Appearance and
-language): it sets what subtitles and meanings are translated into and the interface language. If you want them to
-differ, say a Chinese speaker with an English interface, turn on "Interface language differs from native language".
-After switching to another language, videos and articles you already have stay in the old one until you click
-"↻ Translate again" on each.
+<table>
+<tr>
+<td width="50%"><a href="assets/readme/reading.png"><img src="assets/readme/reading.png" alt="An IELTS-style passage with Chinese translations and marked phrases."></a><br><strong>Close reading</strong><br>Read an IELTS-style passage with sentence translations and key phrases.</td>
+<td width="50%"><a href="assets/readme/goals.png"><img src="assets/readme/goals.png" alt="The study goals page with a target band and daily task progress."></a><br><strong>Study goals</strong><br>See your target band, study stage, and daily tasks together.</td>
+</tr>
+</table>
 
-| | Chinese learners | Other languages |
-|---|---|---|
-| Subtitle translation | API, or offline (Argos) | API with phrase-by-phrase translation (any language), or offline Argos (model downloaded on first use) |
-| Word meanings | offline English–Chinese dictionary (ECDICT) | API, cached per language; English definitions offline |
-| Meanings under the English | with an API: each phrase's meaning, other words from the dictionary; offline: whole-sentence translation only, click a word to look it up | the same |
+*Screenshots use demo data. The video still was generated for this example.*
 
-An API is optional but gives the best translations: any OpenAI-compatible provider works (DeepSeek, OpenAI, Gemini,
-Grok, Qwen, Kimi, GLM, Doubao, Groq or your own endpoint). Only subtitle text is sent, and only to the provider you
-choose. Each provider's key is entered once, in Settings → Models and services → Providers and keys.
+## Quick start
 
-## Install
-
-You need [uv](https://docs.astral.sh/uv/) (it installs the right Python and all dependencies) and git.
-
-**macOS / Linux**
+Install Git and [uv](https://docs.astral.sh/uv/getting-started/installation/), then run these commands in Terminal or PowerShell.
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/shi910655-arch/IELTS-study.git
 cd IELTS-study
 uv run ielts-study
 ```
 
-**Windows** (PowerShell)
+Open [http://127.0.0.1:8765](http://127.0.0.1:8765) in your browser. The first launch installs dependencies and downloads the offline dictionary, so give it a few minutes.
 
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-git clone https://github.com/shi910655-arch/IELTS-study.git
-cd IELTS-study
-uv run ielts-study
+### Install with an AI assistant
+
+Copy the entire prompt below to your AI assistant on the computer where you want to install IELTS Study. You can also use it to update an existing installation.
+
+```text
+Please install and launch IELTS Study on this computer.
+Project repository: https://github.com/shi910655-arch/IELTS-study.git
+
+1. Identify the operating system, then check that Git and uv are available. If either is missing, follow its official installation instructions for this system.
+2. If an IELTS Study checkout already exists, use that directory. Check that origin points to the repository above, and check the branch and working tree. On a clean main branch, run git pull --ff-only. If there are local changes or diverging branch histories, leave them in place and tell me. For a new installation, run git clone https://github.com/shi910655-arch/IELTS-study.git, then enter the IELTS-study directory.
+3. From the project directory, run uv run ielts-study. The first launch installs dependencies and downloads and verifies an offline dictionary of about 66 MB. This can take several minutes. Keep waiting while the logs or download show progress. Investigate if an explicit error appears or you confirm progress has stopped.
+4. Confirm that http://127.0.0.1:8765 opens in the browser, then report the project path and whether the app started. The launch command stays running while the server is active.
+5. Installation and local study require no API key. Do not ask me for any API key, access token, password, or verification code during installation.
 ```
-
-Your browser opens <http://127.0.0.1:8765>. The first start installs dependencies and downloads the offline dictionary
-(ECDICT, about 66 MB, checksum-verified), so it takes a few minutes; later starts take seconds.
-
-Afterwards you can start it by double-clicking `scripts/IELTS-Study.bat` (Windows) or running `scripts/start.sh`
-(macOS / Linux). On a Mac, `zsh assets/build_app.sh` puts an IELTS-study app on your desktop.
-
-### Read-aloud voice
-
-Words and sentences are read aloud by a neural voice model, [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M), run on your
-computer: British (female or male) for IELTS, American for CET. Its model (about 165 MB) is downloaded from Hugging
-Face the first time something is read aloud (hf-mirror.com is tried if Hugging Face can't be reached; an interrupted
-download continues where it stopped); until then, and for the Australian accent, your system's voice is used.
-Choose the voice and accent in Settings → Models and services.
-
-### Speech recognition
-
-Used when a video has no human-made English subtitles, and for your speaking-practice recordings. Choose the method
-and model size in Settings → Models and services.
-
-| Computer | Engine | "Auto" model |
-|---|---|---|
-| Mac with Apple Silicon | [mlx-whisper](https://github.com/ml-explore/mlx-examples) (GPU) | large-v3-turbo (≈1.6 GB) |
-| Windows / Linux with an NVIDIA GPU | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (CUDA) | large-v3-turbo |
-| Any other computer | faster-whisper (CPU) | small.en (≈0.5 GB) |
-
-So the first video doesn't wait for a 1.6 GB download, "Auto" starts with the small model (≈0.5 GB) and fetches the
-large one in the background; new imports use it as soon as it is there. You can also pick base, small, medium or
-large yourself.
-
-**Cloud recognition** (optional): any OpenAI-compatible `/audio/transcriptions` endpoint with word timestamps, such as
-OpenAI `whisper-1` or Groq `whisper-large-v3-turbo`, using the key saved under Providers and keys (saving a key
-there for recognition doesn't change the provider used for translation). It gives computers without a graphics card
-large-model accuracy; the audio is sent as small MP3 pieces, and if the service can't be reached the local model is
-used. `IELTS_WHISPER` still overrides the local model.
-
-### Settings
-
-Settings has five pages, listed on the left: Study (a summary of My goals), Models and
-services (providers and keys, speech recognition, voice), Playback, Appearance and language, and Data (download
-quality, storage, backup, phone access). Old addresses such as `/settings/backup` and `/level` redirect to their new
-place.
-
-### Phone access
-
-Settings → Data → Phone access lets a phone on the same Wi-Fi open the app (review, dictation, reading). After a restart the
-server listens on the local network, and a QR code carries an access key: phones without it are refused, and API keys,
-backups and settings can only be changed on the computer. Browsers only allow the microphone on HTTPS pages, so
-speaking practice stays on the computer.
-
-### Backups
-
-Settings → Data → Backup downloads a zip of your learning record (saved words, review history, mistakes, dictation scores,
-articles, speaking and writing history, kept clips; videos optional, API keys never) and restores one: files it
-replaces are first copied to `data/backups/`. It can also back up once a day into a folder you choose, such as an
-iCloud Drive, OneDrive, Dropbox or Nutstore folder, keeping the latest copies.
-
-## Commands
-
-```bash
-uv run ielts-study                 # start (opens the browser)
-uv run ielts-study --no-browser    # start without opening the browser
-uv run ielts-study --stop          # stop the server running in the background
-uv run ielts-study --restart       # restart with the latest code
-uv run ielts-study --translate-ui es   # generate / complete an interface language with your API ("all" for every language)
-```
-
-The pages show a "restart" banner when the code on disk is newer than the running server.
-
-| Environment variable | Meaning |
-|---|---|
-| `IELTS_PORT` | port (default 8765) |
-| `IELTS_WHISPER` | local speech-recognition model (overrides Settings) |
-| `IELTS_LIBRARY` | where videos and your progress are kept (default `library/`) |
-| `IELTS_ARTICLES` | where reading articles are kept (default `articles/`) |
-
-## Your data
-
-Everything stays in the project folder:
-
-- `library/` – videos, subtitles, dictation results, saved words, your level and study log; `library/kept/` holds
-  the sentences (text and a short audio clip) kept from deleted videos
-- `articles/` – pasted articles and the graded passages you have opened or had written
-- `library/words.json` – every word: status (learning / known), sources and review schedule;
-  `library/sentences.json` – saved sentences. Libraries from before this were merged automatically at start-up (the
-  old files are kept as `.bak` and in `backup-before-words-merge.zip`)
-- `library/speaking/`, `library/writing/` – speaking recordings and scores, marked essays
-- `data/` – the dictionary, its index, the voice model, and your settings: API (`settings.json`), speech recognition
-  (`asr.json`), phone access (`network.json`), backup folder (`backup.json`). Keys stay here and are never backed up
-
-None of these folders are tracked by git.
-
-## Development
-
-```bash
-uv run pytest
-```
-
-Interface translations live in `src/ielts_study/i18n/<language>.json`. English is written by hand; the other languages
-were generated from it by an LLM, so corrections from native speakers are very welcome — edit the JSON file directly.
-After adding interface text, run `uv run ielts-study --translate-ui all` to fill the new strings (missing strings show
-in English until then).
-
-## Notes
-
-- Downloading videos is for personal study. Respect each site's terms of service and copyright.
-- The IELTS band shown after the level test is a rough estimate from vocabulary size only, not an official score.
-- Third-party data and libraries: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 
-[MIT](LICENSE). Third-party data and libraries keep their own licenses ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+MIT.
