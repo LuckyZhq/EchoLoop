@@ -882,5 +882,15 @@
  "取消": "Batal",
  "确定": "OK",
  "知道了": "Mengerti",
- "压缩": "Kompres"
+ "压缩": "Kompres",
+ "英式 · 雅思": "British · IELTS",
+ "美式 · 四六级": "American · CET",
+ "澳式": "Australian",
+ "朗读口音": "Aksen baca nyaring",
+ "单词复习、错句本和文章里的朗读用这个口音。雅思录音以英式为主，四六级以美式为主": "Digunakan saat membaca nyaring di Ulasan Kata, Buku Kesalahan, dan artikel. Rekaman IELTS sebagian besar menggunakan aksen British; rekaman CET sebagian besar menggunakan aksen American",
+ "试听": "Dengarkan",
+ "使用：": "Suara: ",
+ "。想要更自然的声音，可以在系统的语音设置里下载「增强」「高级」版本的英文语音，这里会自动选用。": ". Untuk suara yang lebih alami, unduh suara bahasa Inggris versi Enhanced atau Premium di pengaturan suara sistem Anda; suara tersebut akan digunakan secara otomatis.",
+ "这台电脑没有这种口音的语音，会用默认的英文语音。": "Komputer ini tidak memiliki suara dengan aksen ini, jadi suara bahasa Inggris bawaan akan digunakan.",
+ "再听一遍（R）": "Dengarkan lagi (R)"
 }

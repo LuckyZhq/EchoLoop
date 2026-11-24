@@ -28,7 +28,8 @@
       <p class="review-prompt" id="prompt"></p>
       <p class="review-sentence" id="sentence"></p>
       <div class="review-tools">
-        <button type="button" class="btn" id="listen">🔊 听原句</button>
+        <button type="button" class="btn" id="listen">🔊 听原句 <kbd>R</kbd></button>
+        <button type="button" class="btn" id="listenSlow">慢速</button>
         <button type="button" class="btn ghost" id="hintBtn">看中文提示</button>
       </div>
       <p class="review-hint" id="hint" hidden></p>
@@ -134,6 +135,7 @@ function showCard() {
   $("#prompt").textContent = cloze ? `空白处是哪个${card.type === "phrase" ? "短语" : "词"}？` : "这个意思用英文怎么说？";
   $("#sentence").innerHTML = cloze ? sentenceHtml(card.sentence, card.spans, "blank") : `<span class="review-meaning-prompt">${esc(card.zh || "（没有释义）")}</span>`;
   $("#listen").hidden = !card.sentence;
+  $("#listenSlow").hidden = !card.sentence;
   $("#hintBtn").hidden = !(cloze && card.sentenceZh);
   $("#hint").hidden = true;
   $("#hint").textContent = card.sentenceZh || "";
@@ -150,8 +152,10 @@ function showCard() {
   $$("#bookActions button").forEach(b => { b.disabled = false; });
   if (meet) {
     $("#prompt").textContent = "认识这个词吗？";
-    $("#sentence").innerHTML = `<span class="review-bookword">${esc(card.en)}</span>${card.phonetic ? ` <span class="ph">/${esc(card.phonetic)}/</span>` : ""}`;
+    $("#sentence").innerHTML = `<span class="review-bookword">${esc(card.en)}</span>${card.phonetic ? ` <span class="ph">/${esc(card.phonetic)}/</span>` : ""}
+      <button type="button" class="iconbtn review-say" id="sayWord" title="再听一遍（R）">🔊 <kbd>R</kbd></button>`;
     $("#listen").hidden = true;
+    $("#listenSlow").hidden = true;
     $("#hintBtn").hidden = true;
     speak(card.en);
     return;
@@ -161,11 +165,12 @@ function showCard() {
 
 // The example under a first-time book word: the word highlighted in the sentence.
 function showExample() {
-  if (!card.sentence) { $("#sentence").innerHTML = ""; $("#listen").hidden = true; return; }
+  if (!card.sentence) { $("#sentence").innerHTML = ""; $("#listen").hidden = true; $("#listenSlow").hidden = true; return; }
   if (!card.spans || !card.spans.length) card.spans = findSpans(card.sentence, card.en);
   $("#sentence").innerHTML = card.spans.length ? sentenceHtml(card.sentence, card.spans, "answer") : esc(card.sentence);
   $("#sentenceZh").textContent = card.sentenceZh || "";
   $("#listen").hidden = false;
+  $("#listenSlow").hidden = false;
 }
 
 async function markKnown() {
@@ -243,15 +248,27 @@ async function grade(g) {
   }
 }
 
-function playSentence() {
+// The example sentence: the original recording when it came from a video, otherwise read aloud at a natural
+// exam pace (rate 1) or slowly (0.7).
+function playSentence(slow = false) {
   if (!card) return;
   if (card.clip) {
     if (!player.src.endsWith(card.clip.src)) player.src = card.clip.src;
-    const start = () => { player.currentTime = card.clip.start; clipEnd = card.clip.end; player.play().catch(() => speak(card.sentence)); };
+    const start = () => {
+      player.currentTime = card.clip.start; clipEnd = card.clip.end; player.playbackRate = slow ? 0.75 : 1;
+      player.play().catch(() => speak(card.sentence, slow ? 0.7 : 1));
+    };
     if (player.readyState >= 1) start(); else player.addEventListener("loadedmetadata", start, { once: true });
   } else {
-    speak(card.sentence);
+    speak(card.sentence, slow ? 0.7 : 1);
   }
+}
+
+// R: the word again before the answer is shown; afterwards the sentence (or the word when there is none).
+function replay() {
+  if (!card) return;
+  if (revealed && card.sentence) playSentence();
+  else speak(card.en, 0.85);
 }
 
 async function showDone() {
@@ -280,7 +297,9 @@ $("#learnBtn").onclick = reveal;
 $("#knowBtn").onclick = markKnown;
 $("#typeForm").onsubmit = event => { event.preventDefault(); reveal(); };
 $("#grades").onclick = event => { const b = event.target.closest("[data-grade]"); if (b) grade(b.dataset.grade); };
-$("#listen").onclick = playSentence;
+$("#listen").onclick = () => playSentence();
+$("#listenSlow").onclick = () => playSentence(true);
+$("#sentence").addEventListener("click", e => { if (e.target.closest("#sayWord")) speak(card.en, 0.85); });
 $("#hintBtn").onclick = () => { $("#hint").hidden = !$("#hint").hidden; };
 $("#speakWord").onclick = () => card && speak(card.en);
 document.addEventListener("keydown", event => {
@@ -288,6 +307,7 @@ document.addEventListener("keydown", event => {
   const typing = event.target.closest?.("input") && !event.target.disabled;
   if (!revealed && event.key === " " && !typing) { event.preventDefault(); reveal(); return; }
   if (!revealed && (event.key === "k" || event.key === "K") && firstMeet(card)) { event.preventDefault(); markKnown(); return; }
+  if ((event.key === "r" || event.key === "R") && !typing) { event.preventDefault(); replay(); return; }
   if (revealed && ["1", "2", "3", "4"].includes(event.key)) { event.preventDefault(); grade(["again", "hard", "good", "easy"][+event.key - 1]); }
 });
 

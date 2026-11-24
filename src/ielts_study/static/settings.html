@@ -84,6 +84,13 @@
             <label class="settings-label" for="playbackSpeed"><span>默认倍速</span><small>听不清时可以先用 0.75× 精听</small></label>
             <span class="select-wrap"><select class="btn" id="playbackSpeed" data-preference="speed"></select></span>
           </div>
+          <div class="settings-row">
+            <label class="settings-label" for="voiceAccent"><span>朗读口音</span><small id="voiceName">单词复习、错句本和文章里的朗读用这个口音。雅思录音以英式为主，四六级以美式为主</small></label>
+            <span class="settings-inline">
+              <button type="button" class="btn" id="voiceTry">▶ 试听</button>
+              <span class="select-wrap"><select class="btn" id="voiceAccent" data-preference="voice"></select></span>
+            </span>
+          </div>
           <label class="settings-row"><span class="settings-label"><span>显示中文字幕</span><small>播放器里按 C 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="zh"></label>
           <label class="settings-row"><span class="settings-label"><span>高亮重点词句</span><small>重点短语和难词的底色，按 M 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="marks"></label>
           <label class="settings-row"><span class="settings-label"><span>字幕跟随播放</span><small>右侧逐句原文自动滚到正在播放的那句</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="follow"></label>
@@ -223,6 +230,21 @@ for (const control of preferenceControls) {
   });
 }
 window.addEventListener("pageshow", () => preferenceControls.forEach(showPreference));
+
+// 朗读口音: say which voice will be used, and let it be heard.
+if ($("#voiceTry")) {
+  const showVoice = () => {
+    const v = pickVoice();
+    const natural = v && /Premium|Enhanced|Neural|Natural|Google/i.test(v.name);
+    $("#voiceName").textContent = v
+      ? `使用：${v.name}${natural ? "" : "。想要更自然的声音，可以在系统的语音设置里下载「增强」「高级」版本的英文语音，这里会自动选用。"}`
+      : "这台电脑没有这种口音的语音，会用默认的英文语音。";
+  };
+  $("#voiceTry").onclick = () => speak("Some planners propose a compromise: rooftop gardens that grow fresh food for local residents.", 1);
+  $("#voiceAccent").addEventListener("change", showVoice);
+  if ("speechSynthesis" in window) speechSynthesis.addEventListener("voiceschanged", showVoice);
+  showVoice();
+}
 window.addEventListener("storage", event => {
   for (const control of preferenceControls) {
     if (event.key === null || event.key === control.dataset.preference) showPreference(control);

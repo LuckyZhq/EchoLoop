@@ -8,6 +8,7 @@ const preferenceOptions = {
   quality: [["480", "480p"], ["720", "720p"], ["1080", "1080p"], ["1440", "1440p"], ["2160", "2160p"], ["best", "最高可用"]],
   speed: ["0.6", "0.75", "0.9", "1", "1.25", "1.5"].map(rate => [rate, rate + "×"]),
   vocabLevel: [["5.5", "5.5 及以下"], ["6", "6 分"], ["6.5", "6.5 分"], ["7", "7 分"], ["7.5", "7.5 及以上"], ["general", "不限雅思"]],
+  voice: [["uk", "英式 · 雅思"], ["us", "美式 · 四六级"], ["au", "澳式"]],
 };
 const preferenceDefaults = {
   appearance: "system",
@@ -23,6 +24,7 @@ const preferenceDefaults = {
   karaoke: true,
   gloss: true,
   nowColor: "green",
+  voice: "uk",
 };
 
 // Continuous preferences: [min, max]. Stored as a string number.
@@ -522,14 +524,39 @@ function toast(msg) {
 }
 
 // Offline text-to-speech (macOS system voices).
+// Read-aloud voices by accent. IELTS recordings are mostly British (also Australian and others); CET recordings
+// are mostly American. Among the voices this computer has, natural-sounding ones win: macOS Premium/Enhanced
+// voices, Edge's Natural voices, then Chrome's Google voices, then the system's standard ones.
+const VOICE_ACCENTS = {
+  uk: { lang: "en-GB", names: /Serena|Daniel|Kate|Arthur|Martha|Stephanie|Jamie|Oliver|Google UK|Sonia|Libby|Ryan|Maisie|Thomas/ },
+  us: { lang: "en-US", names: /Ava|Zoe|Allison|Samantha|Evan|Tom|Nathan|Google US|Aria|Jenny|Guy|Michelle|Alex/ },
+  au: { lang: "en-AU", names: /Karen|Lee|Matilda|Catherine|Natasha|William|Gordon/ },
+};
+function pickVoice(accent = readPreference("voice")) {
+  const want = VOICE_ACCENTS[accent] || VOICE_ACCENTS.uk;
+  const voices = "speechSynthesis" in window ? speechSynthesis.getVoices() : [];
+  const score = v => {
+    const lang = v.lang.replace("_", "-");
+    if (!lang.startsWith("en")) return -1;
+    let s = lang === want.lang ? 100 : 0;
+    if (/Premium|Enhanced|Neural|Natural/i.test(v.name)) s += 40;
+    if (/Google/.test(v.name)) s += 20;
+    if (want.names.test(v.name)) s += 10;
+    if (/Grandma|Grandpa|Eddy|Flo|Reed|Rocko|Sandy|Shelley|Bad News|Bells|Boing|Bubbles|Cellos|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Albert|Junior|Ralph|Fred|Kathy/.test(v.name)) s -= 60;
+    return s;
+  };
+  return voices.map(v => [score(v), v]).filter(([s]) => s > 0).sort((a, b) => b[0] - a[0])[0]?.[1] || null;
+}
+if ("speechSynthesis" in window) speechSynthesis.getVoices();  // voices load asynchronously: start early
+
 function speak(text, rate = 0.95) {
   if (!("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = "en-US";
+  const voice = pickVoice();
+  u.lang = voice ? voice.lang : (VOICE_ACCENTS[readPreference("voice")] || VOICE_ACCENTS.uk).lang;
+  if (voice) u.voice = voice;
   u.rate = rate;
-  const v = speechSynthesis.getVoices().find(v => v.lang === "en-US" && /Samantha|Alex|Ava|Allison/.test(v.name));
-  if (v) u.voice = v;
   speechSynthesis.speak(u);
 }
 

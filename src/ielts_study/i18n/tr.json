@@ -882,5 +882,15 @@
  "取消": "İptal",
  "确定": "Tamam",
  "知道了": "Tamam",
- "压缩": "Sıkıştır"
+ "压缩": "Sıkıştır",
+ "英式 · 雅思": "İngiliz · IELTS",
+ "美式 · 四六级": "Amerikan · CET",
+ "澳式": "Avustralya",
+ "朗读口音": "Sesli okuma aksanı",
+ "单词复习、错句本和文章里的朗读用这个口音。雅思录音以英式为主，四六级以美式为主": "Kelime tekrarı, Yanlışlar ve makaleler sesli okunurken bu aksan kullanılır. IELTS kayıtları çoğunlukla İngiliz aksanında, CET kayıtları çoğunlukla Amerikan aksanındadır.",
+ "试听": "Dinle",
+ "使用：": "Ses: ",
+ "。想要更自然的声音，可以在系统的语音设置里下载「增强」「高级」版本的英文语音，这里会自动选用。": ". Daha doğal bir ses için sisteminizin konuşma ayarlarından Gelişmiş veya Premium bir İngilizce ses indirin; otomatik olarak kullanılır.",
+ "这台电脑没有这种口音的语音，会用默认的英文语音。": "Bu bilgisayarda bu aksana sahip bir ses yok, bu nedenle varsayılan İngilizce ses kullanılır.",
+ "再听一遍（R）": "Tekrar dinle (R)"
 }

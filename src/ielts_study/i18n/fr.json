@@ -882,5 +882,15 @@
  "取消": "Annuler",
  "确定": "OK",
  "知道了": "OK",
- "压缩": "Compresser"
+ "压缩": "Compresser",
+ "英式 · 雅思": "Britannique · IELTS",
+ "美式 · 四六级": "Américain · CET",
+ "澳式": "Australien",
+ "朗读口音": "Accent de lecture à voix haute",
+ "单词复习、错句本和文章里的朗读用这个口音。雅思录音以英式为主，四六级以美式为主": "Utilisé pour la lecture à voix haute dans la révision des mots, le carnet d’erreurs et les articles. Les enregistrements IELTS sont surtout britanniques ; ceux du CET surtout américains.",
+ "试听": "Écouter",
+ "使用：": "Voix : ",
+ "。想要更自然的声音，可以在系统的语音设置里下载「增强」「高级」版本的英文语音，这里会自动选用。": ". Pour une voix plus naturelle, téléchargez une voix anglaise « améliorée » ou « premium » dans les réglages vocaux de votre système ; elle sera utilisée automatiquement.",
+ "这台电脑没有这种口音的语音，会用默认的英文语音。": "Cet ordinateur n’a pas de voix avec cet accent, donc la voix anglaise par défaut est utilisée.",
+ "再听一遍（R）": "Réécouter (R)"
 }

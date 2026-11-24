@@ -882,5 +882,15 @@
  "取消": "Hủy",
  "确定": "Đồng ý",
  "知道了": "Đã hiểu",
- "压缩": "Nén"
+ "压缩": "Nén",
+ "英式 · 雅思": "Anh · IELTS",
+ "美式 · 四六级": "Mỹ · CET",
+ "澳式": "Úc",
+ "朗读口音": "Giọng đọc",
+ "单词复习、错句本和文章里的朗读用这个口音。雅思录音以英式为主，四六级以美式为主": "Dùng cho phần đọc to trong Ôn tập từ vựng, Sổ lỗi và bài viết. Bản ghi IELTS chủ yếu là giọng Anh; bản ghi CET chủ yếu là giọng Mỹ.",
+ "试听": "Nghe thử",
+ "使用：": "Giọng: ",
+ "。想要更自然的声音，可以在系统的语音设置里下载「增强」「高级」版本的英文语音，这里会自动选用。": ". Để có giọng tự nhiên hơn, hãy tải giọng tiếng Anh Enhanced hoặc Premium trong phần cài đặt giọng nói của hệ thống; giọng đó sẽ được dùng tự động.",
+ "这台电脑没有这种口音的语音，会用默认的英文语音。": "Máy tính này không có giọng đọc với chất giọng này, nên sẽ dùng giọng tiếng Anh mặc định.",
+ "再听一遍（R）": "Nghe lại (R)"
 }

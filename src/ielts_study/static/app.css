@@ -908,3 +908,8 @@ mark.cloze-answer { padding: 0 3px; border-radius: 5px; background: var(--word-b
 .app-dialog-actions .btn { min-width: 84px; justify-content: center; }
 .btn.primary.danger { border-color: var(--bad); background: var(--bad); color: var(--surface); }
 @media (prefers-reduced-motion: reduce) { .app-dialog[open] { animation: none; } }
+
+/* 单词复习: hear the word again */
+.review-say { margin-inline-start: 10px; vertical-align: middle; }
+.review-say kbd, #listen kbd { margin-inline-start: 4px; padding: 0 4px; font-size: 10px; opacity: .7; }
+.settings-inline { display: inline-flex; align-items: center; gap: 8px; }
