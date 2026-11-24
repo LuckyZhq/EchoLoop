@@ -10,6 +10,7 @@ dependencies = [
     "en-core-web-sm",
     "imageio-ffmpeg>=0.8.1",
     "mlx-whisper>=0.4.3",
+    "opencc-python-reimplemented>=0.1.7",
     "spacy>=3.8.18",
     "yt-dlp[default]>=2026.10.26",
 ]

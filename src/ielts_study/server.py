@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import placement, plan, reading, review
+from . import i18n, placement, plan, reading, review
 from .settings import load_settings, save_settings, settings_from
 
 VOCAB_PATH = LIBRARY_DIR / "vocab.json"
@@ -145,6 +145,31 @@ def dictated_counts() -> tuple[int, int]:
     return total, today_count
 
 
+# API responses whose Chinese is content (subtitles, meanings, saved words): shown in the translation
+# language. Everything else is interface text and follows the interface language.
+CONTENT_PATHS = ("/api/video/", "/api/reading", "/api/lookup", "/api/vocab", "/api/mistakes", "/api/dictation/",
+                 "/api/library", "/api/home", "/api/sidebar", "/api/review", "/api/placement/check",
+                 "/api/placement/result", "/api/profile")
+UI_KEYS = {"error", "preview", "stageLabel", "log"}  # interface text inside content responses
+
+
+def localize(obj, path: str, lang: dict):
+    ui = lambda text: i18n.ui_text(text, lang["ui"])  # noqa: E731
+    if not path.startswith(CONTENT_PATHS):
+        return i18n.walk(obj, ui)
+
+    def content(value):
+        if isinstance(value, dict):
+            return {k: i18n.walk(v, ui) if k in UI_KEYS else content(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [content(v) for v in value]
+        if isinstance(value, str):
+            return i18n.content_text(value, lang["zh"])
+        return value
+
+    return content(obj)
+
+
 def code_fingerprint() -> str:
     """Changes whenever a Python file of the app changes. Pages are read from disk on every request,
     but Python code only takes effect after a restart, so the two can drift apart."""
@@ -226,6 +251,9 @@ def make_handler(app: App):
 
         # ------------------------------------------------------------ helpers
         def _json(self, obj, status=200):
+            lang = i18n.load()
+            if lang != {"ui": "zh-CN", "zh": "zh-CN"}:
+                obj = localize(obj, urlparse(self.path).path, lang)
             body = json.dumps(obj, ensure_ascii=False).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -253,6 +281,16 @@ def make_handler(app: App):
         def _file(self, path, ctype=None, download_name=None):
             if not path.exists() or not path.is_file():
                 return self._json({"error": "not found"}, 404)
+            if path.suffix in (".html", ".js") and STATIC_DIR.resolve() in path.resolve().parents:
+                # pages and scripts in the interface language; never cached, so a language switch shows at once
+                body = i18n.page(path, i18n.load()["ui"])
+                self.send_response(200)
+                self.send_header("Content-Type", ctype or mimetypes.guess_type(path.name)[0] or "text/plain")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                self.wfile.write(body)
+                return None
             size = path.stat().st_size
             ctype = ctype or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
             rng = self.headers.get("Range")
@@ -321,6 +359,8 @@ def make_handler(app: App):
                 return self._json(home_stats())
             if p == "/api/version":
                 return self._json(version_info())
+            if p == "/api/language":
+                return self._json(i18n.public())
             if p == "/api/storage":
                 from . import storage
 
@@ -465,6 +505,9 @@ def make_handler(app: App):
                     return self._json({"error": "请粘贴以 http(s):// 开头的视频链接"}, 400)
                 job = app.pipeline.submit(url, str(body.get("quality") or "720"), bool(body.get("overwrite")))
                 return self._json(job.to_json())
+            if p == "/api/language":
+                i18n.save(body)
+                return self._json(i18n.public())
             if p == "/api/restart":
                 self._json({"ok": True})
                 threading.Thread(target=restart_in_place, daemon=True).start()
@@ -570,6 +613,10 @@ def make_handler(app: App):
                     return self._json({"error": "bad seconds"}, 400)
                 return self._json(plan.log_activity(kind, seconds))
             if p == "/api/vocab":
+                if i18n.load()["zh"] == "zh-TW":  # the page shows Traditional; store Simplified like everything else
+                    for key in ("zh", "sentenceZh", "note"):
+                        if isinstance(body.get(key), str):
+                            body[key] = i18n.to_simplified(body[key])
                 item = {
                     "key": str(body.get("key") or "")[:200],
                     "type": body.get("type") if body.get("type") in ("word", "phrase") else "word",

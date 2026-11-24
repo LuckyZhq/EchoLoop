@@ -39,6 +39,15 @@ uv run ielts-study
 
 「最近在看」可以点标题折叠，下次打开仍保持折叠。导入页的翻译模型菜单会列出每个已配置服务商的全部模型（例如 DeepSeek V4.1 Flash 和 V4 Pro）。
 
+## 语言
+
+设置 → 外观 里有两项，切换后马上生效，不用重新翻译或导入：
+
+- **界面语言**：简体中文 / 繁體中文 / English（按钮、菜单、提示和出错信息）
+- **翻译语言**：简体中文 / 繁體中文（台灣用語）（字幕、逐词释义、词典释义、文章翻译）
+
+所有内容都按简体中文保存，发给页面时再转换：繁体用 OpenCC 的台湾用语转换（视频→影片、软件→軟體）；英文界面的对照表在 `src/ielts_study/i18n_en.json`，没收录的文字保持原样。
+
 ## 播放器
 
 - 浅蓝底 = 重点短语，橙色底加下划线 = 难词，点击看释义；**点击任意单词都能查词**
@@ -88,6 +97,7 @@ uv lock --upgrade-package yt-dlp && uv sync
 - `library/<视频ID>/`：视频和 `data.json`（字幕、翻译、标注）
 - `library/vocab.json`：生词本
 - `library/activity.json`：每天的精听、精读时间和听写、复习数量
+- `library/language.json`：界面语言和翻译语言
 - `library/profile.json`：现在的水平、目标分数、测试记录、标为「认识」的词
 - `articles/<文章ID>/data.json`：文章精读的句子、翻译和标注
 - `data/ecdict.csv`、`data/ecdict.db`：离线词典

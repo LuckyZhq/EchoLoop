@@ -13,7 +13,7 @@
     <header class="hero"><h1>设置</h1><p>按你的学习习惯调整外观、播放和 API。所有设置都只保存在这台电脑上。</p></header>
     <div class="settings-layout">
       <nav class="settings-index" aria-label="设置分类">
-        <a href="/settings/appearance"><b>外观</b><small>主题、字幕字号</small></a>
+        <a href="/settings/appearance"><b>外观</b><small>语言、主题、字幕字号</small></a>
         <a href="/settings/download"><b>下载</b><small>视频清晰度</small></a>
         <a href="/settings/storage"><b>存储</b><small>视频占用的空间</small></a>
         <a href="/settings/playback"><b>播放</b><small>倍速、字幕和高亮</small></a>
@@ -24,7 +24,15 @@
       <template id="page-appearance">
         <section class="settings-section" id="appearance" aria-labelledby="appearanceTitle">
           <h2 id="appearanceTitle">外观</h2>
-          <p class="settings-lead">界面颜色和学习文字的大小。</p>
+          <p class="settings-lead">界面语言、颜色和学习文字的大小。</p>
+          <div class="settings-row">
+            <label class="settings-label" for="uiLang"><span>界面语言</span><small>按钮、菜单和提示文字的语言</small></label>
+            <span class="select-wrap wide"><select class="btn" id="uiLang"></select></span>
+          </div>
+          <div class="settings-row">
+            <label class="settings-label" for="zhVariant"><span>翻译语言</span><small>字幕、释义和文章翻译显示为简体或繁体中文；切换后马上生效，不用重新翻译</small></label>
+            <span class="select-wrap wide"><select class="btn" id="zhVariant"></select></span>
+          </div>
           <div class="settings-row">
             <label class="settings-label" for="theme"><span>界面主题</span><small>选「跟随系统」时会随 macOS 的浅色、深色自动切换</small></label>
             <span class="select-wrap"><select class="btn" id="theme" data-preference="appearance"></select></span>
@@ -232,6 +240,24 @@ if (textSizeReset) textSizeReset.onclick = () => {
 function fmtBytes(n) {
   return n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
 }
+// ---------- 外观: languages (saved on the server, which serves pages and data in them)
+if ($("#uiLang")) {
+  api("/api/language").then(lang => {
+    $("#uiLang").replaceChildren(...Object.entries(lang.uiOptions).map(([v, label]) => new Option(label, v)));
+    $("#zhVariant").replaceChildren(...Object.entries(lang.zhOptions).map(([v, label]) => new Option(label, v)));
+    $("#uiLang").value = lang.ui;
+    $("#zhVariant").value = lang.zh;
+  }).catch(() => {});
+  const switchLanguage = async changes => {
+    try {
+      await api("/api/language", { method: "POST", body: changes });
+      location.reload();  // the page itself is served in the new language
+    } catch (error) { toast(error.message); }
+  };
+  $("#uiLang").onchange = e => switchLanguage({ ui: e.target.value });
+  $("#zhVariant").onchange = e => switchLanguage({ zh: e.target.value });
+}
+
 // ---------- 学习: summary of the level and target (edited on /level)
 if ($("#levelSummary")) {
   const showLevel = () => {
