@@ -424,6 +424,7 @@ async function toggleSaved(btn, cue, source) {
 // videos translated before the model name was recorded.
 const MODEL_NAMES = { "deepseek-flash": "DeepSeek V4.1 Flash", "deepseek-v4-flash": "DeepSeek V4.1 Flash", "deepseek-v4-pro": "DeepSeek V4 Pro" };
 function translationLabel(translator, model, aligned) {
+  if (translator === "none") return "英文释义";  // English-only learners: nothing is translated
   if (!translator || translator === "local") return "本地翻译";
   const name = MODEL_NAMES[model] || model || "API";
   return `${name} ${aligned ? "短语对照" : "翻译"}${translator === "api+local" ? "（部分改用本地）" : ""}`;
@@ -440,6 +441,44 @@ function logStudyTime(kind, seconds, leaving = false) {
   } else {
     api("/api/activity", { method: "POST", body }).catch(() => { /* not important enough to bother the user */ });
   }
+}
+
+// ---- Learner language (母语): the language translations and meanings are made in
+let languageInfo = null;
+async function loadLanguage() {
+  if (!languageInfo) {
+    try { languageInfo = await api("/api/language"); } catch { languageInfo = { native: "zh-CN", nativeOptions: {} }; }
+  }
+  return languageInfo;
+}
+function storedLang(code) { return !code || code === "zh-TW" ? "zh-CN" : code; }  // Traditional is stored as Simplified
+function langName(code) { return languageInfo?.nativeOptions?.[code] || code; }
+// The label in front of a translation: 中文 for Chinese, otherwise the language's own name.
+function translationName(code) { return storedLang(code) === "zh-CN" ? "中文" : langName(code); }
+
+// Asks before translating a video or article again, saying which engine and language will be used.
+async function confirmRetranslate(count, what) {
+  let settings, lang;
+  try { [settings, lang] = await Promise.all([api("/api/settings"), loadLanguage()]); }
+  catch (e) { toast(e.message); return false; }
+  const target = langName(lang.native);
+  const how = lang.native === "en"
+    ? "改为只用英文释义，不翻译字幕。"
+    : settings.engine === "api"
+      ? `用 ${settings.model} 翻译成${target}，并按单词、短语对照。\n会按服务商价格计费。`
+      : `用本地离线翻译翻成${target}（没有短语对照）。第一次用这种语言时会先下载它的离线翻译模型。`;
+  return confirm(`重新翻译${what}的 ${count} 句？\n${how}`);
+}
+
+// A bar saying the content was translated into another language than the learner's, with a button to switch.
+function showLanguageNotice(el, contentLang, what, onSwitch) {
+  loadLanguage().then(lang => {
+    if (storedLang(lang.native) === storedLang(contentLang)) { el.hidden = true; return; }
+    el.innerHTML = `<span>${what}的译文是${esc(langName(storedLang(contentLang)))}，你的母语设置是${esc(langName(lang.native))}。</span>
+      <button type="button" class="btn">↻ 换成${esc(langName(lang.native))}</button>`;
+    el.querySelector("button").onclick = onSwitch;
+    el.hidden = false;
+  });
 }
 
 function toast(msg) {

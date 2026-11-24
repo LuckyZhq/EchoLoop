@@ -14,6 +14,13 @@ from tempfile import TemporaryDirectory
 from .config import LIBRARY_DIR
 from .settings import load_settings
 
+
+def learner_language() -> str:
+    """The stored language new translations are made in (Traditional Chinese is stored as Simplified)."""
+    from . import i18n, languages
+
+    return languages.stored(i18n.load()["native"])
+
 STAGES = [
     ("probe", "读取视频信息"),
     ("download", "下载视频"),
@@ -90,6 +97,8 @@ class Pipeline:
         return job
 
     def _retranslate(self, job: Job):
+        from . import meanings
+        from .annotate import ANNOTATION_VERSION, annotate_cues
         from .translate import translate_cues
 
         def log(msg: str):
@@ -103,13 +112,20 @@ class Pipeline:
                 data = json.loads(f.read_text(encoding="utf-8"))
                 job.title = data.get("title") or job.video_id
                 settings = load_settings()
-                if settings.engine != "api":
-                    raise RuntimeError("现在用的是本地翻译。请先在设置里选择一个 API 翻译模型。")
-                self._set(job, "translate")
+                lang = learner_language()
                 cues = data["cues"]
-                log(f"使用 API 重新翻译 {len(cues)} 句字幕…")
-                data["translator"] = translate_cues(cues, lambda p: setattr(job, "percent", p), settings=settings, log=log)
-                data["translatorModel"] = settings.model if data["translator"] != "local" else ""
+                if data.get("lang", "zh-CN") != lang:  # meanings and glosses follow the language too
+                    self._set(job, "annotate")
+                    annotate_cues(cues, self.dic, lambda p: setattr(job, "percent", p), lang=lang)
+                    data["annotation"] = ANNOTATION_VERSION
+                self._set(job, "translate")
+                engine = "API" if settings.engine == "api" else "本地"
+                log(f"使用{engine}翻译 {len(cues)} 句字幕…")
+                data["translator"] = translate_cues(cues, lambda p: setattr(job, "percent", p), settings=settings,
+                                                    log=log, lang=lang)
+                data["translatorModel"] = settings.model if data["translator"] in ("api", "api+local") else ""
+                meanings.fill_notes(cues, lang, settings, log)
+                data["lang"] = lang
                 tmp = f.with_suffix(".tmp")
                 tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
                 tmp.replace(f)
@@ -151,7 +167,7 @@ class Pipeline:
         job.stage, job.percent = stage, pct
 
     def _run(self, job: Job):
-        from . import media
+        from . import meanings, media
         from .annotate import ANNOTATION_VERSION, annotate_cues
         from .translate import translate_cues
 
@@ -188,10 +204,13 @@ class Pipeline:
                 self._set(job, "translate")
                 engine = "API" if settings.engine == "api" else "本地"
                 log(f"使用{engine}翻译 {len(cues)} 句字幕…")
-                translator = translate_cues(cues, lambda p: setattr(job, "percent", p), settings=settings, log=log)
+                lang = learner_language()
+                translator = translate_cues(cues, lambda p: setattr(job, "percent", p), settings=settings, log=log,
+                                            lang=lang)
 
                 self._set(job, "annotate")
-                annotate_cues(cues, self.dic, progress=lambda p: setattr(job, "percent", p))
+                annotate_cues(cues, self.dic, progress=lambda p: setattr(job, "percent", p), lang=lang)
+                meanings.fill_notes(cues, lang, settings, log)
 
                 for i, c in enumerate(cues):
                     c["i"] = i
@@ -208,6 +227,7 @@ class Pipeline:
                     "translator": translator,
                     "translatorModel": settings.model if translator != "local" else "",  # which API model
                     "annotation": ANNOTATION_VERSION,
+                    "lang": lang,  # the language the translations and meanings are in
                     "created": int(time.time()),
                     "cues": cues,
                 }
@@ -243,7 +263,7 @@ def ensure_annotation(vdir: Path, data: dict, dic) -> dict:
         f = vdir / "data.json"
         data = json.loads(f.read_text(encoding="utf-8"))  # another request may have upgraded it already
         if data.get("annotation") != ANNOTATION_VERSION:
-            annotate_cues(data["cues"], dic)
+            annotate_cues(data["cues"], dic, lang=data.get("lang", "zh-CN"))
             data["annotation"] = ANNOTATION_VERSION
             tmp = f.with_suffix(".tmp")
             tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
@@ -321,6 +341,7 @@ def list_library() -> list[dict]:
                 # videos imported before this field existed were all translated locally
                 "translator": data.get("translator") or "local",
                 "translatorModel": data.get("translatorModel") or "",
+                "lang": data.get("lang", "zh-CN"),
                 "aligned": any(c.get("seg") for c in cues),
                 "bytes": _file_size(d / (data.get("video") or "")),
             }

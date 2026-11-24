@@ -14,6 +14,7 @@ import re
 from .config import MAX_WORD_CANDIDATES_PER_CUE, MIN_CANDIDATE_RANK, SCHOOL_WORD_RANK
 from .dictionary import Dictionary
 from .gloss import word_glosses
+from .languages import is_chinese
 
 _nlp = None
 CONTENT_POS = {"NOUN", "VERB", "ADJ", "ADV"}
@@ -84,7 +85,7 @@ def _overlaps(a, ranges) -> bool:
     return any(a[0] < r[1] and r[0] < a[1] for r in ranges)
 
 
-def word_info(t, dic: Dictionary):
+def word_info(t, dic: Dictionary, school: bool = True):
     """Dictionary entry and effective frequency rank for a content word, or None for function words and names.
 
     Returns (info, rank, ielts, exam). rank 0 means the word is not in the frequency lists (usually rare)."""
@@ -119,17 +120,17 @@ def word_info(t, dic: Dictionary):
         stem = dic.word(lemma[:-2]) or dic.word(lemma[:-3] + "y") or dic.word(lemma[:-2] + "e")
         if stem and stem["rank"] > 0:
             rank = min(rank, stem["rank"]) if rank else stem["rank"]
-    if "zk" in tags:  # 中考词汇 is taught early, whatever its corpus frequency
+    if school and "zk" in tags:  # 中考词汇 is taught early in China, whatever its corpus frequency
         rank = min(rank, SCHOOL_WORD_RANK) if rank else SCHOOL_WORD_RANK
     return info, rank, "ielts" in tags, any(tag in tags for tag in EXAM_TAGS)
 
 
-def _hard_words(doc, dic: Dictionary, taken):
+def _hard_words(doc, dic: Dictionary, taken, school: bool = True):
     """Every content word rarer than MIN_CANDIDATE_RANK, rarest first. Which ones get marked is decided
     in the player from the learner's current and target level."""
     out = []
     for t in doc:
-        found = word_info(t, dic)
+        found = word_info(t, dic, school)
         if not found:
             continue
         info, rank, ielts, exam = found
@@ -142,39 +143,51 @@ def _hard_words(doc, dic: Dictionary, taken):
     return out
 
 
-def annotate_cues(cues: list[dict], dic: Dictionary, progress=None) -> None:
-    """Mutates each cue in place, adding `marks`, `notes` and `gl` (a short Chinese gloss per word)."""
+def annotate_cues(cues: list[dict], dic: Dictionary, progress=None, lang: str = "zh-CN") -> None:
+    """Mutates each cue in place, adding `marks`, `notes` and `gl` (a short gloss per word).
+
+    Meanings are in the learner's language: Chinese from the dictionary for Chinese learners; for everyone
+    else the English definition (`def`), which meanings.fill_notes replaces with a translation when an API
+    is configured. Meanings already translated by the API are kept when a cue is annotated again."""
+    chinese = is_chinese(lang)
     texts = [c["text"] for c in cues]
     total = max(1, len(cues))
     for idx, (cue, doc) in enumerate(zip(cues, nlp().pipe(texts, batch_size=64))):
         marks, notes = [], {}
+        old = cue.get("notes") or {}
         best = max(_phrase_candidates(doc, dic), key=lambda x: x[0], default=None)
         taken = []
         if best:
             _, ranges, e = best
             key = "p:" + e["en"]
-            notes[key] = {"type": "phrase", "en": e["en"], "zh": e["zh"], "note": e["note"]}
+            notes[key] = {"type": "phrase", "en": e["en"], "zh": e["zh"] if chinese else e.get("def", ""),
+                          "note": e["note"] if chinese else "", "def": e.get("def", "")}
             for s, en in ranges:
                 marks.append({"s": s, "e": en, "type": "phrase", "key": key})
             taken.extend(ranges)
-        for _, r, info, rank, ielts, exam in _hard_words(doc, dic, taken)[:MAX_WORD_CANDIDATES_PER_CUE]:
+        for _, r, info, rank, ielts, exam in _hard_words(doc, dic, taken, chinese)[:MAX_WORD_CANDIDATES_PER_CUE]:
             key = "w:" + info["en"]
             notes[key] = {
                 "type": "word",
                 "en": info["en"],
-                "zh": info["zh"],
+                "zh": info["zh"] if chinese else info["def"],
+                "def": info["def"],
                 "phonetic": info["phonetic"],
-                "note": _tag_label(info["tag"]),
+                "note": _tag_label(info["tag"], chinese),
                 "rank": rank,
                 "ielts": ielts,
                 "exam": exam,
             }
             marks.append({"s": r[0], "e": r[1], "type": "word", "key": key})
             taken.append(r)
+        if not chinese:  # keep meanings the API already translated (meanings.fill_notes sets "api")
+            for key, note in notes.items():
+                if old.get(key, {}).get("api"):
+                    note["zh"], note["api"] = old[key]["zh"], True
         marks.sort(key=lambda m: m["s"])
         cue["marks"] = marks
         cue["notes"] = notes
-        cue["gl"] = word_glosses(doc, dic)
+        cue["gl"] = word_glosses(doc, dic) if chinese else []  # glosses come from the English→Chinese dictionary
         if progress and idx % 10 == 0:
             progress(idx / total)
 
@@ -182,6 +195,11 @@ def annotate_cues(cues: list[dict], dic: Dictionary, progress=None) -> None:
 TAG_NAMES = {"zk": "中考", "gk": "高考", "cet4": "四级", "cet6": "六级", "ky": "考研", "toefl": "托福", "ielts": "雅思", "gre": "GRE"}
 
 
-def _tag_label(tag: str) -> str:
-    names = [TAG_NAMES[t] for t in re.split(r"\s+", tag or "") if t in TAG_NAMES]
+INTERNATIONAL_TAGS = {"toefl": "TOEFL", "ielts": "IELTS", "gre": "GRE"}
+
+
+def _tag_label(tag: str, chinese: bool = True) -> str:
+    """Which exam word lists a word is on; Chinese school and exam lists only mean something to Chinese learners."""
+    names = [(TAG_NAMES if chinese else INTERNATIONAL_TAGS).get(t) for t in re.split(r"\s+", tag or "")]
+    names = [n for n in names if n]
     return " / ".join(names)

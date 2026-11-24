@@ -13,7 +13,7 @@ from .config import DATA_DIR
 CSV_PATH = DATA_DIR / "ecdict.csv"
 DB_PATH = DATA_DIR / "ecdict.db"
 CURATED_PATH = Path(__file__).resolve().parent / "phrases_curated.json"
-DB_VERSION = 3
+DB_VERSION = 4  # 4: English definitions for learners whose language is not Chinese
 
 # Words that make a multi-word entry look like a phrasal verb / idiom rather than a noun compound.
 FUNCTION_WORDS = {
@@ -69,6 +69,22 @@ def _rank(frq: str, bnc: str) -> int:
 
 def _split_lines(translation: str) -> list[str]:
     return [ln.strip() for ln in translation.replace("\\n", "\n").split("\n") if ln.strip()]
+
+
+def english_definition(definition: str | None, pos: str | None = None, max_len: int = 110) -> str:
+    """A short English definition from ECDICT's definition field (one or two senses, the matching
+    part of speech first). Used as the meaning for learners whose language is not Chinese."""
+    if not definition:
+        return ""
+    lines = [l.strip() for l in definition.replace("\\n", "\n").split("\n") if l.strip()]
+    # WordNet lists proper-noun senses ("n. United States songwriter…") alongside ordinary ones: skip them
+    ordinary = [l for l in lines if not re.match(r"^[a-z]+\. [A-Z]", l)]
+    lines = ordinary or lines
+    tag = {"NOUN": "n", "VERB": "v", "ADJ": "a", "ADV": "r"}.get(pos or "")
+    if tag:
+        lines.sort(key=lambda l: not l.startswith(tag + ". "))  # stable: keeps WordNet's order within a part of speech
+    out = "; ".join(lines[:2])
+    return out if len(out) <= max_len else out[: max_len - 1].rsplit(" ", 1)[0] + "…"
 
 
 def clean_translation(translation: str, pos: str | None = None, max_senses: int = 3, max_lines: int = 2) -> str:
@@ -135,8 +151,8 @@ def build_database(log=print) -> None:
         """
         create table meta(v int);
         create table words(word text primary key, phonetic text, translation text,
-                           tag text, rank int, exchange text);
-        create table phrases(word text primary key, translation text);
+                           tag text, rank int, exchange text, definition text);
+        create table phrases(word text primary key, translation text, definition text);
         """
     )
     con.execute("insert into meta values (?)", (DB_VERSION,))
@@ -149,7 +165,8 @@ def build_database(log=print) -> None:
                 continue
             if " " not in w:
                 # lowercase originals sort last so "insert or replace" lets them win over "May"/"Bill"…
-                words.append((w == w.lower(), (w.lower(), row["phonetic"], tr, row["tag"], _rank(row["frq"], row["bnc"]), row["exchange"])))
+                words.append((w == w.lower(), (w.lower(), row["phonetic"], tr, row["tag"], _rank(row["frq"], row["bnc"]),
+                                               row["exchange"], row.get("definition") or "")))
                 continue
             lw = w.lower()
             parts = lw.split()
@@ -164,10 +181,10 @@ def build_database(log=print) -> None:
                 continue
             if all(p in STOP_WORDS for p in parts):  # "is to", "in the", "be to" …
                 continue
-            phrases.append((lw, tr))
+            phrases.append((lw, tr, row.get("definition") or ""))
     words.sort(key=lambda x: x[0])
-    con.executemany("insert or replace into words values (?,?,?,?,?,?)", [w for _, w in words])
-    con.executemany("insert or ignore into phrases values (?,?)", phrases)
+    con.executemany("insert or replace into words values (?,?,?,?,?,?,?)", [w for _, w in words])
+    con.executemany("insert or ignore into phrases values (?,?,?)", phrases)
     con.commit()
     con.close()
     tmp.rename(DB_PATH)
@@ -179,7 +196,12 @@ class Dictionary:
         build_database(log)
         self._con = sqlite3.connect(DB_PATH, check_same_thread=False)
         self._lock = threading.Lock()
-        self._phrases: dict[str, str] = dict(self._con.execute("select word, translation from phrases"))
+        self._phrases: dict[str, str] = {}
+        self._phrase_defs: dict[str, str] = {}
+        for word, tr, definition in self._con.execute("select word, translation, definition from phrases"):
+            self._phrases[word] = tr
+            if definition:
+                self._phrase_defs[word] = definition
         self.curated: dict[str, dict] = {}
         for e in json.loads(CURATED_PATH.read_text(encoding="utf-8")):
             self.curated[e["en"].lower()] = e
@@ -187,18 +209,19 @@ class Dictionary:
     def _row(self, w: str):
         with self._lock:
             return self._con.execute(
-                "select word, phonetic, translation, tag, rank, exchange from words where word = ?", (w,)
+                "select word, phonetic, translation, tag, rank, exchange, definition from words where word = ?", (w,)
             ).fetchone()
 
     def word(self, w: str, pos: str | None = None) -> dict | None:
         row = self._row(w.lower())
         if not row:
             return None
-        word, phonetic, tr, tag, rank, exchange = row
+        word, phonetic, tr, tag, rank, exchange, definition = row
         return {
             "en": word,
             "phonetic": phonetic or "",
             "zh": clean_translation(tr, pos),
+            "def": english_definition(definition, pos),
             "tag": tag or "",
             "rank": rank or 0,
             "exchange": exchange or "",
@@ -221,12 +244,14 @@ class Dictionary:
         key = key.lower()
         if key in self.curated:
             e = self.curated[key]
-            return {"en": e["en"], "zh": e["zh"], "note": e.get("note", ""), "source": "curated"}
+            return {"en": e["en"], "zh": e["zh"], "note": e.get("note", ""), "source": "curated",
+                    "def": english_definition(self._phrase_defs.get(key))}
         if key in TOO_EASY:
             return None
         tr = self._phrases.get(key)
         if tr:
             zh = clean_translation(tr, max_senses=3)
             if zh:
-                return {"en": key, "zh": zh, "note": "", "source": "ecdict"}
+                return {"en": key, "zh": zh, "note": "", "source": "ecdict",
+                        "def": english_definition(self._phrase_defs.get(key))}
         return None

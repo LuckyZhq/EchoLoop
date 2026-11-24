@@ -19,6 +19,7 @@
     <div class="left">
       <div class="study-stage">
         <video id="video" controls playsinline preload="metadata"></video>
+        <div class="lang-notice" id="langNotice" hidden></div>
         <div class="caption" id="caption"><div class="en" id="capEn"></div><div class="zh" id="capZh"></div></div>
       </div>
 
@@ -520,14 +521,7 @@ $("#dictWrongOnly").onchange = event => {
 // ---------- 重新翻译: translate this video again with the API model, phrase by phrase
 async function retranslate() {
   const btn = $("#retranslate");
-  let settings;
-  try { settings = await api("/api/settings"); } catch (e) { toast(e.message); return; }
-  if (settings.engine !== "api") {
-    if (confirm("重新翻译需要 API 模型，现在用的是本地翻译。要去设置里选择模型吗？")) location.href = "/settings/translation";
-    return;
-  }
-  if (!confirm(`用 ${settings.model} 重新翻译这个视频的 ${cues.length} 句字幕，并按单词、短语对照中文？
-会按服务商价格计费。`)) return;
+  if (!(await confirmRetranslate(cues.length, "这个视频"))) return;
   btn.disabled = true;
   try {
     let job = await api(`/api/video/${encodeURIComponent(vid)}/retranslate`, { method: "POST" });
@@ -540,6 +534,7 @@ async function retranslate() {
     data = await api(`/api/video/${encodeURIComponent(vid)}`);
     cues = data.cues;
     rerenderMarks();
+    showLanguageNotice($("#langNotice"), data.lang, "这个视频", retranslate);  // hides once the languages match
     toast("已重新翻译");
   } catch (e) {
     alert(e.message);
@@ -619,9 +614,11 @@ document.addEventListener("keydown", e => {
   cues = data.cues;
   document.title = `${data.title} · 播放器`;
   $("#title").textContent = data.title;
+  await loadLanguage();  // language names for the labels below
   const aligned = cues.some(c => c.seg && c.seg.length);
   $("#cueCount").textContent = [`${cues.length} 句字幕`, `英文：${data.subtitleSource === "whisper" ? "本机识别" : "平台字幕"}`,
-    `中文：${translationLabel(data.translator, data.translatorModel, aligned)}`].join(" · ");
+    `${translationName(data.lang)}：${translationLabel(data.translator, data.translatorModel, aligned)}`].join(" · ");
+  showLanguageNotice($("#langNotice"), data.lang, "这个视频", retranslate);
   video.src = `/media/${encodeURIComponent(vid)}/${encodeURIComponent(data.video)}`;
   if (data.poster) video.poster = data.poster;  // shown before playing, and all the time for audio-only videos
   await loadSavedWords();

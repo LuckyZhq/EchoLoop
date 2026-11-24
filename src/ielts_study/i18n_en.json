@@ -712,5 +712,19 @@
  "界面语言和翻译语言": "Interface and translation language",
  "语言、主题、字幕字号": "Language, theme, subtitle size",
  "界面语言、颜色和学习文字的大小。": "Interface language, colors and the size of study text.",
- "译": "ZH"
+ "译": "ZH",
+ "母语": "Native language",
+ "字幕、短语和单词释义翻译成这种语言。简体和繁体之间马上切换；换成其他语言后，已导入的视频点「重新翻译」即可": "Subtitles, phrases and word meanings are translated into this language. Simplified and Traditional Chinese switch instantly; for other languages, click Translate again on videos you already imported",
+ "这个视频": "this video's",
+ "这篇文章": "this article's",
+ "的": "",
+ "的译文是": " translation is ",
+ "，你的母语设置是": ". Your native language is ",
+ "换成": "Switch to ",
+ "翻译成": "to translate into ",
+ "，并按单词、短语对照。": ", with phrase-by-phrase translations.",
+ "改为只用英文释义，不翻译字幕。": "Switch to English definitions only, without translating the subtitles.",
+ "用本地离线翻译翻成": "Translate offline into ",
+ "（没有短语对照）。第一次用这种语言时会先下载它的离线翻译模型。": " (no phrase-by-phrase translation). The first time a language is used, its offline model is downloaded first.",
+ "英文释义": "English definitions"
 }

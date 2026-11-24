@@ -82,7 +82,7 @@ def list_articles() -> list[dict]:
         items.append({
             "id": data["id"], "title": data.get("title") or "未命名文章", "created": data.get("created", 0),
             "sentenceCount": len(cues), "wordCount": sum(len(c["text"].split()) for c in cues),
-            "preview": " ".join(c["text"] for c in cues[:2])[:160], "translator": data.get("translator"), "translatorModel": data.get("translatorModel") or "",
+            "preview": " ".join(c["text"] for c in cues[:2])[:160], "translator": data.get("translator"), "translatorModel": data.get("translatorModel") or "", "lang": data.get("lang", "zh-CN"),
             "readAt": data.get("readAt", 0),
         })
     items.sort(key=lambda x: -x["created"])
@@ -91,8 +91,9 @@ def list_articles() -> list[dict]:
 
 def run_article_job(pipeline, job, text: str, title: str) -> None:
     """Runs on the pipeline's worker thread: split → translate → annotate → save."""
+    from . import meanings
     from .annotate import ANNOTATION_VERSION, annotate_cues
-    from .pipeline import friendly_error
+    from .pipeline import friendly_error, learner_language
     from .settings import load_settings
     from .translate import translate_cues
 
@@ -111,13 +112,16 @@ def run_article_job(pipeline, job, text: str, title: str) -> None:
             settings = load_settings()
             pipeline._set(job, "translate")
             log(f"使用{'API' if settings.engine == 'api' else '本地'}翻译 {len(cues)} 句…")
-            translator = translate_cues(cues, lambda p: setattr(job, "percent", p), settings=settings, log=log)
+            lang = learner_language()
+            translator = translate_cues(cues, lambda p: setattr(job, "percent", p), settings=settings, log=log,
+                                        lang=lang)
             pipeline._set(job, "annotate")
-            annotate_cues(cues, pipeline.dic, progress=lambda p: setattr(job, "percent", p))
+            annotate_cues(cues, pipeline.dic, progress=lambda p: setattr(job, "percent", p), lang=lang)
+            meanings.fill_notes(cues, lang, settings, log)
             save_article({
                 "id": job.video_id, "title": job.title, "created": int(time.time()), "translator": translator,
                 "translatorModel": settings.model if translator != "local" else "",
-                "annotation": ANNOTATION_VERSION, "cues": cues,
+                "annotation": ANNOTATION_VERSION, "lang": lang, "cues": cues,
             })
             pipeline._set(job, "done", 1.0)
             log("完成 ✓")
@@ -136,14 +140,16 @@ def ensure_article_annotation(data: dict, dic) -> dict:
     with _annotate_lock:
         fresh = load_article(data["id"]) or data  # another request may have upgraded it already
         if fresh.get("annotation") != ANNOTATION_VERSION:
-            annotate_cues(fresh["cues"], dic)
+            annotate_cues(fresh["cues"], dic, lang=fresh.get("lang", "zh-CN"))
             fresh["annotation"] = ANNOTATION_VERSION
             save_article(fresh)
     return fresh
 
 
 def run_retranslate_job(pipeline, job) -> None:
-    from .pipeline import friendly_error
+    from . import meanings
+    from .annotate import ANNOTATION_VERSION, annotate_cues
+    from .pipeline import friendly_error, learner_language
     from .settings import load_settings
     from .translate import translate_cues
 
@@ -153,13 +159,18 @@ def run_retranslate_job(pipeline, job) -> None:
             if not data:
                 raise RuntimeError("找不到这篇文章。")
             settings = load_settings()
-            if settings.engine != "api":
-                raise RuntimeError("现在用的是本地翻译。请先在设置里选择一个 API 翻译模型。")
+            lang = learner_language()
+            if data.get("lang", "zh-CN") != lang:
+                pipeline._set(job, "annotate")
+                annotate_cues(data["cues"], pipeline.dic, lang=lang)
+                data["annotation"] = ANNOTATION_VERSION
             pipeline._set(job, "translate")
-            job.log.append(f"使用 API 重新翻译 {len(data['cues'])} 句…")
+            job.log.append(f"使用{'API' if settings.engine == 'api' else '本地'}翻译 {len(data['cues'])} 句…")
             data["translator"] = translate_cues(data["cues"], lambda p: setattr(job, "percent", p),
-                                                settings=settings, log=job.log.append)
-            data["translatorModel"] = settings.model if data["translator"] != "local" else ""
+                                                settings=settings, log=job.log.append, lang=lang)
+            data["translatorModel"] = settings.model if data["translator"] in ("api", "api+local") else ""
+            meanings.fill_notes(data["cues"], lang, settings, job.log.append)
+            data["lang"] = lang
             save_article(data)
             pipeline._set(job, "done", 1.0)
         except Exception as e:

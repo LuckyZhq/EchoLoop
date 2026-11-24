@@ -39,8 +39,9 @@ def _passages_raw() -> list[dict]:
     return json.loads(PASSAGES_FILE.read_text(encoding="utf-8"))
 
 
-def build_passages(dic) -> list[dict]:
-    """Passages with every scored (content) word: id, character range, dictionary form, rank, meaning."""
+def build_passages(dic, school: bool = True) -> list[dict]:
+    """Passages with every scored (content) word: id, character range, dictionary form, rank, meaning.
+    `school`: Chinese learners count 中考 words as common (see annotate.word_info)."""
     from .annotate import nlp, word_info
     from .dictionary import clean_translation
 
@@ -48,7 +49,7 @@ def build_passages(dic) -> list[dict]:
     for pi, p in enumerate(_passages_raw()):
         words = []
         for t in nlp()(p["text"]):
-            found = word_info(t, dic)
+            found = word_info(t, dic, school)
             if not found:
                 continue
             info, rank, _, _ = found
@@ -62,21 +63,35 @@ def build_passages(dic) -> list[dict]:
 _cache: dict = {}
 
 
-def passages(dic) -> list[dict]:
-    if "p" not in _cache:
-        _cache["p"] = build_passages(dic)
-    return _cache["p"]
+def passages(dic, lang: str = "zh-CN") -> list[dict]:
+    from .languages import is_chinese
+
+    school = is_chinese(lang)
+    if school not in _cache:
+        _cache[school] = build_passages(dic, school)
+    return _cache[school]
 
 
-def _all_words(dic) -> dict:
-    return {w["id"]: w for p in passages(dic) for w in p["words"]}
+def _all_words(dic, lang: str = "zh-CN") -> dict:
+    return {w["id"]: w for p in passages(dic, lang) for w in p["words"]}
+
+
+def _meanings(dic, words: list[dict], lang: str, settings) -> dict:
+    """{dictionary form: meaning} in the learner's language (Chinese from the dictionary, others via meanings)."""
+    from . import meanings
+    from .languages import is_chinese
+
+    if is_chinese(lang):
+        return {w["en"]: w["zh"] for w in words}
+    return meanings.for_words(sorted({w["en"] for w in words}), lang, settings, dic)
 
 
 # ------------------------------------------------------------------ spot-check
-def spot_check(dic, unknown: set[str], seed: int | None = None) -> list[dict]:
-    """Ask the meaning of a few harder words the learner did not click (spread over the frequency bands)."""
+def spot_check(dic, unknown: set[str], seed: int | None = None, lang: str = "zh-CN", settings=None) -> list[dict]:
+    """Ask the meaning of a few harder words the learner did not click (spread over the frequency bands).
+    Options are in the learner's language (English definitions when no translation is available)."""
     rng = random.Random(seed)
-    words = _all_words(dic)
+    words = _all_words(dic, lang)
     candidates = [w for w in words.values() if w["id"] not in unknown and w["rank"] > 600]
     by_band: dict[int, list] = {}
     for w in candidates:
@@ -91,13 +106,16 @@ def spot_check(dic, unknown: set[str], seed: int | None = None) -> list[dict]:
                 w = rng.choice(pool)
                 picked.append(w)
                 seen_en.add(w["en"])
-    meanings = list({w["zh"] for w in words.values() if w["zh"]})
+    others = rng.sample([w for w in words.values() if w not in picked], min(30, len(words) - len(picked)))
+    meaning = _meanings(dic, picked + others, lang, settings)
+    pool = list({meaning[w["en"]] for w in others if meaning.get(w["en"])})
     questions = []
     for w in picked:
-        wrong = rng.sample([m for m in meanings if m != w["zh"]], 3)
-        options = wrong + [w["zh"]]
+        right = meaning.get(w["en"]) or w["en"]
+        wrong = rng.sample([m for m in pool if m != right], min(3, len([m for m in pool if m != right])))
+        options = wrong + [right]
         rng.shuffle(options)
-        questions.append({"id": w["id"], "en": w["en"], "options": options, "answer": options.index(w["zh"])})
+        questions.append({"id": w["id"], "en": w["en"], "options": options, "answer": options.index(right)})
     return questions
 
 
@@ -145,13 +163,16 @@ def band_for(vocab: int) -> float:
     return max(b for b in BANDS if BAND_VOCAB[b] <= max(0, vocab))
 
 
-def score_test(dic, unknown: set[str], wrong: set[str], checked: set[str]) -> dict:
-    words = _all_words(dic)
+def score_test(dic, unknown: set[str], wrong: set[str], checked: set[str], lang: str = "zh-CN",
+               settings=None) -> dict:
+    words = _all_words(dic, lang)
     ranks_known = [(w["rank"], w["id"] not in unknown) for w in words.values()]
     checks = [(words[i]["rank"], i not in wrong) for i in checked if i in words]
     result = estimate(ranks_known, checks)
-    result["unknownWords"] = sorted({(words[i]["en"], words[i]["zh"], words[i]["phonetic"])
-                                     for i in unknown | wrong if i in words}, key=lambda x: x[0])
+    missed = [words[i] for i in unknown | wrong if i in words]
+    meaning = _meanings(dic, missed, lang, settings)
+    result["unknownWords"] = sorted({(w["en"], meaning.get(w["en"], ""), w["phonetic"]) for w in missed},
+                                    key=lambda x: x[0])
     return result
 
 

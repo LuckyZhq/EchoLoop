@@ -21,6 +21,7 @@
       <button type="button" class="btn" id="retranslate" title="用设置里的 API 模型重新翻译，并按单词和短语对照中文">↻ 重新翻译</button>
       <span class="hint">点单词查词、收藏；点句子末尾的「译」看这一句的中文。</span>
     </div>
+    <div class="lang-notice" id="langNotice" hidden></div>
     <article class="article-body" id="body"></article>
   </main>
 </div>
@@ -87,19 +88,14 @@ function showMeta() {
   const marks = cues.reduce((n, c) => n + visibleMarks(c).length, 0);
   const aligned = cues.some(c => c.seg && c.seg.length);
   const how = translationLabel(data.translator, data.translatorModel, aligned);
-  $("#meta").textContent = `${words} 词 · ${cues.length} 句 · ${marks} 处重点 · ${how}`;
+  $("#meta").textContent = `${words} 词 · ${cues.length} 句 · ${marks} 处重点 · ${translationName(data.lang)}：${how}`;
+  showLanguageNotice($("#langNotice"), data.lang, "这篇文章", retranslate);
 }
 
 // ---------- 重新翻译 with the API model (phrase by phrase)
 async function retranslate() {
   const btn = $("#retranslate");
-  let settings;
-  try { settings = await api("/api/settings"); } catch (e) { toast(e.message); return; }
-  if (settings.engine !== "api") {
-    if (confirm("重新翻译需要 API 模型，现在用的是本地翻译。要去设置里选择模型吗？")) location.href = "/settings/translation";
-    return;
-  }
-  if (!confirm(`用 ${settings.model} 重新翻译这篇文章的 ${cues.length} 句，并按单词、短语对照中文？\n会按服务商价格计费。`)) return;
+  if (!(await confirmRetranslate(cues.length, "这篇文章"))) return;
   btn.disabled = true;
   try {
     let job = await api(`/api/reading/${encodeURIComponent(aid)}/retranslate`, { method: "POST" });
@@ -147,6 +143,7 @@ window.addEventListener("profilechange", () => { if (cues.length) { render(); sh
   try { data = await api(`/api/reading/${encodeURIComponent(aid)}`); }
   catch { $("#body").innerHTML = `<p>找不到这篇文章。<a href="/reading">返回文章列表</a></p>`; return; }
   cues = data.cues;
+  await loadLanguage();  // language names for the labels
   document.title = data.title;
   $("#title").textContent = data.title;
   showMeta();

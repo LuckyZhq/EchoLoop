@@ -30,8 +30,8 @@
             <span class="select-wrap wide"><select class="btn" id="uiLang"></select></span>
           </div>
           <div class="settings-row">
-            <label class="settings-label" for="zhVariant"><span>翻译语言</span><small>字幕、释义和文章翻译显示为简体或繁体中文；切换后马上生效，不用重新翻译</small></label>
-            <span class="select-wrap wide"><select class="btn" id="zhVariant"></select></span>
+            <label class="settings-label" for="nativeLang"><span>母语</span><small>字幕、短语和单词释义翻译成这种语言。简体和繁体之间马上切换；换成其他语言后，已导入的视频点「重新翻译」即可</small></label>
+            <span class="select-wrap wide"><select class="btn" id="nativeLang"></select></span>
           </div>
           <div class="settings-row">
             <label class="settings-label" for="theme"><span>界面主题</span><small>选「跟随系统」时会随 macOS 的浅色、深色自动切换</small></label>
@@ -244,9 +244,9 @@ function fmtBytes(n) {
 if ($("#uiLang")) {
   api("/api/language").then(lang => {
     $("#uiLang").replaceChildren(...Object.entries(lang.uiOptions).map(([v, label]) => new Option(label, v)));
-    $("#zhVariant").replaceChildren(...Object.entries(lang.zhOptions).map(([v, label]) => new Option(label, v)));
+    $("#nativeLang").replaceChildren(...Object.entries(lang.nativeOptions).map(([v, label]) => new Option(label, v)));
     $("#uiLang").value = lang.ui;
-    $("#zhVariant").value = lang.zh;
+    $("#nativeLang").value = lang.native;
   }).catch(() => {});
   const switchLanguage = async changes => {
     try {
@@ -255,7 +255,7 @@ if ($("#uiLang")) {
     } catch (error) { toast(error.message); }
   };
   $("#uiLang").onchange = e => switchLanguage({ ui: e.target.value });
-  $("#zhVariant").onchange = e => switchLanguage({ zh: e.target.value });
+  $("#nativeLang").onchange = e => switchLanguage({ native: e.target.value });
 }
 
 // ---------- 学习: summary of the level and target (edited on /level)

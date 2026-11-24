@@ -41,12 +41,19 @@ uv run ielts-study
 
 ## 语言
 
-设置 → 外观 里有两项，切换后马上生效，不用重新翻译或导入：
+设置 → 外观 里有两项：
 
 - **界面语言**：简体中文 / 繁體中文 / English（按钮、菜单、提示和出错信息）
-- **翻译语言**：简体中文 / 繁體中文（台灣用語）（字幕、逐词释义、词典释义、文章翻译）
+- **母语**：字幕、短语和单词释义翻译成哪种语言。可选简体中文、繁體中文（台灣）、Español、Português、Français、Deutsch、日本語、한국어、Tiếng Việt、Bahasa Indonesia、ไทย、Türkçe、Русский、العربية、हिन्दी，以及只看英英释义的 English
 
-所有内容都按简体中文保存，发给页面时再转换：繁体用 OpenCC 的台湾用语转换（视频→影片、软件→軟體）；英文界面的对照表在 `src/ielts_study/i18n_en.json`，没收录的文字保持原样。
+| | 中文母语 | 其他母语 |
+|---|---|---|
+| 字幕翻译 | API 或离线 | API（任何语言，带短语对照）或离线 Argos（第一次用某种语言时下载模型） |
+| 单词释义 | 离线英汉词典 ECDICT | 有 API：翻成母语并缓存（同一个词只翻一次）；没有 API：英文释义 |
+| 逐词释义 | 有 | 由 API 的短语对照代替 |
+| 考试标签 | 中考 / 高考 / 四六级 / 托福 / 雅思 | TOEFL / IELTS / GRE |
+
+简体和繁体之间马上切换（繁体用 OpenCC 台湾用语转换）。换成其他语言后，每个视频和文章会提示「译文是 X」，点「↻ 换成 …」重新翻译即可。英文界面的对照表在 `src/ielts_study/i18n_en.json`。
 
 ## 播放器
 
@@ -97,7 +104,8 @@ uv lock --upgrade-package yt-dlp && uv sync
 - `library/<视频ID>/`：视频和 `data.json`（字幕、翻译、标注）
 - `library/vocab.json`：生词本
 - `library/activity.json`：每天的精听、精读时间和听写、复习数量
-- `library/language.json`：界面语言和翻译语言
+- `library/language.json`：界面语言和母语
+- `library/meanings/<语言>.json`：翻成母语的单词释义缓存
 - `library/profile.json`：现在的水平、目标分数、测试记录、标为「认识」的词
 - `articles/<文章ID>/data.json`：文章精读的句子、翻译和标注
 - `data/ecdict.csv`、`data/ecdict.db`：离线词典

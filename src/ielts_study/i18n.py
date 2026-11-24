@@ -38,8 +38,15 @@ def load() -> dict:
         s = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         s = {}
+    from . import languages
+
+    native = s.get("native")
+    if not languages.valid(native):  # older files only had the Chinese variant
+        native = s.get("zh") if s.get("zh") in ZH_VARIANTS else languages.DEFAULT
     return {"ui": s.get("ui") if s.get("ui") in UI_LANGS else "zh-CN",
-            "zh": s.get("zh") if s.get("zh") in ZH_VARIANTS else "zh-CN"}
+            "native": native,
+            # how stored Chinese is shown: Traditional only for a zh-TW learner
+            "zh": "zh-TW" if native == "zh-TW" else "zh-CN"}
 
 
 def save(changes: dict) -> dict:
@@ -47,17 +54,25 @@ def save(changes: dict) -> dict:
         s = load()
         if changes.get("ui") in UI_LANGS:
             s["ui"] = changes["ui"]
-        if changes.get("zh") in ZH_VARIANTS:
-            s["zh"] = changes["zh"]
+        from . import languages
+
+        if languages.valid(changes.get("native")):
+            s["native"] = changes["native"]
+        elif changes.get("zh") in ZH_VARIANTS:
+            s["native"] = changes["zh"]
+        s["zh"] = "zh-TW" if s["native"] == "zh-TW" else "zh-CN"
         LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
         tmp = SETTINGS_PATH.with_suffix(".tmp")
-        tmp.write_text(json.dumps(s, ensure_ascii=False), encoding="utf-8")
+        tmp.write_text(json.dumps({"ui": s["ui"], "native": s["native"]}, ensure_ascii=False), encoding="utf-8")
         tmp.replace(SETTINGS_PATH)
         return s
 
 
 def public() -> dict:
-    return {**load(), "uiOptions": UI_LANGS, "zhOptions": ZH_VARIANTS}
+    from . import languages
+
+    return {**load(), "uiOptions": UI_LANGS, "nativeOptions": languages.options(),
+            "rtl": [code for code, info in languages.LANGUAGES.items() if info.get("rtl")]}
 
 
 # ------------------------------------------------------------------ converters

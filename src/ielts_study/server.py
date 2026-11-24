@@ -252,7 +252,7 @@ def make_handler(app: App):
         # ------------------------------------------------------------ helpers
         def _json(self, obj, status=200):
             lang = i18n.load()
-            if lang != {"ui": "zh-CN", "zh": "zh-CN"}:
+            if lang["ui"] != "zh-CN" or lang["zh"] != "zh-CN":
                 obj = localize(obj, urlparse(self.path).path, lang)
             body = json.dumps(obj, ensure_ascii=False).encode()
             self.send_response(status)
@@ -382,7 +382,7 @@ def make_handler(app: App):
                 return self._json({"passages": [
                     {"title": x["title"], "level": x["level"], "text": x["text"],
                      "words": [{"id": w["id"], "s": w["s"], "e": w["e"], "en": w["en"]} for w in x["words"]]}
-                    for x in placement.passages(app.dic)]})
+                    for x in placement.passages(app.dic, i18n.load()["native"])]})
             if p == "/review":
                 return self._file(STATIC_DIR / "review.html", "text/html; charset=utf-8")
             if p == "/api/review":
@@ -440,6 +440,10 @@ def make_handler(app: App):
                 w = (q.get("w") or [""])[0].strip().lower()
                 w = re.sub(r"[^a-z'-]", "", w)
                 info = app.dic.lookup(w) if w else None
+                if info:
+                    from . import meanings
+
+                    info = meanings.lookup(info, i18n.load()["native"], load_settings())
                 return self._json(info or {"en": w, "zh": "", "phonetic": ""})
             if p == "/api/vocab":
                 return self._json(load_vocab())
@@ -574,10 +578,12 @@ def make_handler(app: App):
                 return self._json(records[str(i)])
             if p == "/api/placement/check":
                 unknown = {str(i) for i in body.get("unknown") or []}
-                return self._json({"questions": placement.spot_check(app.dic, unknown)})
+                return self._json({"questions": placement.spot_check(app.dic, unknown, lang=i18n.load()["native"],
+                                                                     settings=load_settings())})
             if p == "/api/placement/result":
                 ids = lambda key: {str(i) for i in body.get(key) or []}  # noqa: E731
-                result = placement.score_test(app.dic, ids("unknown"), ids("wrong"), ids("checked"))
+                result = placement.score_test(app.dic, ids("unknown"), ids("wrong"), ids("checked"),
+                                              lang=i18n.load()["native"], settings=load_settings())
                 placement.record_test(result)
                 return self._json({**result, "profile": placement.public_profile(load_vocab())})
             if p == "/api/profile":

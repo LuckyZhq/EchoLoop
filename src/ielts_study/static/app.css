@@ -893,3 +893,6 @@ mark.cloze-answer { padding: 0 3px; border-radius: 5px; background: var(--word-b
 .viz-hit { fill: transparent; cursor: default; }
 .viz-hit:hover { fill: color-mix(in srgb, var(--text) 6%, transparent); }
 .viz-tip { position: fixed; z-index: 60; padding: 8px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: var(--floating-shadow); color: var(--text); font-size: 12.5px; line-height: 1.55; pointer-events: none; }
+
+/* the content was translated into another language than the learner's */
+.lang-notice { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; margin-bottom: 10px; padding: 9px 9px 9px 14px; border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border)); border-radius: 14px; background: color-mix(in srgb, var(--warn) 10%, var(--surface)); font-size: 13px; }

@@ -53,6 +53,11 @@ def test_api_text_follows_the_right_setting():
 def test_language_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(i18n, "SETTINGS_PATH", tmp_path / "language.json")
     monkeypatch.setattr(i18n, "LIBRARY_DIR", tmp_path)
-    assert i18n.load() == {"ui": "zh-CN", "zh": "zh-CN"}
-    assert i18n.save({"ui": "en", "zh": "zh-TW"}) == {"ui": "en", "zh": "zh-TW"}
-    assert i18n.save({"ui": "fr"})["ui"] == "en"  # unknown values are ignored
+    assert i18n.load() == {"ui": "zh-CN", "native": "zh-CN", "zh": "zh-CN"}
+    assert i18n.save({"ui": "en", "native": "zh-TW"}) == {"ui": "en", "native": "zh-TW", "zh": "zh-TW"}
+    assert i18n.save({"ui": "fr", "native": "xx"})["ui"] == "en"  # unknown values are ignored
+    s = i18n.save({"native": "vi"})
+    assert s["native"] == "vi" and s["zh"] == "zh-CN"  # stored Chinese is only shown Traditional for zh-TW
+    # files written before 母语 existed only had the Chinese variant
+    (tmp_path / "language.json").write_text('{"ui": "zh-CN", "zh": "zh-TW"}')
+    assert i18n.load()["native"] == "zh-TW"
