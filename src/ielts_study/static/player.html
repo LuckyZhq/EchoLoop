@@ -139,7 +139,9 @@ function setCurrent(i) {
   const layered = glossOn && (Array.isArray(c.gl) || Array.isArray(c.seg));
   caption.classList.toggle("interlinear", layered);
   caption.innerHTML = layered ? renderInterlinear(c.text, visibleMarks(c), c.gl, c.seg) : renderMarked(c.text, visibleMarks(c));
-  $("#capZh").textContent = c.zh || "";
+  // one Chinese line only: when each phrase shows its Chinese, the whole-sentence translation is left out
+  $("#capZh").textContent = layered ? "" : c.zh || "";
+  $("#capZh").hidden = layered;
   renderNotes();
   spokenK = -1;
   updateSpoken();

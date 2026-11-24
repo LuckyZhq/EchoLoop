@@ -336,6 +336,7 @@ video { display: block; width: 100%; aspect-ratio: 16/9; background: #0a0a0a; }
 .cue .en { font-size: calc(13.5px * var(--text-scale, 1)); overflow-wrap: anywhere; }
 .cue .zh { margin-top: 2px; color: var(--muted); font-size: calc(12px * var(--text-scale, 1)); overflow-wrap: anywhere; }
 .hide-zh .zh { display: none; }
+.hide-zh .ic-zh { visibility: hidden; }  /* C also hides the Chinese under each phrase; the layout stays put */
 
 .w { cursor: pointer; border-radius: 3px; }
 .w:hover { background: var(--surface-3); }
