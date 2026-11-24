@@ -8,6 +8,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from .config import ARTICLES_DIR, LIBRARY_DIR
@@ -72,16 +73,19 @@ def overview() -> dict:
 
 
 def _run_ffmpeg(cmd: list[str], duration: float, progress) -> tuple[bool, str]:
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                            encoding="utf-8", errors="replace")
-    for line in proc.stdout:
-        if line.startswith("out_time_us=") and duration:
-            try:
-                progress(min(0.99, int(line.split("=", 1)[1]) / 1e6 / duration))
-            except ValueError:
-                pass
-    err = proc.stderr.read()
-    return proc.wait() == 0, err
+    # Keep FFmpeg's error output from blocking while we read the progress pipe.
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as stderr:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=stderr, text=True,
+                              encoding="utf-8", errors="replace") as proc:
+            for line in proc.stdout:
+                if line.startswith("out_time_us=") and duration:
+                    try:
+                        progress(min(0.99, int(line.split("=", 1)[1]) / 1e6 / duration))
+                    except ValueError:
+                        pass
+            ok = proc.wait() == 0
+        stderr.seek(0)
+        return ok, stderr.read()
 
 
 def shrink(vdir: Path, mode: str, progress=lambda p: None, log=lambda m: None) -> dict:
