@@ -82,7 +82,7 @@ $("#lib").addEventListener("click", async e => {
   const btn = e.target.closest(".del");
   if (!btn) return;
   e.preventDefault();
-  if (!confirm("确定删除这个视频及其字幕吗？已收藏的词句会保留。")) return;
+  if (!confirm("确定删除这个视频及其字幕吗？错句和收藏的词句会保留，连同这几句的原声。")) return;
   await api(`/api/video/${encodeURIComponent(btn.dataset.id)}`, { method: "DELETE" });
   loadLibrary();
 });

@@ -122,7 +122,7 @@ function showCard() {
   $("#kind").className = `badge ${card.isNew ? "word" : "phrase"}`;
   $("#progress").textContent = `${finished + 1} / ${total}`;
   $("#source").innerHTML = card.videoId
-    ? `<a href="/player/${encodeURIComponent(card.videoId)}?t=${card.time}">▶ 来自视频</a>`
+    ? (card.videoGone ? `<span class="muted">来自视频（已删除）</span>` : `<a href="/player/${encodeURIComponent(card.videoId)}?t=${card.time}">▶ 来自视频</a>`)
     : card.articleId ? `<a href="/reading/${encodeURIComponent(card.articleId)}#s${card.sentenceIndex || 0}">▤ 来自文章</a>` : "";
   // With a sentence: fill the blank. Without one (or if the word can't be found in it): recall from the meaning.
   $("#prompt").textContent = cloze ? `空白处是哪个${card.type === "phrase" ? "短语" : "词"}？` : "这个意思用英文怎么说？";

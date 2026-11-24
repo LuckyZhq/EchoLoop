@@ -762,5 +762,21 @@
  "已下载": "Heruntergeladen",
  "词典就绪：": "Wörterbuch bereit: ",
  "个单词，": "Wörter, ",
- "条短语": "Phrasen"
+ "条短语": "Phrasen",
+ "确定删除这个视频及其字幕吗？错句和收藏的词句会保留，连同这几句的原声。": "Dieses Video und seine Untertitel löschen? Deine Fehler und gespeicherten Wörter bleiben, zusammen mit dem Ton dieser Sätze.",
+ " 再听一遍": " Noch einmal abspielen",
+ " 视频": " Video",
+ " 重听 · Enter 检查": " erneut abspielen · Enter zum Prüfen",
+ "Enter 再练一次": "Enter zum erneuten Versuchen",
+ "听写低于 90% 的句子都在这里，可以直接在这一页重练，到 90% 以上会自动移出。删除视频后，错句和原声会保留。": "Jeder Satz, den du unter 90% diktiert hast, ist hier. Übe ihn direkt auf dieser Seite erneut; ab 90% oder mehr verschwindet er aus der Liste. Beim Löschen eines Videos bleiben seine Fehler und deren Ton erhalten.",
+ "听到什么就写什么，Enter 检查": "Schreib, was du hörst, Enter zum Prüfen",
+ "在视频里看上下文": "Im Video ansehen",
+ "在视频里重练这些错句": "Diese im Video erneut üben",
+ "已移出错句本": "Aus den Fehlern entfernt",
+ "播放原声": "Originalton abspielen",
+ "视频已删除 · 原声已保留": "Video gelöscht · Ton erhalten",
+ "来自视频（已删除）": "Aus einem gelöschten Video",
+ " 原声": " Originalton",
+ "播放原句的原声": "Den Originalsatz abspielen",
+ "保留错句时出错：": "Fehler konnten nicht beibehalten werden: "
 }

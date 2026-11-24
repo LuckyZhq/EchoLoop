@@ -70,6 +70,10 @@ def _clip(item: dict, library: Path, cache: dict) -> dict | None:
     vid = item.get("videoId")
     if not vid:
         return None
+    if not (library / vid / "data.json").is_file():  # video deleted: the clip kept with the word, if any
+        from . import keep
+
+        return keep.clip(vid, float(item.get("time") or 0))
     if vid not in cache:
         try:
             cache[vid] = json.loads((library / vid / "data.json").read_text(encoding="utf-8"))
@@ -94,7 +98,8 @@ def queue(vocab: list[dict], library: Path, now: float | None = None, new_per_da
     fresh = sorted((v for v in vocab if not v.get("srs")), key=lambda v: v.get("added", 0))
     new = fresh[:max(0, new_per_day - started_today)]
     cache: dict = {}
-    cards = [{**v, "isNew": not v.get("srs"), "preview": previews(v.get("srs"), now), "clip": _clip(v, library, cache)}
+    cards = [{**v, "isNew": not v.get("srs"), "preview": previews(v.get("srs"), now), "clip": _clip(v, library, cache),
+              "videoGone": bool(v.get("videoId")) and not (library / v["videoId"] / "data.json").is_file()}
              for v in due + new]
     upcoming = [v["srs"]["due"] for v in vocab if v.get("srs") and v["srs"]["due"] > now]
     return {

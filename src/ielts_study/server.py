@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import i18n, placement, plan, reading, review
+from . import i18n, keep, placement, plan, reading, review
 from .settings import load_settings, save_settings, settings_from
 
 VOCAB_PATH = LIBRARY_DIR / "vocab.json"
@@ -84,10 +84,12 @@ def touch_recent(vid: str, t: float) -> None:
 
 
 def list_mistakes() -> list[dict]:
-    """Every dictated sentence whose latest score is below the pass mark, across the library."""
+    """Every dictated sentence whose latest score is below the pass mark, across the library — including
+    sentences kept from deleted videos. Each has a `clip` to hear it: {src, start, end}, or None."""
     out = []
     if not LIBRARY_DIR.exists():
         return out
+    live = set()
     for d in LIBRARY_DIR.iterdir():
         records = _read_json(d / "dictation.json", {})
         wrong = {i: r for i, r in records.items() if isinstance(r, dict) and r.get("score", 1) < DICT_PASS}
@@ -96,7 +98,9 @@ def list_mistakes() -> list[dict]:
         data = _read_json(d / "data.json", None)
         if not data:
             continue
+        live.add(d.name)
         cues = data.get("cues", [])
+        media = data.get("video") if data.get("video") and (d / data["video"]).is_file() else ""
         for i, r in wrong.items():
             if not i.isdigit() or int(i) >= len(cues):
                 continue
@@ -104,11 +108,24 @@ def list_mistakes() -> list[dict]:
             out.append({
                 "videoId": d.name, "title": data.get("title") or d.name, "i": int(i),
                 "text": c["text"], "zh": c.get("zh", ""), "start": c["start"],
+                "clip": {"src": f"/media/{d.name}/{media}", "start": c["start"], "end": c["end"]} if media else None,
                 "score": r.get("score", 0), "best": r.get("best", 0), "tries": r.get("tries", 1),
                 "typed": r.get("typed", ""), "at": r.get("at", 0),
             })
+    out += keep.mistakes(skip=live)
     out.sort(key=lambda m: -m["at"])
     return out
+
+
+def vocab_with_sources() -> list[dict]:
+    """Saved words, each with where to hear its sentence and whether its video is still there."""
+    items, cache = load_vocab(), {}
+    for v in items:
+        vid = v.get("videoId")
+        if vid:
+            v["videoGone"] = not (SAFE_ID.match(vid) and (LIBRARY_DIR / vid / "data.json").is_file())
+            v["clip"] = review._clip(v, LIBRARY_DIR, cache)
+    return items
 
 
 def sidebar() -> dict:
@@ -434,6 +451,10 @@ def make_handler(app: App):
                 if len(parts) == 4 and SAFE_ID.match(parts[2]) and re.match(r"^(video|thumb)\.\w+$", parts[3]):
                     return self._file(LIBRARY_DIR / parts[2] / parts[3])
                 return self._json({"error": "not found"}, 404)
+            if p.startswith("/kept/"):  # sentence clips kept from deleted videos
+                parts = p.split("/")
+                path = keep.audio_path(parts[2], parts[3]) if len(parts) == 4 and SAFE_ID.match(parts[2]) else None
+                return self._file(path, "audio/mp4") if path else self._json({"error": "not found"}, 404)
             if p.startswith("/api/jobs/"):
                 job = app.pipeline.jobs.get(p.rsplit("/", 1)[1])
                 return self._json(job.to_json()) if job else self._json({"error": "not found"}, 404)
@@ -447,7 +468,7 @@ def make_handler(app: App):
                     info = meanings.lookup(info, i18n.load()["native"], load_settings())
                 return self._json(info or {"en": w, "zh": "", "phonetic": ""})
             if p == "/api/vocab":
-                return self._json(load_vocab())
+                return self._json(vocab_with_sources())
             if p.startswith("/api/export/"):
                 vid = p.rsplit("/", 1)[1].removesuffix(".srt")
                 data = self._video_data(vid)
@@ -561,26 +582,34 @@ def make_handler(app: App):
                 return self._json({"ok": True})
             if p.startswith("/api/dictation/"):
                 vid = p.rsplit("/", 1)[1]
-                if not SAFE_ID.match(vid) or not (LIBRARY_DIR / vid / "data.json").exists():
+                if not SAFE_ID.match(vid):
                     return self._json({"error": "not found"}, 404)
                 try:
                     i = int(body.get("i"))
                     score = min(1.0, max(0.0, float(body.get("score"))))
                 except (TypeError, ValueError):
                     return self._json({"error": "bad request"}, 400)
-                with _dictation_lock:
-                    records = load_dictation(vid)
-                    prev = records.get(str(i), {})
-                    records[str(i)] = {
+
+                def attempt(prev):
+                    return {
                         "score": round(score, 3),
                         "best": round(max(score, prev.get("best", 0)), 3),
                         "tries": prev.get("tries", 0) + 1,
                         "typed": str(body.get("typed") or "")[:1000],
                         "at": int(time.time()),
                     }
-                    save_json(LIBRARY_DIR / vid / "dictation.json", records)
+
+                with _dictation_lock:
+                    if (LIBRARY_DIR / vid / "data.json").exists():
+                        records = load_dictation(vid)
+                        record = records[str(i)] = attempt(records.get(str(i), {}))
+                        save_json(LIBRARY_DIR / vid / "dictation.json", records)
+                    else:  # a sentence kept from a deleted video
+                        record = keep.record_dictation(vid, i, attempt)
+                        if record is None:
+                            return self._json({"error": "not found"}, 404)
                 plan.log_activity("dictate")
-                return self._json(records[str(i)])
+                return self._json(record)
             if p == "/api/placement/check":
                 unknown = {str(i) for i in body.get("unknown") or []}
                 return self._json({"questions": placement.spot_check(app.dic, unknown, lang=i18n.load()["native"],
@@ -674,8 +703,15 @@ def make_handler(app: App):
             if p.startswith("/api/video/"):
                 vid = p.rsplit("/", 1)[1]
                 if SAFE_ID.match(vid) and (LIBRARY_DIR / vid).is_dir():
-                    shutil.rmtree(LIBRARY_DIR / vid)
-                    return self._json({"ok": True})
+                    # mistakes and saved words keep their sentence and its sound
+                    with _dictation_lock, _vocab_lock:
+                        try:
+                            kept = keep.archive(LIBRARY_DIR / vid, load_vocab())
+                        except Exception as error:  # never block the delete; the words themselves stay in vocab
+                            say("保留错句时出错：", str(error))
+                            kept = {"sentences": 0, "audio": 0}
+                        shutil.rmtree(LIBRARY_DIR / vid)
+                    return self._json({"ok": True, "kept": kept})
                 return self._json({"error": "not found"}, 404)
             return self._json({"error": "not found"}, 404)
 

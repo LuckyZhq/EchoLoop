@@ -133,6 +133,12 @@ input[type="checkbox"] { accent-color: var(--button); }
 .mscore { font-weight: 700; font-size: 15px; }
 .mscore.mid { color: var(--warn); }
 .mscore.low { color: var(--bad); }
+.mscore.good { color: var(--good); }
+.mistake-gone { margin-inline-start: auto; }
+.mistake-drill { grid-column: 1 / -1; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--border); }
+.mistake-drill .dict-form { margin-top: 0; }
+.mistake.drilling:not(.checked) :is(.mistake-text, .mistake-zh, .mistake-typed) { filter: blur(7px); user-select: none; }
+.mistake.passed { border-color: var(--good); }
 .mistakes-cover { gap: 6px; font-size: 13px; }
 .cover-answers :is(.mistake-text, .mistake-zh) { filter: blur(7px); transition: filter .15s; }
 .cover-answers .mistake:hover :is(.mistake-text, .mistake-zh) { filter: none; }

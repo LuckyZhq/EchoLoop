@@ -44,6 +44,15 @@ function srsLabel(srs) {
   const when = days === 0 ? "今天稍后" : days === 1 ? "明天" : `${days} 天后`;
   return `${srs.ivl >= 21 ? "已记牢 · " : ""}${when}复习`;
 }
+const clipAudio = new Audio();
+let clipEnd = null;
+clipAudio.addEventListener("timeupdate", () => { if (clipEnd !== null && clipAudio.currentTime >= clipEnd) { clipAudio.pause(); clipEnd = null; } });
+function playClip(clip) {
+  if (!clip) return;
+  const go = () => { clipAudio.currentTime = clip.start; clipEnd = clip.end; clipAudio.play().catch(() => {}); };
+  if (!clipAudio.src.endsWith(clip.src)) { clipAudio.src = clip.src; clipAudio.addEventListener("loadedmetadata", go, { once: true }); clipAudio.load(); }
+  else go();
+}
 function render() {
   const shown = items.filter(v => filter === "all" || v.type === filter);
   $("#count").textContent = `${shown.length} 条`;
@@ -58,7 +67,8 @@ function render() {
       </div>
       <div class="ops">
         <button class="iconbtn" data-speak="${esc(v.en)}">🔊</button>
-        ${v.videoId ? `<a class="iconbtn" href="/player/${encodeURIComponent(v.videoId)}?t=${v.time}">▶ 原句</a>` : ""}
+        ${v.clip ? `<button class="iconbtn" data-clip="${esc(v.en)}" title="播放原句的原声">🎧 原声</button>` : ""}
+        ${v.videoId && !v.videoGone ? `<a class="iconbtn" href="/player/${encodeURIComponent(v.videoId)}?t=${v.time}">▶ 原句</a>` : ""}
         ${v.articleId ? `<a class="iconbtn" href="/reading/${encodeURIComponent(v.articleId)}#s${v.sentenceIndex || 0}">▤ 原文</a>` : ""}
         <button class="iconbtn" data-del="${esc(v.en)}">删除</button>
       </div>
@@ -70,6 +80,8 @@ document.addEventListener("click", async e => {
   if (t) { filter = t.dataset.f; $$("[data-f]").forEach(b => b.classList.toggle("on", b === t)); render(); }
   const sp = e.target.closest("[data-speak]");
   if (sp) speak(sp.dataset.speak);
+  const cl = e.target.closest("[data-clip]");
+  if (cl) playClip(items.find(v => v.en === cl.dataset.clip)?.clip);
   const d = e.target.closest("[data-del]");
   if (d) { await api(`/api/vocab/${encodeURIComponent(d.dataset.del.toLowerCase())}`, { method: "DELETE" }); items = items.filter(v => v.en !== d.dataset.del); render(); }
 });

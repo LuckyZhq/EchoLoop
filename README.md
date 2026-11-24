@@ -14,7 +14,8 @@ no account, no uploads.
 - **Video listening** – subtitles split into words and phrases with the translation underneath, the word being spoken
   lit up, sentence loop, auto-pause, 0.6×–1.5× speed. Videos without English subtitles are transcribed locally with Whisper.
 - **Dictation** – type what you hear; answers are compared word by word (contractions, numbers and UK/US spellings
-  count as equal). Sentences below 90 % go to *Mistakes* for another try.
+  count as equal). Sentences below 90 % go to *Mistakes*, where you redo them in place with the original audio.
+  Deleting a video keeps its mistakes and the sentences your saved words came from, with a short clip of each.
 - **Level test** – read three short passages, click the words you don't know, answer a short spot-check.
   You get an estimated vocabulary size and a rough IELTS band; from then on only the words between your level and your
   target are marked.
@@ -101,7 +102,8 @@ The pages show a "restart" banner when the code on disk is newer than the runnin
 
 Everything stays in the project folder:
 
-- `library/` – videos, subtitles, dictation results, saved words, your level and study log
+- `library/` – videos, subtitles, dictation results, saved words, your level and study log; `library/kept/` holds
+  the sentences (text and a short audio clip) kept from deleted videos
 - `articles/` – pasted articles
 - `data/` – the dictionary, its index and your API settings (the API key is stored with owner-only permissions)
 

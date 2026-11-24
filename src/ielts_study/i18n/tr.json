@@ -762,5 +762,21 @@
  "已下载": "İndirildi",
  "词典就绪：": "Sözlük hazır: ",
  "个单词，": "kelime, ",
- "条短语": "ifade"
+ "条短语": "ifade",
+ "确定删除这个视频及其字幕吗？错句和收藏的词句会保留，连同这几句的原声。": "Bu video ve altyazıları silinsin mi? Hatalarınız ve kaydettiğiniz kelimeler, o cümlelerin sesiyle birlikte kalır.",
+ " 再听一遍": " Tekrar oynat",
+ " 视频": " Video",
+ " 重听 · Enter 检查": " tekrar oynat · Enter ile kontrol et",
+ "Enter 再练一次": "Enter ile yeniden deneyin",
+ "听写低于 90% 的句子都在这里，可以直接在这一页重练，到 90% 以上会自动移出。删除视频后，错句和原声会保留。": "%90'ın altında dikte ettiğiniz her cümle burada. Bu sayfada hemen yeniden yapın; %90 veya üzerinde listeden çıkar. Bir videoyu silmek, hatalarını ve seslerini korur.",
+ "听到什么就写什么，Enter 检查": "Duyduğunuzu yazın, Enter ile kontrol edin",
+ "在视频里看上下文": "Videoda görün",
+ "在视频里重练这些错句": "Bunları videoda yeniden yapın",
+ "已移出错句本": "Hatalardan çıkarıldı",
+ "播放原声": "Orijinal sesi oynat",
+ "视频已删除 · 原声已保留": "Video silindi · ses korundu",
+ "来自视频（已删除）": "Silinmiş bir videodan",
+ " 原声": " Orijinal ses",
+ "播放原句的原声": "Orijinal cümleyi oynat",
+ "保留错句时出错：": "Hatalar korunamadı: "
 }

@@ -13,7 +13,7 @@
     <header class="hero page-heading">
       <div>
         <h1>错句本</h1>
-        <p>听写低于 90% 的句子都在这里。重练到 90% 以上会自动移出。</p>
+        <p>听写低于 90% 的句子都在这里，可以直接在这一页重练，到 90% 以上会自动移出。删除视频后，错句和原声会保留。</p>
       </div>
       <label class="btn mistakes-cover"><input type="checkbox" id="cover"> 遮住原文</label>
     </header>
@@ -22,54 +22,153 @@
 </div>
 <script src="/static/common.js"></script>
 <script>
-function scoreClass(score) { return score >= 0.6 ? "mid" : "low"; }
+let items = [];
+const audio = new Audio();
+let clipEnd = null;
+audio.addEventListener("timeupdate", () => { if (clipEnd !== null && audio.currentTime >= clipEnd) { audio.pause(); clipEnd = null; } });
 
-function render(items) {
+function scoreClass(score) { return score >= DICT_PASS ? "good" : score >= 0.6 ? "mid" : "low"; }
+const key = m => `${m.videoId}:${m.i}`;
+const byKey = k => items.find(m => key(m) === k);
+function metaText(m) { return `${fmtTime(m.start)} · 练了 ${m.tries} 次${m.best > m.score ? ` · 最好 ${Math.round(m.best * 100)}%` : ""}`; }
+
+// The original sound of the sentence: from the video, or the clip kept when the video was deleted.
+function play(m, rate = 1) {
+  if (!m.clip) { speak(m.text, rate * 0.95); return; }
+  const go = () => {
+    audio.currentTime = m.clip.start;
+    clipEnd = m.clip.end;
+    audio.playbackRate = rate;
+    audio.play().catch(() => speak(m.text, rate * 0.95));
+  };
+  if (!audio.src.endsWith(m.clip.src)) { audio.src = m.clip.src; audio.addEventListener("loadedmetadata", go, { once: true }); audio.load(); }
+  else go();
+}
+
+function itemHtml(m) {
+  const k = esc(key(m));
+  return `
+        <article class="vitem mistake" data-k="${k}">
+          <div>
+            <div class="h">
+              <span class="mscore ${scoreClass(m.score)}">${Math.round(m.score * 100)}%</span>
+              <span class="muted mistake-meta">${metaText(m)}</span>
+            </div>
+            <div class="mistake-text">${esc(m.text)}</div>
+            ${m.zh ? `<div class="mistake-zh">${esc(m.zh)}</div>` : ""}
+          </div>
+          <div class="ops">
+            <button class="iconbtn" data-play="${k}" title="${m.clip ? "播放原声" : "朗读"}">🔊</button>
+            <button class="iconbtn" data-drill="${k}">✎ 重练这句</button>
+            ${m.deleted ? "" : `<a class="iconbtn" href="/player/${encodeURIComponent(m.videoId)}?t=${m.start}" title="在视频里看上下文">▶ 视频</a>`}
+          </div>
+          ${m.typed ? `<div class="sent mistake-typed">你写的：${esc(m.typed)}</div>` : ""}
+          <div class="mistake-drill" hidden>
+            <form class="dict-form" data-form="${k}">
+              <input autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="听到什么就写什么，Enter 检查">
+              <button class="btn primary">检查</button>
+            </form>
+            <div class="dict-tools">
+              <button type="button" class="btn" data-play="${k}">▶ 再听一遍</button>
+              <button type="button" class="btn" data-play="${k}" data-rate="0.75">慢速</button>
+              <span class="dict-keys">↑ 重听 · Enter 检查</span>
+            </div>
+            <div class="dict-result"></div>
+          </div>
+        </article>`;
+}
+
+function render() {
   if (!items.length) {
     $("#groups").innerHTML = `<div class="empty" style="margin-top:28px">还没有错句。在播放器里点「✎ 听写」开始练习。</div>`;
     return;
   }
   const groups = new Map();
   for (const m of items) {
-    if (!groups.has(m.videoId)) groups.set(m.videoId, { title: m.title, items: [] });
+    if (!groups.has(m.videoId)) groups.set(m.videoId, { title: m.title, deleted: m.deleted, items: [] });
     groups.get(m.videoId).items.push(m);
   }
   $("#groups").innerHTML = [...groups].map(([vid, g]) => {
-    const player = `/player/${encodeURIComponent(vid)}`;
     g.items.sort((a, b) => a.i - b.i);
     return `
     <section class="mistake-group">
       <div class="section-h">
         <h2>${esc(g.title)}</h2><span class="muted">${g.items.length} 句</span>
-        <a class="btn primary mistake-all" href="${player}?t=${g.items[0].start}&dictate=wrong">✎ 重练这些错句</a>
+        ${g.deleted ? `<span class="badge mistake-gone">视频已删除 · 原声已保留</span>`
+          : `<a class="btn mistake-all" href="/player/${encodeURIComponent(vid)}?t=${g.items[0].start}&dictate=wrong">在视频里重练这些错句</a>`}
       </div>
-      <div class="vlist">${g.items.map(m => `
-        <article class="vitem mistake">
-          <div>
-            <div class="h">
-              <span class="mscore ${scoreClass(m.score)}">${Math.round(m.score * 100)}%</span>
-              <span class="muted mistake-meta">${fmtTime(m.start)} · 练了 ${m.tries} 次${m.best > m.score ? ` · 最好 ${Math.round(m.best * 100)}%` : ""}</span>
-            </div>
-            <div class="mistake-text">${esc(m.text)}</div>
-            ${m.zh ? `<div class="mistake-zh">${esc(m.zh)}</div>` : ""}
-          </div>
-          <div class="ops">
-            <button class="iconbtn" data-speak="${esc(m.text)}" title="朗读">🔊</button>
-            <a class="iconbtn" href="${player}?t=${m.start}&dictate=1">✎ 重练这句</a>
-          </div>
-          ${m.typed ? `<div class="sent">你写的：${esc(m.typed)}</div>` : ""}
-        </article>`).join("")}
-      </div>
+      <div class="vlist">${g.items.map(itemHtml).join("")}</div>
     </section>`;
   }).join("");
 }
 
+function openDrill(article) {
+  $$(".mistake.drilling").forEach(a => { if (a !== article) closeDrill(a); });
+  article.classList.add("drilling");
+  article.classList.remove("checked");
+  const drill = $(".mistake-drill", article);
+  drill.hidden = false;
+  $(".dict-result", drill).innerHTML = "";
+  const input = $("input", drill);
+  input.value = "";
+  input.focus({ preventScroll: true });
+  article.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  play(byKey(article.dataset.k));
+}
+
+function closeDrill(article) {
+  article.classList.remove("drilling", "checked");
+  $(".mistake-drill", article).hidden = true;
+}
+
+async function check(article) {
+  const m = byKey(article.dataset.k);
+  if (article.classList.contains("checked")) { openDrill(article); return; }  // Enter again: another try
+  const typed = $(".mistake-drill input", article).value.trim();
+  if (!typed) { toast("先写下听到的内容，按 ↑ 可以重听"); return; }
+  const result = gradeDictation(m.text, typed);
+  article.classList.add("checked");
+  const passed = result.score >= DICT_PASS;
+  $(".dict-result", article).innerHTML = gradeHtml(result, passed ? "已移出错句本" : "Enter 再练一次");
+  try {
+    const r = await api(`/api/dictation/${encodeURIComponent(m.videoId)}`, { method: "POST", body: { i: m.i, score: result.score, typed } });
+    Object.assign(m, { score: r.score, best: r.best, tries: r.tries, typed });
+    const chip = $(".mscore", article);
+    chip.textContent = `${Math.round(r.score * 100)}%`;
+    chip.className = `mscore ${scoreClass(r.score)}`;
+    $(".mistake-meta", article).textContent = metaText(m);
+    article.classList.toggle("passed", passed);
+    refreshSidebar();
+  } catch { toast("成绩没有保存成功"); }
+}
+
 $("#cover").addEventListener("change", e => document.body.classList.toggle("cover-answers", e.target.checked));
 document.addEventListener("click", e => {
-  const sp = e.target.closest("[data-speak]");
-  if (sp) speak(sp.dataset.speak);
+  const p = e.target.closest("[data-play]");
+  if (p) {
+    play(byKey(p.dataset.play), Number(p.dataset.rate) || 1);
+    $(".mistake-drill:not([hidden]) input", p.closest(".mistake"))?.focus({ preventScroll: true });
+    return;
+  }
+  const d = e.target.closest("[data-drill]");
+  if (d) {
+    const article = d.closest(".mistake");
+    if (article.classList.contains("drilling")) closeDrill(article); else openDrill(article);
+  }
 });
-api("/api/mistakes").then(render).catch(e => { $("#groups").innerHTML = `<p class="err">${esc(e.message)}</p>`; });
+document.addEventListener("submit", e => {
+  const f = e.target.closest("[data-form]");
+  if (!f) return;
+  e.preventDefault();
+  check(f.closest(".mistake"));
+});
+document.addEventListener("keydown", e => {
+  const input = e.target.closest?.(".mistake-drill input");
+  if (!input) return;
+  if (e.key === "ArrowUp") { e.preventDefault(); play(byKey(input.closest(".mistake").dataset.k)); }
+  if (e.key === "Escape") closeDrill(input.closest(".mistake"));
+});
+api("/api/mistakes").then(list => { items = list; render(); }).catch(e => { $("#groups").innerHTML = `<p class="err">${esc(e.message)}</p>`; });
 </script>
 </body>
 </html>
