@@ -683,13 +683,18 @@ def make_handler(app: App):
 
 
 def _already_running(url: str) -> bool:
-    from urllib.request import urlopen
+    from urllib.error import HTTPError
+    from urllib.request import Request, urlopen
 
+    # Identify the listener even if a previous version cannot serve the library.
     try:
-        with urlopen(url + "api/library", timeout=2) as response:
-            return response.headers.get("Server", "").startswith(("ielts-study", "whatsub-lite"))  # also the pre-rename build
+        response = urlopen(Request(url, method="HEAD"), timeout=2)
+    except HTTPError as error:
+        response = error  # older servers respond to HEAD with 501 and still identify themselves
     except OSError:
         return False
+    with response:
+        return response.headers.get("Server", "").startswith(("ielts-study", "whatsub-lite"))  # also the pre-rename build
 
 
 def _stop_running_instance() -> bool:

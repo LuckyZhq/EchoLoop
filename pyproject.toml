@@ -3,6 +3,8 @@ name = "ielts-study"
 version = "0.1.0"
 description = "Learn English for IELTS from any video or article: bilingual subtitles, phrase-by-phrase translation, dictation and spaced-repetition review, in 16 languages"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "argostranslate>=1.11.0",

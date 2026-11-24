@@ -54,6 +54,14 @@ def test_version_reports_not_stale_right_after_start(base):
     assert status == 200 and info["running"] == info["current"] and info["stale"] is False
 
 
+def test_running_server_is_detected_when_library_fails(base, monkeypatch):
+    def unavailable_library():
+        raise ImportError("library requires updated code")
+
+    monkeypatch.setattr(server, "list_library", unavailable_library)
+    assert server._already_running(base + "/")
+
+
 def test_fingerprint_is_stable_while_nothing_changes():
     first = server.code_fingerprint()
     assert first == server.code_fingerprint()

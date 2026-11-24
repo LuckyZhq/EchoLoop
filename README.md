@@ -123,3 +123,7 @@ in English until then).
 - Downloading videos is for personal study. Respect each site's terms of service and copyright.
 - The IELTS band shown after the level test is a rough estimate from vocabulary size only, not an official score.
 - Third-party data and libraries: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## License
+
+[MIT](LICENSE). Third-party data and libraries keep their own licenses ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
