@@ -528,7 +528,8 @@ mark.word { padding: 0 2px; border-radius: 3px; background: var(--word-bg); colo
 .lang-empty { margin: 0; padding: 14px; color: var(--muted); font-size: 13px; text-align: center; }
 
 .lang-note { min-height: 2.6em; margin: -2px 4px 4px; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
-.lang-go { width: 100%; min-height: 48px; border-radius: 12px; font-size: 15px; }
+.lang-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lang-go { width: 100%; min-height: 48px; border-radius: 12px; font-size: 15px; font-weight: 650; white-space: normal; text-align: center; }
 .lang-links { display: flex; justify-content: center; gap: 10px; margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .lang-links a { color: var(--muted); }
 .lang-links a:hover { color: var(--accent); }
