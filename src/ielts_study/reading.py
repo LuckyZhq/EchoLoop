@@ -84,12 +84,15 @@ def list_articles() -> list[dict]:
             "sentenceCount": len(cues), "wordCount": sum(len(c["text"].split()) for c in cues),
             "preview": " ".join(c["text"] for c in cues[:2])[:160], "translator": data.get("translator"), "translatorModel": data.get("translatorModel") or "", "lang": data.get("lang", "zh-CN"),
             "readAt": data.get("readAt", 0),
+            # 分级阅读: a built-in passage ("graded": its id) or one the API wrote ("ai"), and its level
+            "level": data.get("level"), "graded": data.get("graded"), "ai": bool(data.get("ai")),
+            "topic": data.get("topic", ""),
         })
     items.sort(key=lambda x: -x["created"])
     return items
 
 
-def run_article_job(pipeline, job, text: str, title: str) -> None:
+def run_article_job(pipeline, job, text: str, title: str, extra: dict | None = None) -> None:
     """Runs on the pipeline's worker thread: split → translate → annotate → save."""
     from . import meanings
     from .annotate import ANNOTATION_VERSION, annotate_cues
@@ -121,7 +124,7 @@ def run_article_job(pipeline, job, text: str, title: str) -> None:
             save_article({
                 "id": job.video_id, "title": job.title, "created": int(time.time()), "translator": translator,
                 "translatorModel": settings.model if translator != "local" else "",
-                "annotation": ANNOTATION_VERSION, "lang": lang, "cues": cues,
+                "annotation": ANNOTATION_VERSION, "lang": lang, "cues": cues, **(extra or {}),
             })
             pipeline._set(job, "done", 1.0)
             log("完成 ✓")
@@ -194,13 +197,13 @@ def retranslate_article(pipeline, aid: str):
     return job
 
 
-def submit_article(pipeline, text: str, title: str):
+def submit_article(pipeline, text: str, title: str, key: str = "article", extra: dict | None = None):
     from .pipeline import Job
 
-    job = Job(url="article")
+    job = Job(url=key)
     job.video_id = new_id()
     job.title = title or "新文章"
     with pipeline._jobs_lock:
         pipeline.jobs[job.id] = job
-    threading.Thread(target=run_article_job, args=(pipeline, job, text, title), daemon=True).start()
+    threading.Thread(target=run_article_job, args=(pipeline, job, text, title, extra), daemon=True).start()
     return job

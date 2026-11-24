@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import i18n, keep, languages, placement, plan, reading, review, wordbook
+from . import graded, i18n, keep, languages, placement, plan, reading, review, wordbook
 from .settings import load_settings, save_settings, settings_from
 
 VOCAB_PATH = LIBRARY_DIR / "vocab.json"
@@ -454,6 +454,8 @@ def make_handler(app: App):
                 return self._json(storage.overview())
             if p == "/api/reading":
                 return self._json(reading.list_articles())
+            if p == "/api/graded":
+                return self._json(graded.overview(i18n.load()["native"]))
             if p.startswith("/api/reading/"):
                 data = reading.load_article(p.rsplit("/", 1)[1])
                 if not data:
@@ -623,6 +625,17 @@ def make_handler(app: App):
                     return self._json({"error": f"文章太长了，请控制在 {reading.MAX_CHARS // 1000}k 字符以内，或分几次粘贴。"}, 400)
                 title = re.sub(r"\s+", " ", str(body.get("title") or "")).strip()[:120]
                 return self._json(reading.submit_article(app.pipeline, text, title).to_json())
+            if p == "/api/graded/open":
+                out = graded.open_passage(app.pipeline, str(body.get("id") or ""))
+                return self._json(out, 404 if out.get("error") else 200)
+            if p == "/api/graded/generate":
+                level = str(body.get("level") or "")
+                if level not in graded.LEVEL_IDS:
+                    return self._json({"error": "bad level"}, 400)
+                settings = load_settings()
+                if settings.engine != "api":
+                    return self._json({"error": "用 API 写文章需要先在设置里配置翻译 API。"}, 400)
+                return self._json(graded.generate(app.pipeline, level, str(body.get("topic") or ""), settings).to_json())
             if p.startswith("/api/reading/") and p.endswith("/retranslate"):
                 aid = p.split("/")[3]
                 if not reading.load_article(aid):

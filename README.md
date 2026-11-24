@@ -25,7 +25,9 @@ no account, no uploads.
   Words more frequent than your tested vocabulary size are skipped. The lists come from ECDICT's exam tags.
 - **Word review** – saved words come back as fill-in-the-blank cards from the sentence you met them in, with the
   original audio, scheduled with a simplified SM-2 (like Anki).
-- **Close reading** – paste an English article for sentence-by-sentence translation and marked key words.
+- **Close reading** – graded passages by level (CET-4, CET-6 for Chinese learners; IELTS 5.5, 6.5, 7+), each translated
+  sentence by sentence with key words marked. The built-in passages are original texts modelled on each exam's topics,
+  length and difficulty; your API can write more at any level, on a topic you choose. Or paste your own article.
 - **Study plan** – four stages from beginner to band 7+, daily goals that fill in as you study, streaks, progress charts,
   and a daily new-word quota that follows your exam date.
 
@@ -100,7 +102,8 @@ The pages show a "restart" banner when the code on disk is newer than the runnin
 |---|---|
 | `IELTS_PORT` | port (default 8765) |
 | `IELTS_WHISPER` | speech-recognition model |
-| `IELTS_LIBRARY` | where videos, articles and your progress are kept (default `library/`) |
+| `IELTS_LIBRARY` | where videos and your progress are kept (default `library/`) |
+| `IELTS_ARTICLES` | where reading articles are kept (default `articles/`) |
 
 ## Your data
 
@@ -108,7 +111,7 @@ Everything stays in the project folder:
 
 - `library/` – videos, subtitles, dictation results, saved words, your level and study log; `library/kept/` holds
   the sentences (text and a short audio clip) kept from deleted videos
-- `articles/` – pasted articles
+- `articles/` – pasted articles and the graded passages you have opened or had written
 - `data/` – the dictionary, its index and your API settings (the API key is stored with owner-only permissions)
 
 None of these folders are tracked by git.

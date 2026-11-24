@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
 # IELTS_LIBRARY points a second copy (e.g. a test server) at another folder, leaving the real library alone.
 LIBRARY_DIR = Path(os.environ["IELTS_LIBRARY"]) if os.environ.get("IELTS_LIBRARY") else ROOT / "library"
-ARTICLES_DIR = ROOT / "articles"  # pasted reading articles, kept apart from the video library
+# pasted and graded reading articles, kept apart from the video library
+ARTICLES_DIR = Path(os.environ["IELTS_ARTICLES"]) if os.environ.get("IELTS_ARTICLES") else ROOT / "articles"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 HOST = "127.0.0.1"

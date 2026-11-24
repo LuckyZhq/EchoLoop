@@ -29,7 +29,8 @@ STAGES = [
     ("annotate", "标注重点"),
     ("done", "完成"),
 ]
-STAGE_LABEL = {**dict(STAGES), "queued": "排队中", "error": "处理失败", "split": "拆分句子", "compress": "压缩视频"}
+STAGE_LABEL = {**dict(STAGES), "queued": "排队中", "error": "处理失败", "split": "拆分句子", "compress": "压缩视频",
+               "write": "撰写文章"}
 
 
 @dataclass
