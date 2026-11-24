@@ -94,7 +94,7 @@ You need [uv](https://docs.astral.sh/uv/) (it installs the right Python and all 
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-git clone https://github.com/<you>/IELTS-study.git
+git clone https://github.com/shi910655-arch/IELTS-study.git
 cd IELTS-study
 uv run ielts-study
 ```
@@ -103,7 +103,7 @@ uv run ielts-study
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-git clone https://github.com/<you>/IELTS-study.git
+git clone https://github.com/shi910655-arch/IELTS-study.git
 cd IELTS-study
 uv run ielts-study
 ```
