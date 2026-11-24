@@ -71,7 +71,7 @@ async function loadLibrary() {
         </div>
       </a>
       <div class="card-foot">
-        <span class="source-chip" title="英文字幕来源 · 中文翻译方式">${v.subtitleSource === "whisper" ? "本机识别字幕" : "平台字幕"} · ${v.translator === "local" ? "本地翻译" : v.aligned ? "API 短语对照" : "API 翻译"}</span>
+        <span class="source-chip" title="英文字幕：${v.subtitleSource === "whisper" ? "视频没有人工字幕，由本机 Whisper 听写识别" : "使用视频平台提供的人工字幕"}。中文：由所选的翻译模型生成。"><span>英文：${v.subtitleSource === "whisper" ? "本机识别" : "平台字幕"}</span><span>中文：${esc(translationLabel(v.translator, v.translatorModel, v.aligned))}</span></span>
         <button type="button" class="del" data-id="${esc(v.id)}" aria-label="删除 ${esc(v.title)}">删除</button>
       </div>
     </article>`).join("") : `<div class="empty">还没有视频。导入后，视频会出现在这里。</div>`;

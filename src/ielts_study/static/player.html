@@ -603,8 +603,9 @@ document.addEventListener("keydown", e => {
   cues = data.cues;
   document.title = `${data.title} · 播放器`;
   $("#title").textContent = data.title;
-  const translator = { api: "API 翻译", local: "本地翻译", "api+local": "API 翻译（部分改用本地）" }[data.translator] || "";
-  $("#cueCount").textContent = [`${cues.length} 句字幕`, data.subtitleSource === "whisper" ? "本地识别" : "平台字幕", translator].filter(Boolean).join(" · ");
+  const aligned = cues.some(c => c.seg && c.seg.length);
+  $("#cueCount").textContent = [`${cues.length} 句字幕`, `英文：${data.subtitleSource === "whisper" ? "本机识别" : "平台字幕"}`,
+    `中文：${translationLabel(data.translator, data.translatorModel, aligned)}`].join(" · ");
   video.src = `/media/${encodeURIComponent(vid)}/${encodeURIComponent(data.video)}`;
   if (data.poster) video.poster = data.poster;  // shown before playing, and all the time for audio-only videos
   await loadSavedWords();

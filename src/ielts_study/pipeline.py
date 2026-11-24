@@ -109,6 +109,7 @@ class Pipeline:
                 cues = data["cues"]
                 log(f"使用 API 重新翻译 {len(cues)} 句字幕…")
                 data["translator"] = translate_cues(cues, lambda p: setattr(job, "percent", p), settings=settings, log=log)
+                data["translatorModel"] = settings.model if data["translator"] != "local" else ""
                 tmp = f.with_suffix(".tmp")
                 tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
                 tmp.replace(f)
@@ -205,6 +206,7 @@ class Pipeline:
                     "video": video.name,
                     "subtitleSource": source,
                     "translator": translator,
+                    "translatorModel": settings.model if translator != "local" else "",  # which API model
                     "annotation": ANNOTATION_VERSION,
                     "created": int(time.time()),
                     "cues": cues,
@@ -318,6 +320,7 @@ def list_library() -> list[dict]:
                 "subtitleSource": data.get("subtitleSource"),
                 # videos imported before this field existed were all translated locally
                 "translator": data.get("translator") or "local",
+                "translatorModel": data.get("translatorModel") or "",
                 "aligned": any(c.get("seg") for c in cues),
                 "bytes": _file_size(d / (data.get("video") or "")),
             }

@@ -86,7 +86,7 @@ function showMeta() {
   const words = cues.reduce((n, c) => n + (c.text.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length, 0);
   const marks = cues.reduce((n, c) => n + visibleMarks(c).length, 0);
   const aligned = cues.some(c => c.seg && c.seg.length);
-  const how = data.translator === "local" ? "本地翻译" : aligned ? "API 短语对照" : "API 翻译";
+  const how = translationLabel(data.translator, data.translatorModel, aligned);
   $("#meta").textContent = `${words} 词 · ${cues.length} 句 · ${marks} 处重点 · ${how}`;
 }
 

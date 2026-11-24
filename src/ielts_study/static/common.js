@@ -351,6 +351,15 @@ async function toggleSaved(btn, cue, source) {
   $$(`[data-save="${CSS.escape(key)}"]`).forEach(b => { const on = savedWords.has(k); b.classList.toggle("saved", on); b.textContent = on ? "★ 已收藏" : "☆ 收藏"; });
 }
 
+// How the Chinese was made, e.g. "DeepSeek V4.1 Flash 短语对照" or "本地翻译". `model` is empty for
+// videos translated before the model name was recorded.
+const MODEL_NAMES = { "deepseek-flash": "DeepSeek V4.1 Flash", "deepseek-v4-flash": "DeepSeek V4.1 Flash", "deepseek-v4-pro": "DeepSeek V4 Pro" };
+function translationLabel(translator, model, aligned) {
+  if (!translator || translator === "local") return "本地翻译";
+  const name = MODEL_NAMES[model] || model || "API";
+  return `${name} ${aligned ? "短语对照" : "翻译"}${translator === "api+local" ? "（部分改用本地）" : ""}`;
+}
+
 function toast(msg) {
   let el = $(".toast");
   if (!el) { el = document.createElement("div"); el.className = "toast"; document.body.appendChild(el); }

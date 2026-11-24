@@ -82,7 +82,7 @@ def list_articles() -> list[dict]:
         items.append({
             "id": data["id"], "title": data.get("title") or "未命名文章", "created": data.get("created", 0),
             "sentenceCount": len(cues), "wordCount": sum(len(c["text"].split()) for c in cues),
-            "preview": " ".join(c["text"] for c in cues[:2])[:160], "translator": data.get("translator"),
+            "preview": " ".join(c["text"] for c in cues[:2])[:160], "translator": data.get("translator"), "translatorModel": data.get("translatorModel") or "",
             "readAt": data.get("readAt", 0),
         })
     items.sort(key=lambda x: -x["created"])
@@ -116,6 +116,7 @@ def run_article_job(pipeline, job, text: str, title: str) -> None:
             annotate_cues(cues, pipeline.dic, progress=lambda p: setattr(job, "percent", p))
             save_article({
                 "id": job.video_id, "title": job.title, "created": int(time.time()), "translator": translator,
+                "translatorModel": settings.model if translator != "local" else "",
                 "annotation": ANNOTATION_VERSION, "cues": cues,
             })
             pipeline._set(job, "done", 1.0)
@@ -158,6 +159,7 @@ def run_retranslate_job(pipeline, job) -> None:
             job.log.append(f"使用 API 重新翻译 {len(data['cues'])} 句…")
             data["translator"] = translate_cues(data["cues"], lambda p: setattr(job, "percent", p),
                                                 settings=settings, log=job.log.append)
+            data["translatorModel"] = settings.model if data["translator"] != "local" else ""
             save_article(data)
             pipeline._set(job, "done", 1.0)
         except Exception as e:
