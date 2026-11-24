@@ -104,7 +104,12 @@ if (workspaceNav) {
   workspaceNav.innerHTML = `
     <a class="workspace-label" href="/"${current === "/" ? ' aria-current="page"' : ""} title="首页">
       <span class="workspace-mark" aria-hidden="true"></span><span>IELTS Study</span></a>
-    <div class="workspace-links workspace-top">${link("/goals", "我的目标", "level")}</div>
+    <a class="goal-card" href="/goals"${current === "/goals" ? ' aria-current="page"' : ""}>
+      <span class="goal-card-head"><span class="goal-card-icon" aria-hidden="true">◎</span><b>我的目标</b></span>
+      <span class="goal-card-line" id="goalLine">定一个目标分数</span>
+      <span class="goal-card-bar" aria-hidden="true"><i id="goalBar"></i></span>
+      <span class="goal-card-meta" id="goalMeta"></span>
+    </a>
     <nav class="workspace-groups" aria-label="主要导航">${NAV_GROUPS.map(([id, title, links]) => `
       <section class="nav-group nav-group-${id}" aria-labelledby="navGroup-${id}">
         <div class="nav-group-title" id="navGroup-${id}">${title}</div>
@@ -141,6 +146,13 @@ async function refreshSidebar() {
   reviewBadge.hidden = !info.review;
   reviewBadge.textContent = info.review > 99 ? "99+" : info.review;
   reviewBadge.title = `${info.review} 个词待复习`;
+  const g = info.goal;
+  if (g) {
+    $("#goalLine").textContent = g.current === null && g.target === null ? "定一个目标分数"
+      : `${g.current ?? "?"} → ${g.target ?? "?"} 分 · ${g.stageLabel}`;
+    $("#goalBar").style.width = `${Math.round(g.done / Math.max(1, g.total) * 100)}%`;
+    $("#goalMeta").textContent = g.done >= g.total ? "今天的计划都完成了 ✓" : `今天完成 ${g.done} / ${g.total} 项`;
+  }
   const playing = location.pathname.startsWith("/player/") ? decodeURIComponent(location.pathname.split("/").pop()) : null;
   $(".workspace-recent").hidden = !info.recent.length;
   $("#recentList").innerHTML = info.recent.map(v => {

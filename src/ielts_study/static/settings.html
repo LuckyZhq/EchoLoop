@@ -10,17 +10,17 @@
 <div class="workspace">
   <aside class="workspace-nav"></aside>
   <main class="wrap settings-wrap">
-    <header class="hero"><h1>设置</h1><p>所有设置都在这一页，分五组，只保存在这台电脑上。</p></header>
+    <header class="hero"><h1>设置</h1><p>按你的学习习惯调整。所有设置都只保存在这台电脑上。</p></header>
     <div class="settings-layout">
       <nav class="settings-index" aria-label="设置分类">
-        <a href="#study"><b>学习</b><small>水平、目标和每天学多少</small></a>
-        <a href="#services"><b>模型与服务</b><small>服务商、密钥、识别和朗读</small></a>
-        <a href="#playback"><b>播放</b><small>倍速、字幕和高亮</small></a>
-        <a href="#appearance"><b>外观与语言</b><small>母语、主题、字幕字号</small></a>
-        <a href="#data"><b>数据</b><small>下载、存储、备份、手机访问</small></a>
+        <a href="/settings/study"><b>学习</b><small>水平、目标和每天学多少</small></a>
+        <a href="/settings/services"><b>模型与服务</b><small>服务商、密钥、识别和朗读</small></a>
+        <a href="/settings/playback"><b>播放</b><small>倍速、字幕和高亮</small></a>
+        <a href="/settings/appearance"><b>外观与语言</b><small>母语、主题、字幕字号</small></a>
+        <a href="/settings/data"><b>数据</b><small>下载、存储、备份、手机访问</small></a>
       </nav>
       <div class="settings-content">
-      <section class="settings-group" id="study" aria-labelledby="studyGroup">
+      <section class="settings-group" hidden id="study" aria-labelledby="studyGroup">
         <header class="settings-group-head"><h2 id="studyGroup">学习</h2><p>学多少、考什么只在「我的目标」里定，这里是一份摘要。</p></header>
         <section class="settings-section" id="studySummary" aria-labelledby="studyTitle">
           <h3 id="studyTitle">水平、目标和每天学多少</h3>
@@ -30,7 +30,7 @@
           </div>
         </section>
       </section>
-      <section class="settings-group" id="services" aria-labelledby="servicesGroup">
+      <section class="settings-group" hidden id="services" aria-labelledby="servicesGroup">
         <header class="settings-group-head"><h2 id="servicesGroup">模型与服务</h2><p>选哪个模型、填哪个密钥都在这一组。每个 API Key 只填一次，翻译、AI 批改和云端识别共用。</p></header>
         <form id="translation" class="settings-section" aria-labelledby="translationTitle">
           <h3 id="translationTitle">服务商与密钥</h3>
@@ -130,7 +130,7 @@
           </div>
         </section>
       </section>
-      <section class="settings-group" id="playback" aria-labelledby="playbackGroup">
+      <section class="settings-group" hidden id="playback" aria-labelledby="playbackGroup">
         <header class="settings-group-head"><h2 id="playbackGroup">播放</h2><p>打开视频时的默认状态。播放器里用快捷键可以临时切换。</p></header>
         <section class="settings-section" id="playerPrefs" aria-labelledby="playbackTitle">
           <h3 id="playbackTitle">播放器</h3>
@@ -151,7 +151,7 @@
           <label class="settings-row"><span class="settings-label"><span>单句循环</span><small>反复播放当前这一句，按 L 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="loop"></label>
         </section>
       </section>
-      <section class="settings-group" id="appearance" aria-labelledby="appearanceGroup">
+      <section class="settings-group" hidden id="appearance" aria-labelledby="appearanceGroup">
         <header class="settings-group-head"><h2 id="appearanceGroup">外观与语言</h2><p>母语决定翻译成什么语言，也决定界面语言；还有颜色和学习文字的大小。</p></header>
         <section class="settings-section" id="display" aria-labelledby="appearanceTitle">
           <h3 id="appearanceTitle">语言与显示</h3>
@@ -185,7 +185,7 @@
           <p class="settings-help">整个页面要放大缩小，可以用浏览器的 ⌘+ / ⌘−。</p>
         </section>
       </section>
-      <section class="settings-group" id="data" aria-labelledby="dataGroup">
+      <section class="settings-group" hidden id="data" aria-labelledby="dataGroup">
         <header class="settings-group-head"><h2 id="dataGroup">数据</h2><p>视频的下载画质和占用空间、备份与恢复，以及让手机也能用。</p></header>
         <section class="settings-section" id="download" aria-labelledby="downloadTitle">
           <h3 id="downloadTitle">下载</h3>
@@ -266,37 +266,29 @@
 
 <script src="/static/common.js"></script>
 <script>
-// One page, five groups. The old sub-pages (/settings/backup …) are redirected here by the server with an
-// anchor; #agent is an even older name of the provider list.
+// One page per group: /settings/<group>. Links from before the groups (#translation, #backup …, and the
+// even older #agent) go to the group that holds that section.
 const settingsLinks = $$(".settings-index a");
-if (location.hash === "#agent") history.replaceState(history.state, "", "#translation");
-function markGroup(id) {
-  for (const link of settingsLinks) {
-    if (link.hash === "#" + id) link.setAttribute("aria-current", "true");
-    else link.removeAttribute("aria-current");
-  }
+const groups = $$(".settings-group");
+let groupId = location.pathname.replace(/\/+$/, "").split("/")[2] || "";
+const anchor = location.hash.slice(1) === "agent" ? "translation" : location.hash.slice(1);
+if (!groups.some(g => g.id === groupId)) {
+  const holder = anchor && document.getElementById(anchor)?.closest(".settings-group");
+  groupId = holder ? holder.id : groups[0].id;
 }
-// the group whose top is nearest above the upper third of the window
-function currentGroup() {
-  const line = innerHeight / 3;
-  const groups = $$(".settings-group");
-  let id = groups[0].id;
-  for (const g of groups) if (g.getBoundingClientRect().top <= line) id = g.id;
-  if (innerHeight + scrollY >= document.documentElement.scrollHeight - 4) id = groups.at(-1).id;
-  return id;
+const group = groups.find(g => g.id === groupId);
+group.hidden = false;
+const activeLink = settingsLinks.find(link => link.pathname === "/settings/" + groupId);
+activeLink.setAttribute("aria-current", "page");
+document.title = activeLink.querySelector("b").textContent + " · 设置";
+const wanted = "/settings/" + groupId + (anchor && anchor !== groupId ? "#" + anchor : "");
+if (location.pathname + location.hash !== wanted) history.replaceState(history.state, "", wanted + location.search);
+// a section further down the group: land on it once the sections have filled in from the server
+if (anchor && anchor !== groupId && document.getElementById(anchor)) {
+  const go = () => document.getElementById(anchor).scrollIntoView({ block: "start" });
+  requestAnimationFrame(go);
+  addEventListener("load", () => setTimeout(go, 300), { once: true });
 }
-let spyFrame = 0;
-addEventListener("scroll", () => { cancelAnimationFrame(spyFrame); spyFrame = requestAnimationFrame(() => markGroup(currentGroup())); }, { passive: true });
-function goToAnchor() {
-  const target = location.hash && document.getElementById(location.hash.slice(1));
-  if (!target) return markGroup(currentGroup());
-  target.scrollIntoView({ block: "start" });
-  markGroup(target.closest(".settings-group")?.id || currentGroup());
-}
-addEventListener("hashchange", goToAnchor);
-// sections fill in from the server after load; land on the anchor again once they have their height
-requestAnimationFrame(goToAnchor);
-addEventListener("load", () => setTimeout(goToAnchor, 300), { once: true });
 
 const preferenceControls = $$("[data-preference]");
 function showPreference(control) {

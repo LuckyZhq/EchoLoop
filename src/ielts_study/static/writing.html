@@ -254,7 +254,7 @@ $("#submit").addEventListener("click", submit);
   info = await api("/api/writing");
   if (!info.hasApi) {
     $("#apiNote").hidden = false;
-    $("#apiNote").innerHTML = `可以先选题限时写，草稿会自动保存；AI 批改需要先<a href="/settings#translation">配置 API</a>。`;
+    $("#apiNote").innerHTML = `可以先选题限时写，草稿会自动保存；AI 批改需要先<a href="/settings/services#translation">配置 API</a>。`;
     $("#submit").disabled = true;
   }
   showTab(["task2", "task1", "letter", "mine"].includes(pref("writingTab", "task2")) ? pref("writingTab", "task2") : "task2");

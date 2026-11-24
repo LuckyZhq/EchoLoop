@@ -25,12 +25,12 @@ from .settings import load_settings, save_settings, settings_from
 
 _vocab_lock = words._lock  # held while a deleted video's sentences are kept for its words
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
-# Settings is one page; the old sub-pages go to their place on it, so bookmarks and links keep working.
-OLD_SETTINGS = {"/settings/appearance": "appearance", "/settings/download": "download", "/settings/storage": "storage",
-                "/settings/playback": "playback", "/settings/study": "study", "/settings/translation": "translation",
-                "/settings/speech": "speech", "/settings/devices": "devices", "/settings/backup": "backup"}
-# Old page → its new address (the 水平与目标 page is now 我的目标).
-MOVED = {**{old: f"/settings#{anchor}" for old, anchor in OLD_SETTINGS.items()}, "/level": "/goals"}
+# Settings: one page per group. Sub-pages from before the groups go to their place in a group.
+SETTINGS_GROUPS = ("study", "services", "playback", "appearance", "data")
+OLD_SETTINGS = {"/settings/download": "data#download", "/settings/storage": "data#storage",
+                "/settings/translation": "services#translation", "/settings/speech": "services#speech",
+                "/settings/devices": "data#devices", "/settings/backup": "data#backup"}
+MOVED = {**{old: f"/settings/{place}" for old, place in OLD_SETTINGS.items()}, "/level": "/goals"}
 
 
 def load_vocab() -> list[dict]:
@@ -149,7 +149,13 @@ def sidebar() -> dict:
         })
         if len(recent) == 3:
             break
-    return {"mistakes": len(list_mistakes()), "recent": recent, "review": review_badge(load_vocab())}
+    vocab = load_vocab()
+    profile = placement.load_profile()
+    today = plan.daily_plan(profile, vocab, dictated_counts()[1])
+    goal = {"current": profile.get("current"), "target": profile.get("target"),
+            "stageLabel": today["stage"]["name"],  # a UI key: shown in the interface language
+            "done": sum(t["complete"] for t in today["tasks"]), "total": len(today["tasks"])}
+    return {"mistakes": len(list_mistakes()), "recent": recent, "review": review_badge(vocab), "goal": goal}
 
 
 def book_item(en: str, body: dict) -> dict:
@@ -639,7 +645,7 @@ def make_handler(app: App):
                 return self._file(STATIC_DIR / "sentences.html", "text/html; charset=utf-8")
             if p == "/vocab":
                 return self._file(STATIC_DIR / "vocab.html", "text/html; charset=utf-8")
-            if p.rstrip("/") == "/settings":
+            if p.rstrip("/") == "/settings" or p.rstrip("/") in {f"/settings/{g}" for g in SETTINGS_GROUPS}:
                 return self._file(STATIC_DIR / "settings.html", "text/html; charset=utf-8")
             if p.startswith("/static/"):
                 target = (STATIC_DIR / p[len("/static/") :]).resolve()

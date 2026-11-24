@@ -16,7 +16,7 @@ no account, no uploads.
 - **Dictation** – type what you hear; answers are compared word by word (contractions, numbers and UK/US spellings
   count as equal). Sentences below 90 % go to *Mistakes*, where you redo them in place with the original audio.
   Deleting a video keeps its mistakes and the sentences your saved words came from, with a short clip of each.
-- **My goals** – one page, at the top of the sidebar, decides how much you study and what for. *Current level*: read
+- **My goals** – one page, a highlighted card at the top of the sidebar (goal band, stage, today's progress), decides how much you study and what for. *Current level*: read
   three short passages, click the words you don't know, answer a short spot-check, and get an estimated vocabulary
   size and a rough IELTS band (or just pick a band). *Goal*: target band and exam date. *Stage*: worked out from your
   band (beginner, basic, improving, sprint) with the reason shown, e.g. "5.5 → improving · 1.5 bands to go · exam in
@@ -145,7 +145,7 @@ used. `IELTS_WHISPER` still overrides the local model.
 
 ### Settings
 
-All settings are on one page with an index on the left, in five groups: Study (a summary of My goals), Models and
+Settings has five pages, listed on the left: Study (a summary of My goals), Models and
 services (providers and keys, speech recognition, voice), Playback, Appearance and language, and Data (download
 quality, storage, backup, phone access). Old addresses such as `/settings/backup` and `/level` redirect to their new
 place.

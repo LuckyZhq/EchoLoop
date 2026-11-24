@@ -21,7 +21,7 @@
           <input id="url" type="url" aria-label="视频链接" placeholder="粘贴视频或播客链接：YouTube、Bilibili、TED、Apple Podcasts、小宇宙…" autocomplete="off">
         </div>
         <div class="composer-actions">
-          <a class="import-quality" href="/settings#download">下载上限 <b id="importQuality"></b></a>
+          <a class="import-quality" href="/settings/data#download">下载上限 <b id="importQuality"></b></a>
           <label class="import-translator" hidden>
             <span>API</span>
             <span class="select-wrap"><select class="btn" id="translator" aria-label="API 模型"></select></span>
@@ -254,7 +254,7 @@ async function loadTranslator() {
 
 $("#translator").addEventListener("change", async event => {
   const choice = event.target.value;
-  if (choice === MANAGE) { location.href = "/settings#translation"; return; }
+  if (choice === MANAGE) { location.href = "/settings/services#translation"; return; }
   const [provider, model] = choice.split("|");
   const body = choice === "local" ? { engine: "local" } : { engine: "api", provider, model };
   const label = event.target.selectedOptions[0].text;
