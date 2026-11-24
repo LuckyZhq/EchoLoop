@@ -67,7 +67,7 @@ const workspaceNav = $(".workspace-nav");
 // Sidebar: the brand opens the home page; study tools are grouped by skill.
 const NAV_GROUPS = [
   ["listen", "听力", [["/listening", "视频精听", "import"], ["/mistakes", "错句本", "mistakes"]]],
-  ["words", "单词", [["/review", "单词复习", "review"], ["/vocab", "收藏词句", "bookmark"], ["/level", "水平与目标", "level"]]],
+  ["words", "单词", [["/review", "单词复习", "review"], ["/wordbook", "词书", "wordbook"], ["/vocab", "收藏词句", "bookmark"], ["/level", "水平与目标", "level"]]],
   ["read", "阅读", [["/reading", "文章精读", "reading"]]],
 ];
 function storedFlag(key) { try { return localStorage.getItem(key) === "1"; } catch { return false; } }

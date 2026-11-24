@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import i18n, keep, placement, plan, reading, review
+from . import i18n, keep, languages, placement, plan, reading, review, wordbook
 from .settings import load_settings, save_settings, settings_from
 
 VOCAB_PATH = LIBRARY_DIR / "vocab.json"
@@ -142,7 +142,75 @@ def sidebar() -> dict:
         })
         if len(recent) == 3:
             break
-    return {"mistakes": len(list_mistakes()), "recent": recent, "review": review.due_count(load_vocab(), new_per_day=new_quota())}
+    return {"mistakes": len(list_mistakes()), "recent": recent, "review": review_badge(load_vocab())}
+
+
+def book_item(en: str, body: dict) -> dict:
+    sentence = str(body.get("sentence") or "")[:500]
+    item = {
+        "key": "w:" + en, "type": "word", "en": en[:200], "book": body["book"],
+        "zh": str(body.get("zh") or "")[:500], "note": str(body.get("note") or "")[:500],
+        "phonetic": str(body.get("phonetic") or "")[:100],
+        "sentence": sentence, "sentenceZh": str(body.get("sentenceZh") or "")[:500],
+        "videoId": str(body.get("videoId") or "")[:80], "articleId": str(body.get("articleId") or "")[:40],
+        "sentenceIndex": int(body.get("sentenceIndex") or 0), "time": float(body.get("time") or 0),
+        "added": int(time.time()), "spans": _spans(body.get("spans"), len(sentence)),
+    }
+    if i18n.load()["zh"] == "zh-TW":
+        for key in ("zh", "sentenceZh", "note"):
+            item[key] = i18n.to_simplified(item[key])
+    return item
+
+
+def review_badge(vocab: list[dict]) -> int:
+    """Reviews due plus today's new words still to learn (saved words and the chosen 词书)."""
+    return review.due_count(vocab, new_per_day=new_quota(),
+                            extra_new=wordbook.new_left(vocab, placement.load_profile()) or 0)
+
+
+def review_queue(dic, vocab: list[dict]) -> dict:
+    """单词复习: due cards and new saved words, topped up with today's words from the chosen 词书.
+    `reserve` holds a few more book words to replace the ones marked 认识 during the session."""
+    quota = new_quota()
+    q = review.queue(vocab, LIBRARY_DIR, new_per_day=quota)
+    state = wordbook.load_state()
+    q["book"] = None
+    q["reserve"] = []
+    if not state["book"]:
+        return q
+    profile = placement.load_profile()
+    rest = wordbook.remaining(dic, state["book"], vocab, profile, state["skipEasy"])
+    slots = max(0, quota - review.started_today(vocab) - q["new"])
+    take = [w for w, _ in rest[:slots + 10]]
+    cards = wordbook.cards(dic, state["book"], take, i18n.load()["native"], load_settings())
+    preview, cache = review.previews(None, time.time()), {}
+    for c in cards:
+        c["preview"] = preview
+        c["clip"] = review._clip(c, LIBRARY_DIR, cache)  # example from your own video: its original sound
+    book = next(b for b in wordbook.BOOKS if b["id"] == state["book"])
+    q["cards"] += cards[:slots]
+    q["reserve"] = cards[slots:]
+    q["new"] += min(slots, len(cards))
+    q["newLeft"] += len(rest)
+    q["book"] = {"id": book["id"], "bookTitle": book["bookTitle"], "left": len(rest)}
+    return q
+
+
+def wordbook_overview(dic, lang: str) -> dict:
+    vocab, profile, state = load_vocab(), placement.load_profile(), wordbook.load_state()
+    books = [{**{k: b[k] for k in ("id", "bookTitle", "bookDesc", "bookLevel")},
+              **wordbook.progress(dic, b["id"], vocab, profile, state["skipEasy"])}
+             for b in wordbook.books_for(lang)]
+    upcoming = []
+    if state["book"]:
+        rest = wordbook.remaining(dic, state["book"], vocab, profile, state["skipEasy"])[:30]
+        chinese = languages.is_chinese(languages.stored(lang))
+        for w, _ in rest:
+            info = dic.word(w) or {}
+            upcoming.append({"en": w, "phonetic": info.get("phonetic", ""),
+                             "zh": info.get("zh", "") if chinese else info.get("def", "")})
+    return {"books": books, "state": state, "easyLimit": wordbook.easy_limit(profile), "perDay": new_quota(),
+            "upcoming": upcoming}
 
 
 def new_quota() -> int:
@@ -167,8 +235,8 @@ def dictated_counts() -> tuple[int, int]:
 # language. Everything else is interface text and follows the interface language.
 CONTENT_PATHS = ("/api/video/", "/api/reading", "/api/lookup", "/api/vocab", "/api/mistakes", "/api/dictation/",
                  "/api/library", "/api/home", "/api/sidebar", "/api/review", "/api/placement/check",
-                 "/api/placement/result", "/api/profile")
-UI_KEYS = {"error", "preview", "stageLabel", "log"}  # interface text inside content responses
+                 "/api/placement/result", "/api/profile", "/api/wordbook")
+UI_KEYS = {"error", "preview", "stageLabel", "log", "bookTitle", "bookDesc", "bookLevel"}  # interface text inside content responses
 
 
 def localize(obj, path: str, lang: dict):
@@ -257,6 +325,7 @@ def srt_time(t: float) -> str:
 class App:
     def __init__(self):
         self.dic = Dictionary(log=say)  # first run: downloads and indexes the dictionary
+        wordbook.attach(self.dic)
         self.pipeline = Pipeline(self.dic)
 
 
@@ -404,7 +473,11 @@ def make_handler(app: App):
             if p == "/review":
                 return self._file(STATIC_DIR / "review.html", "text/html; charset=utf-8")
             if p == "/api/review":
-                return self._json(review.queue(load_vocab(), LIBRARY_DIR, new_per_day=new_quota()))
+                return self._json(review_queue(app.dic, load_vocab()))
+            if p == "/wordbook":
+                return self._file(STATIC_DIR / "wordbook.html", "text/html; charset=utf-8")
+            if p == "/api/wordbook":
+                return self._json(wordbook_overview(app.dic, i18n.load()["native"]))
             if p == "/api/plan":
                 return self._json(plan.daily_plan(placement.load_profile(), load_vocab(), dictated_counts()[1]))
             if p == "/mistakes":
@@ -623,6 +696,12 @@ def make_handler(app: App):
             if p == "/api/profile":
                 placement.update_profile(body)
                 return self._json(placement.public_profile(load_vocab()))
+            if p == "/api/wordbook":
+                wordbook.save_state(body)
+                return self._json(wordbook_overview(app.dic, i18n.load()["native"]))
+            if p == "/api/wordbook/examples":  # example sentences for book words, written by the API (cached)
+                items = [str(w).lower()[:60] for w in (body.get("words") or [])[:40] if isinstance(w, str)]
+                return self._json(wordbook.api_examples(items, i18n.load()["native"], load_settings(), say))
             if p == "/api/known":
                 placement.set_known(str(body.get("en") or ""), bool(body.get("known", True)))
                 return self._json(placement.public_profile(load_vocab()))
@@ -634,6 +713,9 @@ def make_handler(app: App):
                 with _vocab_lock:
                     items = load_vocab()
                     item = next((v for v in items if v.get("en", "").lower() == en), None)
+                    if not item and body.get("book") in wordbook.BOOK_IDS and en:
+                        item = book_item(en, body)  # a 词书 word met for the first time joins 收藏词句
+                        items.insert(0, item)
                     if not item:
                         return self._json({"error": "not found"}, 404)
                     was_new = not item.get("srs")
@@ -642,7 +724,7 @@ def make_handler(app: App):
                 plan.log_activity("review")
                 if was_new:
                     plan.log_activity("new")
-                return self._json({"srs": item["srs"], "dueCount": review.due_count(items, new_per_day=new_quota())})
+                return self._json({"srs": item["srs"], "dueCount": review_badge(items)})
             if p == "/api/activity":
                 kind = body.get("kind")
                 if kind not in ("listen", "read"):

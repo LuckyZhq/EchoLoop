@@ -130,13 +130,17 @@ def daily_plan(profile: dict, vocab: list[dict], dictated_today: int, now: float
     start = start_of_today(now)
     reviews_left = due_count(vocab, now, new_per_day=0)  # reviews only
     new_today = sum(1 for v in vocab if v.get("srs") and v["srs"].get("seen", 0) >= start)
-    new_left_in_book = sum(1 for v in vocab if not v.get("srs"))
+    from .wordbook import new_left
+
+    in_wordbook = new_left(vocab, profile)
+    new_left_in_book = sum(1 for v in vocab if not v.get("srs")) + (in_wordbook or 0)
     tasks = [
         {"id": "review", "label": "复习到期的词", "href": "/review", "unit": "个",
          "done": int(today.get("review", 0)) - int(today.get("new", 0)), "goal": None, "left": reviews_left},
         {"id": "new", "label": "学新词", "href": "/review", "unit": "个", "done": new_today, "goal": quota["count"],
          "note": None if new_left_in_book >= quota["count"] - new_today else
-         f"收藏词句里只剩 {new_left_in_book} 个新词，去视频或文章里多收藏一些"},
+         "选一本词书，每天自动安排新词" if in_wordbook is None else
+         f"只剩 {new_left_in_book} 个新词，换一本词书或多收藏一些"},
         {"id": "listen", "label": "精听视频", "href": "/listening", "unit": "分钟",
          "done": round(today.get("listen", 0) / 60), "goal": stage["listenMin"]},
         {"id": "dictate", "label": "听写", "href": "/listening", "unit": "句", "done": dictated_today, "goal": stage["dictation"]},

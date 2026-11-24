@@ -107,6 +107,24 @@ input[type="checkbox"] { accent-color: var(--button); }
 .nav-settings::before { content: "⚙︎"; font-size: 17px; line-height: 1; }
 .nav-mistakes::before { content: "✎"; font-size: 16px; line-height: 1; }
 .nav-review::before { content: "↻"; font-size: 16px; font-weight: 700; line-height: 1; }
+.nav-wordbook::before { content: "▦"; font-size: 15px; line-height: 1; }
+
+/* ---------- 词书 */
+.book-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-bottom: 14px; color: var(--muted); font-size: 13px; }
+.book-settings b { color: var(--text); }
+.book-easy { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.book-settings .btn { margin-inline-start: auto; min-height: 30px; padding: 4px 12px; font-size: 12px; }
+.book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-bottom: 34px; }
+.book-card { display: grid; gap: 7px; align-content: start; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; text-align: start; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.book-card:hover { border-color: var(--muted); }
+.book-card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.book-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.book-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.book-top b { font-size: 16px; }
+.book-level { color: var(--accent); font-size: 12px; font-weight: 600; }
+.book-desc { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.book-stats { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.book-meaning { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .nav-reading::before { content: ""; width: 13px; height: 11px; border: 1.5px solid currentColor; border-radius: 2px 2px 3px 3px; background: linear-gradient(currentColor, currentColor) center / 1.5px 100% no-repeat; }
 .nav-badge { margin-inline-start: auto; min-width: 20px; padding: 0 6px; border-radius: var(--capsule); background: var(--accent-soft); color: var(--accent); font: 650 11px/18px var(--font); text-align: center; }
 .workspace-recent { display: grid; gap: 4px; min-height: 0; overflow: auto; }
@@ -709,7 +727,7 @@ mark.cloze-answer { padding: 0 3px; border-radius: 5px; background: var(--word-b
 .review-note:empty, .review-sentence-zh:empty { display: none; }
 .review-actions { display: grid; }
 .review-show { justify-self: center; min-width: 200px; min-height: 44px; }
-.review-show kbd, .grade kbd { padding: 0 5px; border: 1px solid currentColor; border-radius: 5px; background: transparent; box-shadow: none; color: inherit; font: 11px/1.5 var(--mono); opacity: .7; }
+.review-show kbd, .grade kbd, .review-book kbd { padding: 0 5px; border: 1px solid currentColor; border-radius: 5px; background: transparent; box-shadow: none; color: inherit; font: 11px/1.5 var(--mono); opacity: .7; }
 .review-grades { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .grade { display: grid; justify-items: center; gap: 2px; padding: 10px 6px; border: 1.5px solid var(--border); border-radius: 14px; background: var(--surface); }
 .grade b { font-size: 15px; }
@@ -846,3 +864,9 @@ mark.cloze-answer { padding: 0 3px; border-radius: 5px; background: var(--word-b
 .level-wrap .plan-card { margin: 26px 0 0; }
 .workspace-link > span:not(.nav-icon):not(.nav-badge) { min-width: 0; overflow-wrap: anywhere; }  /* longer labels in other languages wrap */
 :root[dir="rtl"] #list { direction: ltr; }  /* the English transcript (and its scrollbar) stays left-to-right */
+
+/* 单词复习: a 词书 word met for the first time */
+.review-book { display: flex; flex-wrap: wrap; gap: 10px; }
+.review-book .btn { flex: 1 1 180px; justify-content: center; }
+.review-bookword { font-size: calc(30px * var(--text-scale, 1)); font-weight: 700; letter-spacing: .2px; }
+.review-sentence .ph { color: var(--muted); font-size: 15px; }

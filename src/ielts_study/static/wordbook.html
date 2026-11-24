@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>词书</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap vocab-wrap">
+    <header class="hero page-heading">
+      <div>
+        <h1>词书</h1>
+        <p>选一本词书，每天按学习计划自动安排新词，在「单词复习」里学：认识的点一下跳过，不认识的进入复习。不用再一个个收藏。</p>
+      </div>
+      <div class="vocab-head-actions">
+        <a class="btn primary" href="/review" id="startBtn">开始今天的新词</a>
+      </div>
+    </header>
+
+    <div class="book-settings" id="settings"></div>
+    <div class="book-grid" id="books" role="radiogroup" aria-label="选择词书"></div>
+
+    <section id="upcomingBox" hidden>
+      <div class="section-h">
+        <h2>接下来要学的词</h2>
+        <span class="muted">已经会的点「认识」，以后不再出现</span>
+      </div>
+      <div class="vlist" id="upcoming"></div>
+    </section>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+let data = null;
+
+function bookHtml(b) {
+  const on = data.state.book === b.id;
+  const done = b.learning + b.known;
+  const pct = b.total ? Math.round(done / b.total * 100) : 0;
+  return `
+    <button type="button" class="book-card${on ? " on" : ""}" role="radio" aria-checked="${on}" data-book="${esc(b.id)}">
+      <span class="book-top"><b>${esc(b.bookTitle)}</b>${on ? `<span class="badge word">正在学</span>` : ""}</span>
+      <span class="book-level">${esc(b.bookLevel)}</span>
+      <span class="book-desc">${esc(b.bookDesc)}</span>
+      <span class="plan-bar" aria-hidden="true"><i style="width:${pct}%"></i></span>
+      <span class="book-stats">${b.total} 词 · 在学 ${b.learning} · 认识 ${b.known}${b.easy ? ` · 跳过 ${b.easy}` : ""} · 剩 ${b.left}</span>
+    </button>`;
+}
+
+function render() {
+  const s = data.state;
+  $("#settings").innerHTML = `
+    <span>每天 <b>${data.perDay}</b> 个新词 <a href="/level">调整</a></span>
+    <label class="book-easy"><input type="checkbox" id="skipEasy"${s.skipEasy ? " checked" : ""}><span>跳过大概率已经认识的词${data.easyLimit ? `（最常用的前 ${data.easyLimit} 个词，按你的词汇量）` : "（先做水平测试或选好现在的水平）"}</span></label>
+    ${s.book ? `<button type="button" class="btn ghost" id="noBook">不用词书</button>` : ""}`;
+  $("#books").innerHTML = data.books.map(bookHtml).join("");
+  $("#startBtn").hidden = !s.book;
+  $("#upcomingBox").hidden = !data.upcoming.length;
+  $("#upcoming").innerHTML = data.upcoming.map(w => `
+    <div class="vitem book-word">
+      <div>
+        <div class="h"><b>${esc(w.en)}</b>${w.phonetic ? `<span class="muted">/${esc(w.phonetic)}/</span>` : ""}</div>
+        <div class="book-meaning">${esc(w.zh)}</div>
+      </div>
+      <div class="ops">
+        <button class="iconbtn" data-speak="${esc(w.en)}" title="发音">🔊</button>
+        <button class="iconbtn" data-known="${esc(w.en)}">认识</button>
+      </div>
+    </div>`).join("");
+}
+
+async function save(changes) {
+  try { data = await api("/api/wordbook", { method: "POST", body: changes }); render(); refreshSidebar(); }
+  catch (e) { toast(e.message); }
+}
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-book]");
+  if (b && b.dataset.book !== data.state.book) return save({ book: b.dataset.book });
+  if (e.target.closest("#noBook")) return save({ book: null });
+  const sp = e.target.closest("[data-speak]");
+  if (sp) return speak(sp.dataset.speak);
+  const k = e.target.closest("[data-known]");
+  if (k) {
+    k.disabled = true;
+    try {
+      await api("/api/known", { method: "POST", body: { en: k.dataset.known, known: true } });
+      data = await api("/api/wordbook");
+      render();
+      refreshSidebar();
+    } catch (err) { toast(err.message); k.disabled = false; }
+  }
+});
+document.addEventListener("change", e => { if (e.target.id === "skipEasy") save({ skipEasy: e.target.checked }); });
+
+api("/api/wordbook").then(d => { data = d; render(); }).catch(e => { $("#books").innerHTML = `<p class="err">${esc(e.message)}</p>`; });
+</script>
+</body>
+</html>

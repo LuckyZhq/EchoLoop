@@ -19,6 +19,10 @@ no account, no uploads.
 - **Level test** – read three short passages, click the words you don't know, answer a short spot-check.
   You get an estimated vocabulary size and a rough IELTS band; from then on only the words between your level and your
   target are marked.
+- **Word books** – pick a list (the 3,000 most common words, IELTS, TOEFL; for Chinese learners also CET-4, CET-6
+  and the postgraduate exam) and new words arrive in Word review every day: one click skips a word you know, the
+  others are learned with an example sentence from your own videos and articles, or one written by your API.
+  Words more frequent than your tested vocabulary size are skipped. The lists come from ECDICT's exam tags.
 - **Word review** – saved words come back as fill-in-the-blank cards from the sentence you met them in, with the
   original audio, scheduled with a simplified SM-2 (like Anki).
 - **Close reading** – paste an English article for sentence-by-sentence translation and marked key words.

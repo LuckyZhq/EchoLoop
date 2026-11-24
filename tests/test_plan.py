@@ -67,6 +67,6 @@ def test_daily_plan_tasks(log_file):
     assert p["stage"]["id"] == "basic"
     assert tasks["review"]["left"] == 1 and tasks["review"]["done"] == 2 and not tasks["review"]["complete"]
     assert tasks["new"]["done"] == 1 and tasks["new"]["goal"] == 15
-    assert "只剩 1 个新词" in tasks["new"]["note"]
+    assert "选一本词书" in tasks["new"]["note"]  # only 1 saved word left and no 词书 chosen
     assert tasks["listen"]["done"] == 10 and tasks["listen"]["goal"] == 15
     assert tasks["dictate"]["complete"] and tasks["dictate"]["done"] == 12

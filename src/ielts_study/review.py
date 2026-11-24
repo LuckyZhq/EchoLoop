@@ -112,11 +112,16 @@ def queue(vocab: list[dict], library: Path, now: float | None = None, new_per_da
     }
 
 
-def due_count(vocab: list[dict], now: float | None = None, new_per_day: int = NEW_PER_DAY) -> int:
+def started_today(vocab: list[dict], now: float | None = None) -> int:
+    today = start_of_today(time.time() if now is None else now)
+    return sum(1 for v in vocab if v.get("srs") and v["srs"].get("seen", 0) >= today)
+
+
+def due_count(vocab: list[dict], now: float | None = None, new_per_day: int = NEW_PER_DAY, extra_new: int = 0) -> int:
     """For the sidebar badge and the home page: reviews due plus new words still allowed today."""
     now = time.time() if now is None else now
     today = start_of_today(now)
     due = sum(1 for v in vocab if v.get("srs") and v["srs"]["due"] <= now)
     started_today = sum(1 for v in vocab if v.get("srs") and v["srs"].get("seen", 0) >= today)
-    fresh = sum(1 for v in vocab if not v.get("srs"))
+    fresh = sum(1 for v in vocab if not v.get("srs")) + extra_new  # extra_new: words left in the chosen 词书
     return due + min(fresh, max(0, new_per_day - started_today))

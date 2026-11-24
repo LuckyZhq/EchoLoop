@@ -249,7 +249,7 @@ def set_known(en: str, known: bool) -> dict:
         words = [w for w in p["known"] if w != en]
         if known and en:
             words.append(en)
-        p["known"] = words[-5000:]
+        p["known"] = words[-20000:]  # 词书 can mark thousands as 认识
         save_profile(p)
         return p
 

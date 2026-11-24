@@ -13,7 +13,7 @@
     <header class="hero page-heading">
       <div>
         <h1>单词复习</h1>
-        <p>按遗忘规律安排：记得越牢，下次出现得越晚。每天最多学 20 个新词。</p>
+        <p>按遗忘规律安排：记得越牢，下次出现得越晚。每天的新词数量跟着学习计划，选了词书会自动补上新词。 <a href="/wordbook">选词书</a></p>
       </div>
       <div class="review-stats" id="stats" aria-live="polite"></div>
     </header>
@@ -50,6 +50,10 @@
 
       <div class="review-actions">
         <button type="button" class="btn primary review-show" id="showBtn">显示答案 <kbd>空格</kbd></button>
+        <div class="review-book" id="bookActions" hidden>
+          <button type="button" class="btn" id="knowBtn">认识，不用学 <kbd>K</kbd></button>
+          <button type="button" class="btn primary" id="learnBtn">不认识，看释义 <kbd>空格</kbd></button>
+        </div>
         <div class="review-grades" id="grades" hidden>
           <button type="button" class="grade again" data-grade="again"><b>忘了</b><small></small><kbd>1</kbd></button>
           <button type="button" class="grade hard" data-grade="hard"><b>模糊</b><small></small><kbd>2</kbd></button>
@@ -65,6 +69,7 @@
 <script src="/static/common.js"></script>
 <script>
 let state = null, queue = [], card = null, revealed = false, total = 0, finished = 0;
+const firstMeet = c => Boolean(c && c.book && c.isNew);  // a word-book word shown for the first time
 const player = new Audio();
 let clipEnd = null;
 player.addEventListener("timeupdate", () => { if (clipEnd !== null && player.currentTime >= clipEnd) { player.pause(); clipEnd = null; } });
@@ -118,12 +123,13 @@ function showCard() {
   $("#done").hidden = true;
   card.spans = card.spans && card.spans.length ? card.spans : (card.sentence ? findSpans(card.sentence, card.en) : []);
   const cloze = card.sentence && card.spans.length;
-  $("#kind").textContent = card.isNew ? "新词" : "复习";
+  $("#kind").textContent = firstMeet(card) ? "词书新词" : card.isNew ? "新词" : "复习";
   $("#kind").className = `badge ${card.isNew ? "word" : "phrase"}`;
   $("#progress").textContent = `${finished + 1} / ${total}`;
   $("#source").innerHTML = card.videoId
     ? (card.videoGone ? `<span class="muted">来自视频（已删除）</span>` : `<a href="/player/${encodeURIComponent(card.videoId)}?t=${card.time}">▶ 来自视频</a>`)
-    : card.articleId ? `<a href="/reading/${encodeURIComponent(card.articleId)}#s${card.sentenceIndex || 0}">▤ 来自文章</a>` : "";
+    : card.articleId ? `<a href="/reading/${encodeURIComponent(card.articleId)}#s${card.sentenceIndex || 0}">▤ 来自文章</a>`
+    : card.book && state.book ? `<a href="/wordbook">▦ ${esc(state.book.bookTitle)}</a>` : "";
   // With a sentence: fill the blank. Without one (or if the word can't be found in it): recall from the meaning.
   $("#prompt").textContent = cloze ? `空白处是哪个${card.type === "phrase" ? "短语" : "词"}？` : "这个意思用英文怎么说？";
   $("#sentence").innerHTML = cloze ? sentenceHtml(card.sentence, card.spans, "blank") : `<span class="review-meaning-prompt">${esc(card.zh || "（没有释义）")}</span>`;
@@ -137,15 +143,66 @@ function showCard() {
   $("#grades").hidden = true;
   $("#showBtn").hidden = false;
   $$(".grade").forEach(b => { $("small", b).textContent = card.preview[b.dataset.grade]; b.disabled = false; });
+  const meet = firstMeet(card);
+  $("#typeForm").hidden = meet;
+  $("#bookActions").hidden = !meet;
+  $("#showBtn").hidden = meet;
+  $$("#bookActions button").forEach(b => { b.disabled = false; });
+  if (meet) {
+    $("#prompt").textContent = "认识这个词吗？";
+    $("#sentence").innerHTML = `<span class="review-bookword">${esc(card.en)}</span>${card.phonetic ? ` <span class="ph">/${esc(card.phonetic)}/</span>` : ""}`;
+    $("#listen").hidden = true;
+    $("#hintBtn").hidden = true;
+    speak(card.en);
+    return;
+  }
   $("#typed").focus({ preventScroll: true });
+}
+
+// The example under a first-time book word: the word highlighted in the sentence.
+function showExample() {
+  if (!card.sentence) { $("#sentence").innerHTML = ""; $("#listen").hidden = true; return; }
+  if (!card.spans || !card.spans.length) card.spans = findSpans(card.sentence, card.en);
+  $("#sentence").innerHTML = card.spans.length ? sentenceHtml(card.sentence, card.spans, "answer") : esc(card.sentence);
+  $("#sentenceZh").textContent = card.sentenceZh || "";
+  $("#listen").hidden = false;
+}
+
+async function markKnown() {
+  if (!firstMeet(card) || revealed) return;
+  $$("#bookActions button").forEach(b => { b.disabled = true; });
+  try {
+    await api("/api/known", { method: "POST", body: { en: card.en, known: true } });
+  } catch (e) { toast(e.message); $$("#bookActions button").forEach(b => { b.disabled = false; }); return; }
+  queue.shift();
+  if (state.reserve && state.reserve.length) queue.push(state.reserve.shift());  // keep today's count
+  else total -= 1;
+  toast(`已标为认识：${card.en}`);
+  refreshSidebar();
+  showCard();
+}
+
+// Example sentences the API writes for book words that have none from your own videos and articles.
+async function loadExamples() {
+  const missing = [...queue, ...(state.reserve || [])].filter(c => c.book && !c.sentence).map(c => c.en);
+  if (!missing.length) return;
+  let found = {};
+  try { found = await api("/api/wordbook/examples", { method: "POST", body: { words: missing } }); } catch { return; }
+  for (const c of [...queue, ...(state.reserve || [])]) {
+    const ex = found[c.en];
+    if (c.book && !c.sentence && ex) Object.assign(c, { sentence: ex.sentence, sentenceZh: ex.sentenceZh, spans: [] });
+  }
+  if (card && firstMeet(card) && revealed) showExample();
 }
 
 function reveal() {
   if (!card || revealed) return;
   revealed = true;
   const typed = $("#typed").value.trim().toLowerCase().replaceAll("’", "'");
-  const cloze = card.sentence && card.spans.length;
-  if (cloze) $("#sentence").innerHTML = sentenceHtml(card.sentence, card.spans, "answer");
+  const cloze = card.sentence && card.spans.length && !firstMeet(card);
+  $("#bookActions").hidden = true;
+  if (firstMeet(card)) { $("#prompt").textContent = ""; showExample(); }
+  else if (cloze) $("#sentence").innerHTML = sentenceHtml(card.sentence, card.spans, "answer");
   else $("#sentence").innerHTML = `<span class="review-meaning-prompt">${esc(card.zh || "")}</span>`;
   $("#word").textContent = card.en;
   $("#phonetic").textContent = card.phonetic ? `/${card.phonetic}/` : "";
@@ -166,7 +223,12 @@ async function grade(g) {
   if (!card || !revealed) return;
   $$(".grade").forEach(b => { b.disabled = true; });
   try {
-    const res = await api("/api/review", { method: "POST", body: { en: card.en, grade: g } });
+    const book = card.book ? {
+      book: card.book, zh: card.zh, note: card.note, phonetic: card.phonetic, sentence: card.sentence,
+      sentenceZh: card.sentenceZh, spans: card.spans, videoId: card.videoId, time: card.time,
+      articleId: card.articleId, sentenceIndex: card.sentenceIndex,
+    } : {};
+    const res = await api("/api/review", { method: "POST", body: { en: card.en, grade: g, ...book } });
     queue.shift();
     finished += 1;
     if (g === "again") {  // comes back at the end of this session
@@ -199,8 +261,8 @@ async function showDone() {
   }
   const done = $("#done");
   done.hidden = false;
-  if (!state.total) {
-    done.innerHTML = `<div class="empty">还没有收藏的词句。在视频或文章里点单词，再点「☆ 收藏」，它就会出现在这里。<br><a href="/listening">去视频精听</a> · <a href="/reading">去文章精读</a></div>`;
+  if (!state.total && !state.book) {
+    done.innerHTML = `<div class="empty">还没有要学的词。选一本词书，每天自动安排新词；或者在视频、文章里点单词，再点「收藏」。<br><a href="/wordbook">选词书</a> · <a href="/listening">去视频精听</a> · <a href="/reading">去文章精读</a></div>`;
     return;
   }
   const next = state.nextDue && new Date(Math.max(state.nextDue * 1000, Date.now()));
@@ -209,11 +271,13 @@ async function showDone() {
   done.innerHTML = `<div class="review-done-box">
     <h2>${finished ? `今天复习了 ${finished} 次，完成了` : "现在没有要复习的词"}</h2>
     <p>${nextText}${more > 0 ? ` 还有 ${more} 个新词明天继续。` : ""}</p>
-    <div class="review-done-links"><a class="btn" href="/vocab">查看收藏词句</a><a class="btn primary" href="/listening">去视频精听</a></div>
+    <div class="review-done-links"><a class="btn" href="/wordbook">词书</a><a class="btn" href="/vocab">查看收藏词句</a><a class="btn primary" href="/listening">去视频精听</a></div>
   </div>`;
 }
 
 $("#showBtn").onclick = reveal;
+$("#learnBtn").onclick = reveal;
+$("#knowBtn").onclick = markKnown;
 $("#typeForm").onsubmit = event => { event.preventDefault(); reveal(); };
 $("#grades").onclick = event => { const b = event.target.closest("[data-grade]"); if (b) grade(b.dataset.grade); };
 $("#listen").onclick = playSentence;
@@ -223,6 +287,7 @@ document.addEventListener("keydown", event => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
   const typing = event.target.closest?.("input") && !event.target.disabled;
   if (!revealed && event.key === " " && !typing) { event.preventDefault(); reveal(); return; }
+  if (!revealed && (event.key === "k" || event.key === "K") && firstMeet(card)) { event.preventDefault(); markKnown(); return; }
   if (revealed && ["1", "2", "3", "4"].includes(event.key)) { event.preventDefault(); grade(["again", "hard", "good", "easy"][+event.key - 1]); }
 });
 
@@ -231,6 +296,7 @@ document.addEventListener("keydown", event => {
   queue = state.cards;
   total = queue.length;
   showCard();
+  loadExamples();
 })();
 </script>
 </body>
