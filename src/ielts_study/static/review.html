@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>单词复习</title>
+<title>今日复习</title>
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -12,8 +12,10 @@
   <main class="wrap review-wrap">
     <header class="hero page-heading">
       <div>
-        <h1>单词复习</h1>
-        <p>按遗忘规律安排：记得越牢，下次出现得越晚。每天的新词数量跟着学习计划，选了词书会自动补上新词。 <a href="/wordbook">选词书</a></p>
+        <h1>单词</h1>
+        <nav class="tabs word-tabs" id="wordTabs" aria-label="单词"></nav>
+        <p>按遗忘规律安排：记得越牢，下次出现得越晚。每天的新词数量跟着学习计划，选了词书会自动补上新词。</p>
+        <p class="review-breakdown" id="breakdown" hidden></p>
       </div>
       <div class="review-stats" id="stats" aria-live="polite"></div>
     </header>
@@ -31,6 +33,7 @@
         <button type="button" class="btn" id="listen">🔊 听原句 <kbd>R</kbd></button>
         <button type="button" class="btn" id="listenSlow">慢速</button>
         <button type="button" class="btn ghost" id="hintBtn">看中文提示</button>
+        <button type="button" class="btn ghost" id="knownAny" title="这个词以后不再复习，也不再标为难词">✓ 认识，不再复习</button>
       </div>
       <p class="review-hint" id="hint" hidden></p>
 
@@ -172,6 +175,32 @@ function showExample() {
   $("#sentenceZh").textContent = card.sentenceZh || "";
   $("#listen").hidden = false;
   $("#listenSlow").hidden = false;
+  $("#knownAny").hidden = firstMeet(card);  // a first-time 词书 card has its own 认识 button
+}
+
+function renderBreakdown() {
+  const b = state.breakdown;
+  if (!b) return;
+  const parts = [`今日新词 <b>${b.newSaved + b.newBook}</b> 个${b.bookLeft !== null ? `（词书 ${b.newBook} · 收藏 ${b.newSaved}）` : ""}`,
+    `复习旧词 <b>${b.due}</b> 个`];
+  if (b.bookLeft !== null) parts.push(`词书还剩 <b>${b.bookLeft}</b> 个`);
+  $("#breakdown").innerHTML = parts.join('<span class="sep">｜</span>');
+  $("#breakdown").hidden = false;
+}
+
+// ✓ 认识 on any card: the word leaves review, stops being marked, and no 词书 offers it again.
+async function markKnownAny() {
+  if (!card) return;
+  $("#knownAny").disabled = true;
+  try { await api("/api/known", { method: "POST", body: { en: card.en, known: true } }); }
+  catch (e) { toast(e.message); $("#knownAny").disabled = false; return; }
+  $("#knownAny").disabled = false;
+  queue = queue.filter(c => c.en !== card.en);
+  if (card.isNew && state.reserve && state.reserve.length) queue.push(state.reserve.shift());
+  else total -= 1;
+  toast(`已标为认识：${card.en}`);
+  refreshSidebar(); syncProfile();
+  showCard();
 }
 
 async function markKnown() {
@@ -289,13 +318,14 @@ async function showDone() {
   done.innerHTML = `<div class="review-done-box">
     <h2>${finished ? `今天复习了 ${finished} 次，完成了` : "现在没有要复习的词"}</h2>
     <p>${nextText}${more > 0 ? ` 还有 ${more} 个新词明天继续。` : ""}</p>
-    <div class="review-done-links"><a class="btn" href="/wordbook">词书</a><a class="btn" href="/vocab">查看收藏词句</a><a class="btn primary" href="/listening">去视频精听</a></div>
+    <div class="review-done-links"><a class="btn" href="/wordbook">词书</a><a class="btn" href="/vocab">我的生词</a><a class="btn primary" href="/listening">去视频精听</a></div>
   </div>`;
 }
 
 $("#showBtn").onclick = reveal;
 $("#learnBtn").onclick = reveal;
 $("#knowBtn").onclick = markKnown;
+$("#knownAny").onclick = markKnownAny;
 $("#typeForm").onsubmit = event => { event.preventDefault(); reveal(); };
 $("#grades").onclick = event => { const b = event.target.closest("[data-grade]"); if (b) grade(b.dataset.grade); };
 $("#listen").onclick = () => playSentence();
@@ -316,6 +346,7 @@ document.addEventListener("keydown", event => {
   try { state = await api("/api/review"); } catch (e) { toast(e.message); return; }
   queue = state.cards;
   total = queue.length;
+  renderBreakdown();
   showCard();
   loadExamples();
 })();

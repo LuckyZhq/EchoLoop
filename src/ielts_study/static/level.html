@@ -93,7 +93,7 @@
       </div>
 
       <div class="level-unknown" id="unknownBlock" hidden>
-        <div class="level-sub"><h3>这次标出的生词</h3><button type="button" class="btn" id="saveUnknown">全部加入收藏词句</button></div>
+        <div class="level-sub"><h3>这次标出的生词</h3><button type="button" class="btn" id="saveUnknown">全部加入我的生词</button></div>
         <div class="level-chips" id="unknownWords"></div>
       </div>
 
@@ -390,8 +390,8 @@ $("#saveUnknown").onclick = async () => {
       saved += 1;
     }
   }
-  toast(`已加入 ${saved} 个词，去「单词复习」开始记`);
-  btn.textContent = "已加入收藏词句";
+  toast(`已加入 ${saved} 个词，去「今日复习」开始记`);
+  btn.textContent = "已加入我的生词";
   refreshSidebar();
 };
 

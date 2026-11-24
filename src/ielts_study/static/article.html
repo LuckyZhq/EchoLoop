@@ -47,7 +47,7 @@ function render() {
   };
   body.innerHTML = paragraphs.filter(Boolean).map(sents => `<div class="para">${sents.map(c => `
     <span class="sent" id="s${c.i}" data-i="${c.i}">${enHtml(c)}` +
-      `<button type="button" class="sent-tr" data-tr="${c.i}" title="看这一句的中文">译</button>` +
+      `<button type="button" class="sent-tr" data-tr="${c.i}" title="看这一句的中文">译</button>` + sentenceButton(c.text, c.i) +
       // one Chinese line only: when the phrases already carry their Chinese, skip the whole-sentence translation
       (zhOn && (Array.isArray(c.gl) || Array.isArray(c.seg)) ? "" : `<span class="sent-zh">${esc(c.zh || "")}</span>`) +
       `</span>`).join(" ")}</div>`).join("");
@@ -68,6 +68,12 @@ document.addEventListener("click", async e => {
   if (sp) { e.stopPropagation(); speak(sp.dataset.speak); return; }
   const sv = e.target.closest("[data-save]");
   if (sv) { e.stopPropagation(); return toggleSave(sv); }
+  const ss = e.target.closest("[data-save-sent]");
+  if (ss) {
+    e.stopPropagation();
+    const c = cues[+ss.dataset.saveSent];
+    return toggleSentence(ss, { text: c.text, zh: c.zh, articleId: aid, sentenceIndex: c.i, title: data.title });
+  }
   const tr = e.target.closest("[data-tr]");
   if (tr) {
     const c = cues[+tr.dataset.tr];

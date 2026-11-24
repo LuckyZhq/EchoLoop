@@ -1,6 +1,7 @@
-"""单词复习: spaced repetition for 收藏词句 (simplified SM-2, the scheme Anki is built on).
+"""单词复习: spaced repetition for the words being learned (simplified SM-2, the scheme Anki is built on).
 
-Each saved word/phrase may carry `srs`:
+The functions take word-ledger records (words.py) and only look at the ones with status "learning": known
+words never come up for review. Each may carry `srs`:
     {"due": epoch s, "ivl": days, "ease": 1.3–3.0, "reps": successful reviews in a row, "lapses": n,
      "last": epoch s, "seen": epoch s of the first review}
 Words without `srs` are new. At most `new_per_day` new words are introduced per day (from the study plan;
@@ -89,8 +90,13 @@ def _clip(item: dict, library: Path, cache: dict) -> dict | None:
     return {"src": f"/media/{vid}/{data['video']}", "start": cue["start"], "end": cue["end"]}
 
 
+def _studied(items: list[dict]) -> list[dict]:
+    return [v for v in items if v.get("status", "learning") == "learning"]
+
+
 def queue(vocab: list[dict], library: Path, now: float | None = None, new_per_day: int = NEW_PER_DAY) -> dict:
     """Cards to review now: due reviews first (most overdue first), then today's share of new words."""
+    vocab = _studied(vocab)
     now = time.time() if now is None else now
     today = start_of_today(now)
     due = sorted((v for v in vocab if v.get("srs") and v["srs"]["due"] <= now), key=lambda v: v["srs"]["due"])
@@ -113,12 +119,14 @@ def queue(vocab: list[dict], library: Path, now: float | None = None, new_per_da
 
 
 def started_today(vocab: list[dict], now: float | None = None) -> int:
+    vocab = _studied(vocab)
     today = start_of_today(time.time() if now is None else now)
     return sum(1 for v in vocab if v.get("srs") and v["srs"].get("seen", 0) >= today)
 
 
 def due_count(vocab: list[dict], now: float | None = None, new_per_day: int = NEW_PER_DAY, extra_new: int = 0) -> int:
     """For the sidebar badge and the home page: reviews due plus new words still allowed today."""
+    vocab = _studied(vocab)
     now = time.time() if now is None else now
     today = start_of_today(now)
     due = sum(1 for v in vocab if v.get("srs") and v["srs"]["due"] <= now)

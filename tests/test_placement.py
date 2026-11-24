@@ -69,11 +69,10 @@ def test_profile_test_known_words_and_goal(tmp_path, monkeypatch):
     p = pl.update_profile({"current": "5", "vocabSize": None})  # picked by hand: tested size no longer applies
     assert p["current"] == 5 and p["vocabSize"] is None
     assert pl.update_profile({"target": "10"})["target"] is None  # not a band
-    pl.set_known("Commute", True)
-    pl.set_known("crucial", True)
-    assert pl.set_known("commute", False)["known"] == ["crucial"]
-    vocab = [{"en": "Foster", "srs": {"ivl": 30}}, {"en": "park", "srs": {"ivl": 3}}]
-    assert pl.public_profile(vocab)["mature"] == ["foster"]
+    items = [{"en": "Foster", "status": "learning", "srs": {"ivl": 30}}, {"en": "park", "status": "learning", "srs": {"ivl": 3}},
+             {"en": "crucial", "status": "known"}]
+    public = pl.public_profile(items)  # the words to stop marking come from the word ledger
+    assert public["mature"] == ["foster"] and public["known"] == ["crucial"]
 
 
 def test_word_ranks_use_the_right_dictionary_form(dic):

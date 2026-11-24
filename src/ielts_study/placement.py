@@ -186,7 +186,6 @@ def load_profile() -> dict:
     p.setdefault("target", None)
     p.setdefault("vocabSize", None)
     p.setdefault("tests", [])
-    p.setdefault("known", [])
     p.setdefault("examDate", None)
     return p
 
@@ -242,20 +241,12 @@ def record_test(result: dict) -> dict:
         return p
 
 
-def set_known(en: str, known: bool) -> dict:
-    en = en.strip().lower()[:100]
-    with _lock:
-        p = load_profile()
-        words = [w for w in p["known"] if w != en]
-        if known and en:
-            words.append(en)
-        p["known"] = words[-20000:]  # 词书 can mark thousands as 认识
-        save_profile(p)
-        return p
+def public_profile(items: list[dict]) -> dict:
+    """Profile for the pages, with the words to stop marking from the word ledger: known words, and words
+    already well remembered in 单词复习."""
+    from . import words
 
-
-def public_profile(vocab: list[dict]) -> dict:
-    """Profile for the pages: words to stop marking = 我认识 + words already well remembered in 单词复习."""
     p = load_profile()
-    mature = sorted({v["en"].lower() for v in vocab if v.get("srs", {}).get("ivl", 0) >= 21})
-    return {**p, "mature": mature, "bandVocab": {str(k): v for k, v in BAND_VOCAB.items()}}
+    p.pop("known", None)  # a profile saved before the word ledger
+    return {**p, "known": words.known_words(items), "mature": words.mature_words(items),
+            "bandVocab": {str(k): v for k, v in BAND_VOCAB.items()}}

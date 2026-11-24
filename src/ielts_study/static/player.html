@@ -89,7 +89,7 @@ function noteFor(cue, key) { return cue?.notes?.[key]; }
 function renderList() {
   $("#list").innerHTML = cues.map(c => `
     <div class="cue" data-i="${c.i}">
-      <div class="tm">${fmtTime(c.start)}<span class="dscore"></span></div>
+      <div class="tm">${fmtTime(c.start)}<span class="dscore"></span>${sentenceButton(c.text, c.i)}</div>
       <div><div class="en">${renderMarked(c.text, visibleMarks(c))}</div><div class="zh">${esc(c.zh)}</div></div>
     </div>`).join("");
 }
@@ -269,6 +269,12 @@ document.addEventListener("click", async e => {
   if (sp) { e.stopPropagation(); speak(sp.dataset.speak); return; }
   const sv = e.target.closest("[data-save]");
   if (sv) { e.stopPropagation(); return toggleSave(sv); }
+  const ss = e.target.closest("[data-save-sent]");
+  if (ss) {
+    e.stopPropagation();
+    const c = cues[+ss.dataset.saveSent];
+    return toggleSentence(ss, { text: c.text, zh: c.zh, videoId: vid, time: c.start, end: c.end, title: data.title });
+  }
   const word = e.target.closest(".w, mark");
   if (word) {
     e.stopPropagation();

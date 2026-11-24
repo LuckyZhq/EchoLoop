@@ -129,11 +129,12 @@ def daily_plan(profile: dict, vocab: list[dict], dictated_today: int, now: float
     today = log.get(today_key(now), {})
     start = start_of_today(now)
     reviews_left = due_count(vocab, now, new_per_day=0)  # reviews only
-    new_today = sum(1 for v in vocab if v.get("srs") and v["srs"].get("seen", 0) >= start)
+    new_today = sum(1 for v in vocab if v.get("srs") and v["srs"].get("seen", 0) >= start
+                    and v.get("status", "learning") == "learning")
     from .wordbook import new_left
 
     in_wordbook = new_left(vocab, profile)
-    new_left_in_book = sum(1 for v in vocab if not v.get("srs")) + (in_wordbook or 0)
+    new_left_in_book = sum(1 for v in vocab if v.get("status", "learning") == "learning" and not v.get("srs")) + (in_wordbook or 0)
     tasks = [
         {"id": "review", "label": "复习到期的词", "href": "/review", "unit": "个",
          "done": int(today.get("review", 0)) - int(today.get("new", 0)), "goal": None, "left": reviews_left},

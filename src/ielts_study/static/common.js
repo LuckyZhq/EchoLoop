@@ -71,11 +71,21 @@ const workspaceNav = $(".workspace-nav");
 // Sidebar: the brand opens the home page; study tools are grouped by skill.
 const NAV_GROUPS = [
   ["listen", "听力", [["/listening", "视频精听", "import"], ["/mistakes", "错句本", "mistakes"]]],
-  ["words", "单词", [["/review", "单词复习", "review"], ["/wordbook", "词书", "wordbook"], ["/vocab", "收藏词句", "bookmark"], ["/level", "水平与目标", "level"]]],
+  ["words", "单词", [["/review", "单词", "review"]]],
   ["read", "阅读", [["/reading", "文章精读", "reading"]]],
   ["speak", "口语", [["/speaking", "口语练习", "speaking"]]],
   ["write", "写作", [["/writing", "作文默写", "writing"]]],
+  ["plan", "计划", [["/level", "水平与目标", "level"]]],
 ];
+// 单词 is one entry with four tabs; every word page shows them (in the element with id="wordTabs").
+const WORD_TABS = [["/review", "今日复习"], ["/wordbook", "词书"], ["/vocab", "我的生词"], ["/sentences", "句子收藏"]];
+function renderWordTabs() {
+  const nav = $("#wordTabs");
+  if (!nav) return;
+  nav.innerHTML = WORD_TABS.map(([href, label]) =>
+    `<a class="btn${location.pathname === href ? " on" : ""}" href="${href}"${location.pathname === href ? ' aria-current="page"' : ""}>${label}</a>`).join("");
+}
+renderWordTabs();
 function storedFlag(key) { try { return localStorage.getItem(key) === "1"; } catch { return false; } }
 function storeFlag(key, on) { try { localStorage.setItem(key, on ? "1" : "0"); } catch { /* private mode */ } }
 
@@ -84,6 +94,7 @@ if (workspaceNav) {
   if (current.startsWith("/player/") || current === "/index.html") current = "/listening";
   if (current.startsWith("/reading/")) current = "/reading";
   if (current.startsWith("/settings/")) current = "/settings";
+  if (["/wordbook", "/vocab", "/sentences"].includes(current)) current = "/review";
   const link = (href, label, icon) => `
     <a class="workspace-link" href="${href}"${href === current ? ' aria-current="page"' : ""}>
       <span class="nav-icon nav-${icon}" aria-hidden="true"></span><span>${label}</span>
@@ -335,13 +346,39 @@ function visibleMarks(cue, range = markRange()) {
 }
 
 let toastTimer;
+// ---- 句子收藏: ☆ next to each sentence in the player's list and the article reader.
+const savedSentences = new Map();  // sentence text -> saved id
+function showSentenceSaved(btn, on) {
+  btn.classList.toggle("saved", on);
+  btn.textContent = on ? "★" : "☆";
+  btn.title = on ? "取消收藏这句" : "收藏这句";
+}
+const sentencesReady = api("/api/sentences").then(list => {
+  for (const s of list) savedSentences.set(s.text, s.id);
+  // buttons drawn before the list had loaded
+  for (const b of document.querySelectorAll("[data-save-sent]")) showSentenceSaved(b, savedSentences.has(b.dataset.text));
+}).catch(() => {});
+function sentenceButton(text, i) {
+  const on = savedSentences.has(text);
+  return `<button type="button" class="save-sent${on ? " saved" : ""}" data-save-sent="${i}" data-text="${esc(text)}" title="${on ? "取消收藏这句" : "收藏这句"}">${on ? "★" : "☆"}</button>`;
+}
+async function toggleSentence(btn, payload) {
+  const id = savedSentences.get(payload.text);
+  try {
+    if (id) { await api(`/api/sentences/${id}`, { method: "DELETE" }); savedSentences.delete(payload.text); toast("已取消收藏这句"); }
+    else { const s = await api("/api/sentences", { method: "POST", body: payload }); savedSentences.set(payload.text, s.id); toast("已收藏到「句子收藏」"); }
+  } catch (e) { return toast(e.message); }
+  showSentenceSaved(btn, savedSentences.has(payload.text));
+}
+
 // ---- Word and phrase cards, the lookup popover and 收藏: shared by the player and the article reader.
 // Each page has a <div class="pop" id="pop"> and passes the sentence (cue) a card belongs to.
 const savedWords = new Set();  // lower-case English of everything in 收藏词句
 const lookedUp = new Map();    // "w:word" → card for a word looked up in the dictionary
 
 async function loadSavedWords() {
-  try { for (const v of await api("/api/vocab")) savedWords.add(v.en.toLowerCase()); } catch { /* none yet */ }
+  // ★ shows for words being learned; a word only marked 认识 is not "saved"
+  try { for (const v of await api("/api/vocab")) if (v.status === "learning") savedWords.add(v.en.toLowerCase()); } catch { /* none yet */ }
 }
 
 function saveKey(n) { return (n.type === "phrase" ? "p:" : "w:") + n.en; }

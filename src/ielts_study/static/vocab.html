@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>收藏词句</title>
+<title>我的生词</title>
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -12,20 +12,21 @@
   <main class="wrap vocab-wrap">
   <header class="hero page-heading">
     <div>
-      <h1>收藏词句</h1>
-      <p>在视频和文章里收藏的单词和短语。点「原句」回到它出现的位置。</p>
+      <h1>单词</h1>
+      <nav class="tabs word-tabs" id="wordTabs" aria-label="单词"></nav>
+      <p>你收藏、在词书里学过和标为「认识」的所有词，每个词只有一条记录。播放器标注、复习和词书进度都看这里的状态。</p>
     </div>
     <div class="vocab-head-actions">
-      <a class="btn primary" href="/review">↻ 开始复习</a>
       <button class="btn" id="csv" title="导出为 CSV，可导入 Anki">⤓ 导出 CSV</button>
     </div>
   </header>
-  <div class="section-h">
-    <div class="tabs">
-      <button class="btn on" data-f="all">全部</button>
-      <button class="btn" data-f="phrase">短语</button>
-      <button class="btn" data-f="word">单词</button>
+  <div class="section-h vocab-filters">
+    <div class="tabs" id="statusTabs">
+      <button class="btn on" data-status="all">全部</button>
+      <button class="btn" data-status="learning">学习中</button>
+      <button class="btn" data-status="known">已掌握</button>
     </div>
+    <span class="select-wrap"><select class="btn" id="sourceFilter" aria-label="来源"></select></span>
     <span class="muted" id="count"></span>
   </div>
   <div class="vlist" id="list"></div>
@@ -33,9 +34,15 @@
 </div>
 <script src="/static/common.js"></script>
 <script>
-let items = [], filter = "all";
-// Review status from 单词复习: new, due now, or when it comes back.
-function srsLabel(srs) {
+let items = [], status = "all", source = "all";
+const SOURCE_LABEL = { video: "视频", article: "文章", saved: "收藏", marked: "标记认识", core: "高频核心词", cet4: "四级", cet6: "六级",
+  ky: "考研", ielts: "雅思", toefl: "托福" };
+const STATUS_LABEL = { learning: "学习中", known: "已掌握", unseen: "未开始" };
+
+// Review status from 今日复习: new, due now, or when it comes back.
+function srsLabel(v) {
+  if (v.status !== "learning") return "";
+  const srs = v.srs;
   if (!srs) return "新词";
   if (srs.due * 1000 <= Date.now()) return "待复习";
   // count calendar days, not 24-hour periods: due at 12:00 tomorrow is 明天 even if that is 23 hours away
@@ -53,46 +60,70 @@ function playClip(clip) {
   if (!clipAudio.src.endsWith(clip.src)) { clipAudio.src = clip.src; clipAudio.addEventListener("loadedmetadata", go, { once: true }); clipAudio.load(); }
   else go();
 }
+function shownItems() {
+  return items.filter(v => (status === "all" || v.status === status) && (source === "all" || (v.sources || []).includes(source)));
+}
+function renderSources() {
+  const used = [...new Set(items.flatMap(v => v.sources || []))];
+  $("#sourceFilter").replaceChildren(new Option("全部来源", "all"), ...used.map(s => new Option(SOURCE_LABEL[s] || s, s)));
+  $("#sourceFilter").value = used.includes(source) ? source : "all";
+}
 function render() {
-  const shown = items.filter(v => filter === "all" || v.type === filter);
-  $("#count").textContent = `${shown.length} 条`;
+  const shown = shownItems();
+  $("#count").textContent = `${shown.length} 个`;
   $("#list").innerHTML = shown.length ? shown.map(v => `
     <div class="vitem">
       <div>
         <div class="h"><b>${esc(v.en)}</b>${v.phonetic ? `<span class="muted" style="color:var(--muted);font-size:13px">/${esc(v.phonetic)}/</span>` : ""}
-          <span class="badge ${v.type}">${v.type === "phrase" ? "短语" : "单词"}</span>
-          <span class="vocab-srs">${srsLabel(v.srs)}</span></div>
-        <div>${esc(v.zh)}</div>
+          ${v.type === "phrase" ? `<span class="badge phrase">短语</span>` : ""}
+          <span class="status-badge ${v.status}">${STATUS_LABEL[v.status]}</span>
+          <span class="vocab-srs">${srsLabel(v)}</span></div>
+        ${v.zh ? `<div>${esc(v.zh)}</div>` : ""}
         ${v.note ? `<div style="color:var(--muted);font-size:13px">${esc(v.note)}</div>` : ""}
+        <div class="source-tags">来源：${(v.sources || []).map(s => esc(SOURCE_LABEL[s] || s)).join(" · ")}</div>
       </div>
       <div class="ops">
         <button class="iconbtn" data-speak="${esc(v.en)}">🔊</button>
         ${v.clip ? `<button class="iconbtn" data-clip="${esc(v.en)}" title="播放原句的原声">🎧 原声</button>` : ""}
         ${v.videoId && !v.videoGone ? `<a class="iconbtn" href="/player/${encodeURIComponent(v.videoId)}?t=${v.time}">▶ 原句</a>` : ""}
         ${v.articleId ? `<a class="iconbtn" href="/reading/${encodeURIComponent(v.articleId)}#s${v.sentenceIndex || 0}">▤ 原文</a>` : ""}
+        ${v.status === "known"
+          ? `<button class="iconbtn" data-known="${esc(v.en)}" data-on="0" title="重新开始复习这个词">取消认识</button>`
+          : `<button class="iconbtn" data-known="${esc(v.en)}" data-on="1" title="不再复习，也不再标为难词">✓ 认识</button>`}
         <button class="iconbtn" data-del="${esc(v.en)}">删除</button>
       </div>
       ${v.sentence ? `<div class="sent">${esc(v.sentence)}<br>${esc(v.sentenceZh || "")}</div>` : ""}
-    </div>`).join("") : `<div class="empty">这里暂时没有词句。</div>`;
+    </div>`).join("") : `<div class="empty">这里暂时没有词。在视频、文章里点单词再点「收藏」，或者选一本词书。</div>`;
 }
+async function load() { items = await api("/api/vocab"); renderSources(); render(); }
 document.addEventListener("click", async e => {
-  const t = e.target.closest("[data-f]");
-  if (t) { filter = t.dataset.f; $$("[data-f]").forEach(b => b.classList.toggle("on", b === t)); render(); }
+  const t = e.target.closest("[data-status]");
+  if (t) { status = t.dataset.status; $$("[data-status]").forEach(b => b.classList.toggle("on", b === t)); render(); }
   const sp = e.target.closest("[data-speak]");
   if (sp) speak(sp.dataset.speak);
   const cl = e.target.closest("[data-clip]");
   if (cl) playClip(items.find(v => v.en === cl.dataset.clip)?.clip);
+  const k = e.target.closest("[data-known]");
+  if (k) {
+    try { setProfile(await api("/api/known", { method: "POST", body: { en: k.dataset.known, known: k.dataset.on === "1" } })); }
+    catch (err) { return toast(err.message); }
+    await load(); refreshSidebar();
+  }
   const d = e.target.closest("[data-del]");
-  if (d) { await api(`/api/vocab/${encodeURIComponent(d.dataset.del.toLowerCase())}`, { method: "DELETE" }); items = items.filter(v => v.en !== d.dataset.del); render(); }
+  if (d && await confirmDialog(`删除「${d.dataset.del}」吗？`, { detail: "它的复习进度会一起删除。已经标为认识的词仍然算认识。", ok: "删除", danger: true })) {
+    await api(`/api/vocab/${encodeURIComponent(d.dataset.del.toLowerCase())}`, { method: "DELETE" });
+    await load(); refreshSidebar();
+  }
 });
+$("#sourceFilter").onchange = () => { source = $("#sourceFilter").value; render(); };
 $("#csv").onclick = () => {
   const q = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const rows = [["英文", "音标", "中文", "说明", "例句", "例句翻译"], ...items.map(v => [v.en, v.phonetic, v.zh, v.note, v.sentence, v.sentenceZh])];
+  const rows = [["英文", "音标", "中文", "说明", "例句", "例句翻译"], ...shownItems().map(v => [v.en, v.phonetic, v.zh, v.note, v.sentence, v.sentenceZh])];
   const blob = new Blob(["﻿" + rows.map(r => r.map(q).join(",")).join("\n")], { type: "text/csv" });
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = "收藏词句.csv"; a.click();
+  a.href = URL.createObjectURL(blob); a.download = "我的生词.csv"; a.click();
 };
-api("/api/vocab").then(v => { items = v; render(); });
+load();
 </script>
 </body>
 </html>

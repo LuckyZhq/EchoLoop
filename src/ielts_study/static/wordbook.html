@@ -12,8 +12,9 @@
   <main class="wrap vocab-wrap">
     <header class="hero page-heading">
       <div>
-        <h1>词书</h1>
-        <p>选一本词书，每天按学习计划自动安排新词，在「单词复习」里学：认识的点一下跳过，不认识的进入复习。不用再一个个收藏。</p>
+        <h1>单词</h1>
+        <nav class="tabs word-tabs" id="wordTabs" aria-label="单词"></nav>
+        <p>选一本词书，每天按学习计划自动安排新词，在「今日复习」里学：认识的点一下跳过，不认识的进入复习。不用再一个个收藏。</p>
       </div>
       <div class="vocab-head-actions">
         <a class="btn primary" href="/review" id="startBtn">开始今天的新词</a>
@@ -54,7 +55,7 @@ function render() {
   const s = data.state;
   $("#settings").innerHTML = `
     <span>每天 <b>${data.perDay}</b> 个新词 <a href="/level">调整</a></span>
-    <label class="book-easy"><input type="checkbox" id="skipEasy"${s.skipEasy ? " checked" : ""}><span>跳过大概率已经认识的词${data.easyLimit ? `（最常用的前 ${data.easyLimit} 个词，按你的词汇量）` : "（先做水平测试或选好现在的水平）"}</span></label>
+    <span class="book-easy">${data.easyLimit ? `自动跳过最常用的前 ${data.easyLimit} 个词（按你的词汇量）和已经认识、正在学的词` : "自动跳过已经认识、正在学的词；做一次水平测试后，还会跳过比你水平简单的词"}</span>
     ${s.book ? `<button type="button" class="btn ghost" id="noBook">不用词书</button>` : ""}`;
   $("#books").innerHTML = data.books.map(bookHtml).join("");
   $("#startBtn").hidden = !s.book;
@@ -94,7 +95,6 @@ document.addEventListener("click", async e => {
     } catch (err) { toast(err.message); k.disabled = false; }
   }
 });
-document.addEventListener("change", e => { if (e.target.id === "skipEasy") save({ skipEasy: e.target.checked }); });
 
 api("/api/wordbook").then(d => { data = d; render(); }).catch(e => { $("#books").innerHTML = `<p class="err">${esc(e.message)}</p>`; });
 </script>

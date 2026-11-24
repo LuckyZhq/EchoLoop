@@ -20,11 +20,10 @@ from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlpars
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import asr, backup, graded, i18n, keep, languages, placement, plan, reading, review, network, speaking, tts, wordbook, writing
+from . import asr, backup, graded, i18n, keep, languages, placement, plan, reading, review, network, speaking, tts, wordbook, words, writing
 from .settings import load_settings, save_settings, settings_from
 
-VOCAB_PATH = LIBRARY_DIR / "vocab.json"
-_vocab_lock = threading.Lock()
+_vocab_lock = words._lock  # held while a deleted video's sentences are kept for its words
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 SETTINGS_PATHS = {"/settings", "/settings/appearance", "/settings/download", "/settings/storage",
                   "/settings/playback", "/settings/study", "/settings/translation", "/settings/speech",
@@ -32,17 +31,8 @@ SETTINGS_PATHS = {"/settings", "/settings/appearance", "/settings/download", "/s
 
 
 def load_vocab() -> list[dict]:
-    try:
-        return json.loads(VOCAB_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return []
-
-
-def save_vocab(items: list[dict]) -> None:
-    LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = VOCAB_PATH.with_suffix(".tmp")
-    tmp.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(VOCAB_PATH)
+    """Every record in the word ledger (words.py); review and 词书 functions pick the ones they need."""
+    return words.load()
 
 
 _dictation_lock = threading.Lock()
@@ -121,7 +111,7 @@ def list_mistakes() -> list[dict]:
 
 
 def vocab_with_sources() -> list[dict]:
-    """Saved words, each with where to hear its sentence and whether its video is still there."""
+    """The word ledger (我的生词), each word with where to hear its sentence and whether its video is still there."""
     items, cache = load_vocab(), {}
     for v in items:
         vid = v.get("videoId")
@@ -129,6 +119,17 @@ def vocab_with_sources() -> list[dict]:
             v["videoGone"] = not (SAFE_ID.match(vid) and (LIBRARY_DIR / vid / "data.json").is_file())
             v["clip"] = review._clip(v, LIBRARY_DIR, cache)
     return items
+
+
+def sentences_with_media() -> list[dict]:
+    """句子收藏, each video sentence with the media file to hear it from (while the video is still there)."""
+    out = []
+    for s in words.load_sentences():
+        vid = s.get("videoId") or ""
+        data = _read_json(LIBRARY_DIR / vid / "data.json", None) if SAFE_ID.match(vid) else None
+        media = data.get("video") if data and data.get("video") and (LIBRARY_DIR / vid / data["video"]).is_file() else ""
+        out.append({**s, "media": f"/media/{vid}/{media}" if media else ""})
+    return out
 
 
 def sidebar() -> dict:
@@ -173,16 +174,18 @@ def review_badge(vocab: list[dict]) -> int:
 
 def review_queue(dic, vocab: list[dict]) -> dict:
     """单词复习: due cards and new saved words, topped up with today's words from the chosen 词书.
-    `reserve` holds a few more book words to replace the ones marked 认识 during the session."""
+    `reserve` holds a few more book words to replace the ones marked 认识 during the session.
+    `breakdown` says where today's cards come from, all counted from the word ledger."""
     quota = new_quota()
     q = review.queue(vocab, LIBRARY_DIR, new_per_day=quota)
     state = wordbook.load_state()
     q["book"] = None
     q["reserve"] = []
+    q["breakdown"] = {"newSaved": q["new"], "newBook": 0, "due": q["due"], "bookLeft": None, "quota": quota}
     if not state["book"]:
         return q
     profile = placement.load_profile()
-    rest = wordbook.remaining(dic, state["book"], vocab, profile, state["skipEasy"])
+    rest = wordbook.remaining(dic, state["book"], vocab, profile)
     slots = max(0, quota - review.started_today(vocab) - q["new"])
     take = [w for w, _ in rest[:slots + 10]]
     cards = wordbook.cards(dic, state["book"], take, i18n.load()["native"], load_settings())
@@ -195,6 +198,7 @@ def review_queue(dic, vocab: list[dict]) -> dict:
     q["reserve"] = cards[slots:]
     q["new"] += min(slots, len(cards))
     q["newLeft"] += len(rest)
+    q["breakdown"].update(newBook=min(slots, len(cards)), bookLeft=len(rest))
     q["book"] = {"id": book["id"], "bookTitle": book["bookTitle"], "left": len(rest)}
     return q
 
@@ -202,11 +206,11 @@ def review_queue(dic, vocab: list[dict]) -> dict:
 def wordbook_overview(dic, lang: str) -> dict:
     vocab, profile, state = load_vocab(), placement.load_profile(), wordbook.load_state()
     books = [{**{k: b[k] for k in ("id", "bookTitle", "bookDesc", "bookLevel")},
-              **wordbook.progress(dic, b["id"], vocab, profile, state["skipEasy"])}
+              **wordbook.progress(dic, b["id"], vocab, profile)}
              for b in wordbook.books_for(lang)]
     upcoming = []
     if state["book"]:
-        rest = wordbook.remaining(dic, state["book"], vocab, profile, state["skipEasy"])[:30]
+        rest = wordbook.remaining(dic, state["book"], vocab, profile)[:30]
         chinese = languages.is_chinese(languages.stored(lang))
         for w, _ in rest:
             info = dic.word(w) or {}
@@ -239,7 +243,7 @@ LOCAL_ONLY = ("/api/settings", "/api/asr", "/api/network", "/api/backup", "/api/
 
 # API responses whose Chinese is content (subtitles, meanings, saved words): shown in the translation
 # language. Everything else is interface text and follows the interface language.
-CONTENT_PATHS = ("/api/video/", "/api/reading", "/api/lookup", "/api/vocab", "/api/mistakes", "/api/dictation/",
+CONTENT_PATHS = ("/api/video/", "/api/reading", "/api/lookup", "/api/vocab", "/api/sentences", "/api/mistakes", "/api/dictation/",
                  "/api/library", "/api/home", "/api/sidebar", "/api/review", "/api/placement/check",
                  "/api/placement/result", "/api/profile", "/api/wordbook", "/api/speaking", "/api/writing")
 UI_KEYS = {"error", "preview", "stageLabel", "log", "bookTitle", "bookDesc", "bookLevel"}  # interface text inside content responses
@@ -321,7 +325,8 @@ def home_stats() -> dict:
     info = sidebar()
     return {
         "videos": len(list_library()), "articles": len(articles), "latestArticle": articles[0] if articles else None,
-        "words": sum(1 for v in vocab if v.get("type") != "phrase"), "phrases": sum(1 for v in vocab if v.get("type") == "phrase"),
+        "words": sum(1 for v in vocab if v.get("type") != "phrase" and v["status"] != "known"),
+        "phrases": sum(1 for v in vocab if v.get("type") == "phrase" and v["status"] != "known"),
         "savedToday": sum(1 for v in vocab if v.get("added", 0) >= today),
         "dictated": dictated, "dictatedToday": dictated_today, "mistakes": info["mistakes"], "recent": info["recent"],
         "reviewDue": info["review"],
@@ -339,6 +344,9 @@ def srt_time(t: float) -> str:
 class App:
     def __init__(self):
         self.dic = Dictionary(log=say)  # first run: downloads and indexes the dictionary
+        merged = words.migrate()  # once: fold vocab.json, the known list and wordbook.json into words.json
+        if merged:
+            say("单词记录已合并：", str(merged["words"]), "个词，其中", str(merged["known"]), "个已掌握")
         wordbook.attach(self.dic)
         self.pipeline = Pipeline(self.dic)
 
@@ -612,6 +620,8 @@ def make_handler(app: App):
                 return self._json(list_mistakes())
             if p == "/api/sidebar":
                 return self._json(sidebar())
+            if p == "/sentences":
+                return self._file(STATIC_DIR / "sentences.html", "text/html; charset=utf-8")
             if p == "/vocab":
                 return self._file(STATIC_DIR / "vocab.html", "text/html; charset=utf-8")
             if p.rstrip("/") in SETTINGS_PATHS:
@@ -668,6 +678,8 @@ def make_handler(app: App):
                 return self._json(info or {"en": w, "zh": "", "phonetic": ""})
             if p == "/api/vocab":
                 return self._json(vocab_with_sources())
+            if p == "/api/sentences":
+                return self._json(sentences_with_media())
             if p.startswith("/api/export/"):
                 vid = p.rsplit("/", 1)[1].removesuffix(".srt")
                 data = self._video_data(vid)
@@ -975,28 +987,23 @@ def make_handler(app: App):
                 items = [str(w).lower()[:60] for w in (body.get("words") or [])[:40] if isinstance(w, str)]
                 return self._json(wordbook.api_examples(items, i18n.load()["native"], load_settings(), say))
             if p == "/api/known":
-                placement.set_known(str(body.get("en") or ""), bool(body.get("known", True)))
+                words.set_known(str(body.get("en") or ""), bool(body.get("known", True)))
                 return self._json(placement.public_profile(load_vocab()))
             if p == "/api/review":
                 en = str(body.get("en") or "").lower()
                 grade = body.get("grade")
                 if grade not in review.GRADES:
                     return self._json({"error": "bad grade"}, 400)
-                with _vocab_lock:
-                    items = load_vocab()
-                    item = next((v for v in items if v.get("en", "").lower() == en), None)
-                    if not item and body.get("book") in wordbook.BOOK_IDS and en:
-                        item = book_item(en, body)  # a 词书 word met for the first time joins 收藏词句
-                        items.insert(0, item)
-                    if not item:
-                        return self._json({"error": "not found"}, 404)
-                    was_new = not item.get("srs")
-                    item["srs"] = review.schedule(item.get("srs"), grade, time.time())
-                    save_vocab(items)
+                before = words.find(load_vocab(), en)
+                was_new = not (before and before.get("srs"))
+                fresh = book_item(en, body) if not before and body.get("book") in wordbook.BOOK_IDS and en else None
+                item = words.grade(en, grade, fresh)  # a 词书 word met for the first time joins the ledger
+                if not item:
+                    return self._json({"error": "not found"}, 404)
                 plan.log_activity("review")
                 if was_new:
                     plan.log_activity("new")
-                return self._json({"srs": item["srs"], "dueCount": review_badge(items)})
+                return self._json({"srs": item["srs"], "dueCount": review_badge(load_vocab())})
             if p == "/api/activity":
                 kind = body.get("kind")
                 if kind not in ("listen", "read"):
@@ -1030,15 +1037,22 @@ def make_handler(app: App):
                 }
                 if not item["en"]:
                     return self._json({"error": "empty"}, 400)
-                with _vocab_lock:
-                    old = load_vocab()
-                    previous = next((v for v in old if v.get("en", "").lower() == item["en"].lower()), None)
-                    if previous and previous.get("srs"):
-                        item["srs"] = previous["srs"]  # saving it again keeps its review progress
-                    items = [v for v in old if v is not previous]
-                    items.insert(0, item)
-                    save_vocab(items)
-                return self._json({"ok": True, "count": len(items)})
+                source = "video" if item["videoId"] else "article" if item["articleId"] else "saved"
+                words.add(item, source)  # straight into 单词复习; saving again keeps its review progress
+                return self._json({"ok": True, "count": len(load_vocab())})
+            if p == "/api/sentences":  # 句子收藏: a whole sentence, kept apart from the words
+                text = re.sub(r"\s+", " ", str(body.get("text") or "")).strip()[:600]
+                if not text:
+                    return self._json({"error": "empty"}, 400)
+                zh = str(body.get("zh") or "")[:600]
+                if i18n.load()["zh"] == "zh-TW":
+                    zh = i18n.to_simplified(zh)
+                entry = words.add_sentence({
+                    "text": text, "zh": zh, "title": str(body.get("title") or "")[:200],
+                    "videoId": str(body.get("videoId") or "")[:80], "time": float(body.get("time") or 0),
+                    "end": float(body.get("end") or 0), "articleId": str(body.get("articleId") or "")[:40],
+                    "sentenceIndex": int(body.get("sentenceIndex") or 0)})
+                return self._json(entry)
             return self._json({"error": "not found"}, 404)
 
         def do_DELETE(self):
@@ -1046,11 +1060,11 @@ def make_handler(app: App):
             if not self._admit() or self._refuse_foreign():
                 return None
             if p.startswith("/api/vocab/"):
-                en = p[len("/api/vocab/") :].lower()
-                with _vocab_lock:
-                    items = [v for v in load_vocab() if v.get("en", "").lower() != en]
-                    save_vocab(items)
+                words.remove(p[len("/api/vocab/") :])
                 return self._json({"ok": True})
+            if p.startswith("/api/sentences/"):
+                ok = words.remove_sentence(p.rsplit("/", 1)[1])
+                return self._json({"ok": True}) if ok else self._json({"error": "not found"}, 404)
             if p.startswith("/api/writing/"):
                 ok = writing.delete(p.rsplit("/", 1)[1])
                 return self._json({"ok": True}) if ok else self._json({"error": "not found"}, 404)

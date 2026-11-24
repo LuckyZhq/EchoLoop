@@ -2,8 +2,8 @@
 
 The lists come from ECDICT's exam tags (CET-4/6, 考研, IELTS, TOEFL; MIT license, already on disk) plus the most
 frequent English words. Chinese-exam lists only show for Chinese learners. Each day's new words skip what the
-learner already knows: words marked 认识, words already in 收藏词句, and (optionally) words more frequent than their
-estimated vocabulary size.
+learner already knows or is learning (words.taken: the word ledger decides) and words more frequent than their
+estimated vocabulary size (easy_limit). The only state kept here is which book is chosen.
 
 Example sentences: first a sentence from the learner's own videos and articles, otherwise one written by the
 API (cached per language in LIBRARY_DIR/examples/<lang>.json).
@@ -14,7 +14,7 @@ import json
 import re
 import threading
 
-from . import config, languages
+from . import config, languages, words as ledger
 
 BOOKS = [
     {"id": "core", "bookTitle": "高频核心词", "bookDesc": "英语里最常用的 3000 个词，基础不牢先背这本", "bookLevel": "A1–B2"},
@@ -47,12 +47,12 @@ def attach(dic) -> None:
     threading.Thread(target=words, args=(dic, "core"), daemon=True).start()  # build the lists in the background
 
 
-def new_left(vocab: list[dict], profile: dict) -> int | None:
+def new_left(items: list[dict], profile: dict) -> int | None:
     """How many words the chosen book still has to learn; None when no book is chosen."""
     state = load_state()
     if not state["book"] or _dic is None:
         return None
-    return len(remaining(_dic, state["book"], vocab, profile, state["skipEasy"]))
+    return len(remaining(_dic, state["book"], items, profile))
 
 
 def state_path():
@@ -64,7 +64,7 @@ def load_state() -> dict:
         s = json.loads(state_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         s = {}
-    return {"book": s.get("book") if s.get("book") in BOOK_IDS else None, "skipEasy": s.get("skipEasy", True) is not False}
+    return {"book": s.get("book") if s.get("book") in BOOK_IDS else None}
 
 
 def save_state(changes: dict) -> dict:
@@ -72,8 +72,6 @@ def save_state(changes: dict) -> dict:
         s = load_state()
         if "book" in changes:
             s["book"] = changes["book"] if changes["book"] in BOOK_IDS else None
-        if "skipEasy" in changes:
-            s["skipEasy"] = bool(changes["skipEasy"])
         config.LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
         state_path().write_text(json.dumps(s), encoding="utf-8")
         return s
@@ -143,32 +141,27 @@ def easy_limit(profile: dict) -> int:
     return int(BAND_VOCAB.get(profile.get("current"), 0) or 0) if profile.get("current") is not None else 0
 
 
-def _taken(vocab: list[dict], profile: dict) -> tuple[set, set]:
-    in_vocab = {v.get("en", "").lower() for v in vocab}
-    known = {w.lower() for w in profile.get("known") or []}
-    return in_vocab, known
+def remaining(dic, book_id: str, items: list[dict], profile: dict) -> list[tuple[str, int]]:
+    """The book's words still to learn, in order: not learning or known yet, and not easier than your level."""
+    taken = ledger.taken(items)
+    limit = easy_limit(profile)
+    return [(w, r) for w, r in words(dic, book_id) if w not in taken and not (0 < r < limit)]
 
 
-def remaining(dic, book_id: str, vocab: list[dict], profile: dict, skip_easy: bool) -> list[tuple[str, int]]:
-    in_vocab, known = _taken(vocab, profile)
-    limit = easy_limit(profile) if skip_easy else 0
-    return [(w, r) for w, r in words(dic, book_id)
-            if w not in in_vocab and w not in known and not (0 < r < limit)]
-
-
-def progress(dic, book_id: str, vocab: list[dict], profile: dict, skip_easy: bool) -> dict:
+def progress(dic, book_id: str, items: list[dict], profile: dict) -> dict:
+    """A view of the ledger: how the book's words stand."""
     ws = words(dic, book_id)
-    in_vocab, known = _taken(vocab, profile)
-    book_vocab = [v for v in vocab if v.get("book") == book_id or v.get("en", "").lower() in dict(ws)]
-    limit = easy_limit(profile) if skip_easy else 0
-    easy = sum(1 for w, r in ws if 0 < r < limit and w not in in_vocab and w not in known)
+    listed = dict(ws)
+    recs = [r for r in items if ledger.key(r.get("en")) in listed]
+    taken = ledger.taken(items)
+    limit = easy_limit(profile)
     return {
         "total": len(ws),
-        "learning": sum(1 for v in book_vocab if v.get("srs")),
-        "mature": sum(1 for v in book_vocab if v.get("srs", {}).get("ivl", 0) >= 21),
-        "known": sum(1 for w, _ in ws if w in known),
-        "easy": easy,
-        "left": len(remaining(dic, book_id, vocab, profile, skip_easy)),
+        "learning": sum(1 for r in recs if r["status"] == "learning" and r.get("srs")),
+        "mature": sum(1 for r in recs if r["status"] == "learning" and (r.get("srs") or {}).get("ivl", 0) >= ledger.MATURE_IVL),
+        "known": sum(1 for r in recs if r["status"] == "known"),
+        "easy": sum(1 for w, r in ws if 0 < r < limit and w not in taken),
+        "left": len(remaining(dic, book_id, items, profile)),
     }
 
 

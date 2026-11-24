@@ -19,12 +19,17 @@ no account, no uploads.
 - **Level test** – read three short passages, click the words you don't know, answer a short spot-check.
   You get an estimated vocabulary size and a rough IELTS band; from then on only the words between your level and your
   target are marked.
-- **Word books** – pick a list (the 3,000 most common words, IELTS, TOEFL; for Chinese learners also CET-4, CET-6
-  and the postgraduate exam) and new words arrive in Word review every day: one click skips a word you know, the
-  others are learned with an example sentence from your own videos and articles, or one written by your API.
-  Words more frequent than your tested vocabulary size are skipped. The lists come from ECDICT's exam tags.
-- **Word review** – saved words come back as fill-in-the-blank cards from the sentence you met them in, with the
-  original audio, scheduled with a simplified SM-2 (like Anki).
+- **Words** – one place with four tabs. *Today's review*: saved words come back as fill-in-the-blank cards from
+  the sentence you met them in, with the original audio, scheduled with a simplified SM-2 (like Anki); a line at the
+  top says where today's cards come from (new from the word book · new saved words · reviews · left in the book).
+  *Word books*: pick a list (the 3,000 most common words, IELTS, TOEFL; for Chinese learners also CET-4, CET-6 and the
+  postgraduate exam) and new words arrive every day: one click skips a word you know, the others are learned with an
+  example sentence from your own videos and articles, or one written by your API. Words you know or are learning, and
+  words more frequent than your tested vocabulary size, are skipped. The lists come from ECDICT's exam tags.
+  *My words*: every word, filterable by status (learning, known) and source. *Saved sentences*: whole sentences saved
+  with ☆ in the player's transcript or an article.
+  Each word has a single record (`library/words.json`) with one status, so highlighting, review, word-book progress
+  and the word list always agree: marking a word as known anywhere stops it being highlighted, reviewed and offered.
 - **Close reading** – graded passages by level (CET-4, CET-6 for Chinese learners; IELTS 5.5, 6.5, 7+), each translated
   sentence by sentence with key words marked. The built-in passages are original texts modelled on each exam's topics,
   length and difficulty; your API can write more at any level, on a topic you choose. Or paste your own article.
@@ -169,6 +174,9 @@ Everything stays in the project folder:
 - `library/` – videos, subtitles, dictation results, saved words, your level and study log; `library/kept/` holds
   the sentences (text and a short audio clip) kept from deleted videos
 - `articles/` – pasted articles and the graded passages you have opened or had written
+- `library/words.json` – every word: status (learning / known), sources and review schedule;
+  `library/sentences.json` – saved sentences. Libraries from before this were merged automatically at start-up (the
+  old files are kept as `.bak` and in `backup-before-words-merge.zip`)
 - `library/speaking/`, `library/writing/` – speaking recordings and scores, marked essays
 - `data/` – the dictionary, its index, the voice model, and your settings: API (`settings.json`), speech recognition
   (`asr.json`), phone access (`network.json`), backup folder (`backup.json`). Keys stay here and are never backed up

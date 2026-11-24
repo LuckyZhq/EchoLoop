@@ -47,19 +47,24 @@ def test_lists(dic):
 
 
 def test_remaining_skips_what_you_know(dic):
-    profile = {"known": ["abandon"], "vocabSize": None, "current": None}
-    assert wordbook.remaining(dic, "ielts", [], profile, True) == [("sustainable", 6000)]
-    assert wordbook.remaining(dic, "ielts", [{"en": "Sustainable"}], {"known": []}, True) == [("abandon", 2057)]
-    # a tested vocabulary of 3000 words: more frequent words are skipped when skipEasy is on
-    assert [w for w, _ in wordbook.remaining(dic, "ielts", [], {"known": [], "vocabSize": 3000}, True)] == ["sustainable"]
-    assert len(wordbook.remaining(dic, "ielts", [], {"known": [], "vocabSize": 3000}, False)) == 2
-    p = wordbook.progress(dic, "ielts", [{"en": "abandon", "srs": {"ivl": 30}}], {"known": [], "vocabSize": 3000}, True)
+    known = [{"en": "abandon", "status": "known", "sources": ["marked"]}]
+    profile = {"vocabSize": None, "current": None}
+    assert wordbook.remaining(dic, "ielts", known, profile) == [("sustainable", 6000)]
+    learning = [{"en": "Sustainable", "status": "learning", "sources": ["video"]}]
+    assert wordbook.remaining(dic, "ielts", learning, profile) == [("abandon", 2057)]
+    # taken back (unseen): offered again
+    assert len(wordbook.remaining(dic, "ielts", [{"en": "abandon", "status": "unseen"}], profile)) == 2
+    # a tested vocabulary of 3000 words: more frequent words are always skipped (no separate switch any more)
+    assert [w for w, _ in wordbook.remaining(dic, "ielts", [], {"vocabSize": 3000})] == ["sustainable"]
+    p = wordbook.progress(dic, "ielts", [{"en": "abandon", "status": "learning", "srs": {"ivl": 30}}], {"vocabSize": 3000})
     assert p == {"total": 2, "learning": 1, "mature": 1, "known": 0, "easy": 0, "left": 1}
+    p = wordbook.progress(dic, "ielts", known, {"vocabSize": 3000})
+    assert p["known"] == 1 and p["easy"] == 0 and p["left"] == 1
 
 
 def test_state_is_saved(dic):
-    assert wordbook.load_state() == {"book": None, "skipEasy": True}
-    assert wordbook.save_state({"book": "ielts", "skipEasy": False}) == {"book": "ielts", "skipEasy": False}
+    assert wordbook.load_state() == {"book": None}
+    assert wordbook.save_state({"book": "ielts", "skipEasy": False}) == {"book": "ielts"}
     assert wordbook.save_state({"book": "nope"})["book"] is None
 
 
