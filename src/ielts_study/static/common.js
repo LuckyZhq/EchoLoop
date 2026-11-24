@@ -73,6 +73,8 @@ const NAV_GROUPS = [
   ["listen", "听力", [["/listening", "视频精听", "import"], ["/mistakes", "错句本", "mistakes"]]],
   ["words", "单词", [["/review", "单词复习", "review"], ["/wordbook", "词书", "wordbook"], ["/vocab", "收藏词句", "bookmark"], ["/level", "水平与目标", "level"]]],
   ["read", "阅读", [["/reading", "文章精读", "reading"]]],
+  ["speak", "口语", [["/speaking", "口语练习", "speaking"]]],
+  ["write", "写作", [["/writing", "作文默写", "writing"]]],
 ];
 function storedFlag(key) { try { return localStorage.getItem(key) === "1"; } catch { return false; } }
 function storeFlag(key, on) { try { localStorage.setItem(key, on ? "1" : "0"); } catch { /* private mode */ } }
@@ -147,7 +149,7 @@ window.addEventListener("pageshow", event => { if (event.persisted) refreshSideb
 async function checkVersion() {
   let info;
   try { info = await api("/api/version"); } catch { return; }
-  if (!info.stale || $("#updateBar")) return;
+  if (!info.stale || info.local === false || $("#updateBar")) return;
   const bar = document.createElement("div");
   bar.id = "updateBar";
   bar.className = "update-bar";

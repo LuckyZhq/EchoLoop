@@ -18,6 +18,7 @@ dependencies = [
     "spacy>=3.8.18",
     "yt-dlp[default]>=2026.10.26",
     "kokoro-onnx>=0.6.1",
+    "segno>=1.6",
 ]
 
 [project.scripts]

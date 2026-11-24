@@ -177,7 +177,11 @@ ALIGNED_INSTRUCTIONS = (
 
 
 def _completion(lines: list[str], settings: TranslationSettings, instructions: str = PLAIN_INSTRUCTIONS) -> str:
-    source = json.dumps(lines, ensure_ascii=False)
+    return chat(json.dumps(lines, ensure_ascii=False), settings, instructions)
+
+
+def chat(source: str, settings: TranslationSettings, instructions: str, timeout: float = 90) -> str:
+    """One system + user exchange with the configured API; returns the reply text."""
     messages = [{"role": "system", "content": instructions}, {"role": "user", "content": source}]
     if settings.provider == "grok":
         url = settings.base_url + "/responses"
@@ -190,7 +194,7 @@ def _completion(lines: list[str], settings: TranslationSettings, instructions: s
         headers["Authorization"] = f"Bearer {settings.api_key}"
     request = Request(url, data=json.dumps(payload).encode(), headers=headers)
     try:
-        with build_opener(NoRedirect()).open(request, timeout=90) as response:
+        with build_opener(NoRedirect()).open(request, timeout=timeout) as response:
             result = json.loads(response.read(1_048_576))
     except HTTPError as error:
         hints = {

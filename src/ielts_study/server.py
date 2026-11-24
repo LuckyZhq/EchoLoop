@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import errno
+import ipaddress
 import json
 import mimetypes
 import re
@@ -10,22 +11,24 @@ import threading
 import sys
 import time
 import webbrowser
+import zipfile
 from pathlib import Path
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlparse
 
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import graded, i18n, keep, languages, placement, plan, reading, review, tts, wordbook
+from . import asr, backup, graded, i18n, keep, languages, placement, plan, reading, review, network, speaking, tts, wordbook, writing
 from .settings import load_settings, save_settings, settings_from
 
 VOCAB_PATH = LIBRARY_DIR / "vocab.json"
 _vocab_lock = threading.Lock()
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 SETTINGS_PATHS = {"/settings", "/settings/appearance", "/settings/download", "/settings/storage",
-                  "/settings/playback", "/settings/study", "/settings/translation"}
+                  "/settings/playback", "/settings/study", "/settings/translation", "/settings/speech",
+                  "/settings/devices", "/settings/backup"}
 
 
 def load_vocab() -> list[dict]:
@@ -231,11 +234,14 @@ def dictated_counts() -> tuple[int, int]:
     return total, today_count
 
 
+# Only this computer may change these (a phone in LAN mode can study, not read API keys or stop the server).
+LOCAL_ONLY = ("/api/settings", "/api/asr", "/api/network", "/api/backup", "/api/shutdown", "/api/restart")
+
 # API responses whose Chinese is content (subtitles, meanings, saved words): shown in the translation
 # language. Everything else is interface text and follows the interface language.
 CONTENT_PATHS = ("/api/video/", "/api/reading", "/api/lookup", "/api/vocab", "/api/mistakes", "/api/dictation/",
                  "/api/library", "/api/home", "/api/sidebar", "/api/review", "/api/placement/check",
-                 "/api/placement/result", "/api/profile", "/api/wordbook")
+                 "/api/placement/result", "/api/profile", "/api/wordbook", "/api/speaking", "/api/writing")
 UI_KEYS = {"error", "preview", "stageLabel", "log", "bookTitle", "bookDesc", "bookLevel"}  # interface text inside content responses
 
 
@@ -296,6 +302,14 @@ def _spans(value, limit: int) -> list:
                 and 0 <= pair[0] < pair[1] <= limit):
             out.append(pair)
     return out[:6]
+
+
+def api_ready() -> bool:
+    try:
+        settings = load_settings()
+    except ValueError:
+        return False
+    return settings.engine == "api" and bool(settings.base_url and settings.model)
 
 
 def home_stats() -> dict:
@@ -359,11 +373,55 @@ def make_handler(app: App):
             except ValueError:
                 return {}
 
+        def _loopback_client(self) -> bool:
+            try:
+                ip = ipaddress.ip_address(self.client_address[0])
+            except ValueError:
+                return False
+            return ip.is_loopback or (ip.version == 6 and bool(ip.ipv4_mapped) and ip.ipv4_mapped.is_loopback)
+
+        def _local_host(self) -> bool:
+            """Sent from this computer to 127.0.0.1 / localhost (not a website using DNS rebinding)."""
+            port = self.server.server_port
+            return self._loopback_client() and self.headers.get("Host", "") in (f"127.0.0.1:{port}", f"localhost:{port}")
+
         def _local_request(self) -> bool:
             host = self.headers.get("Host", "")
-            port = self.server.server_port
-            origin = self.headers.get("Origin")
-            return host in (f"127.0.0.1:{port}", f"localhost:{port}") and origin in (None, f"http://{host}")
+            return self._local_host() and self.headers.get("Origin") in (None, f"http://{host}")
+
+        def _lan_request(self) -> bool:
+            """A phone on the local network that has the access key (LAN mode only)."""
+            return (network.STARTED["lan"] and network.private_host(self.headers.get("Host", ""))
+                    and network.key_ok(network.cookie_key(self.headers.get("Cookie"))))
+
+        def _admit(self) -> bool:
+            """Let the request through, or answer it here (refused, or a phone being given the access key)."""
+            if self._local_host() or self._lan_request():
+                return True
+            if network.STARTED["lan"] and network.private_host(self.headers.get("Host", "")):
+                u = urlparse(self.path)
+                key = (parse_qs(u.query).get("key") or [""])[0]
+                if network.key_ok(key):  # the link / QR code from Settings: remember the key, drop it from the URL
+                    self.send_response(303)
+                    rest = urlencode([(k, v) for k, v in parse_qsl(u.query) if k != "key"])
+                    self.send_header("Location", (u.path or "/") + (f"?{rest}" if rest else ""))
+                    self.send_header("Set-Cookie", network.set_cookie(key))
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return False
+                body = ("<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width'>"
+                        "<title>IELTS Study</title><body style='font:16px/1.6 system-ui;padding:32px;max-width:520px'>"
+                        "<h2>需要访问密钥</h2><p>请在电脑上打开 IELTS Study 的「设置 → 手机访问」，用手机扫描二维码，"
+                        "或打开那里显示的链接。</p></body>")
+                data = i18n.to_ui(body, i18n.load(self.headers.get("Accept-Language"))["ui"]).encode()
+                self.send_response(403)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return False
+            self._json({"error": "forbidden"}, 403)
+            return False
 
         def _file(self, path, ctype=None, download_name=None):
             if not path.exists() or not path.is_file():
@@ -431,9 +489,13 @@ def make_handler(app: App):
 
         # ------------------------------------------------------------ routes
         def do_GET(self):
+            if not self._admit():
+                return None
             u = urlparse(self.path)
             p = unquote(u.path)
             q = parse_qs(u.query)
+            if p.startswith(LOCAL_ONLY) and not self._local_request():
+                return self._json({"error": "这个设置只能在电脑上查看和修改。"}, 403)
             if p == "/":
                 return self._file(STATIC_DIR / "home.html", "text/html; charset=utf-8")
             if p in ("/listening", "/index.html"):
@@ -444,8 +506,8 @@ def make_handler(app: App):
                 return self._file(STATIC_DIR / "article.html", "text/html; charset=utf-8")
             if p == "/api/home":
                 return self._json(home_stats())
-            if p == "/api/version":
-                return self._json(version_info())
+            if p == "/api/version":  # "local": only this computer can restart the server
+                return self._json({**version_info(), "local": self._local_request()})
             if p == "/api/language":
                 return self._json(i18n.public(self.headers.get("Accept-Language")))
             if p == "/api/storage":
@@ -458,6 +520,52 @@ def make_handler(app: App):
                 return self._json(graded.overview(i18n.load()["native"]))
             if p == "/api/tts/status":
                 return self._json(tts.status())
+            if p == "/speaking":
+                return self._file(STATIC_DIR / "speaking.html", "text/html; charset=utf-8")
+            if p == "/writing":
+                return self._file(STATIC_DIR / "writing.html", "text/html; charset=utf-8")
+            if p == "/api/speaking":
+                return self._json({**speaking.overview(), "questions": speaking.questions(),
+                                   "hasApi": api_ready(), "recognizer": asr.load_settings().engine})
+            if p == "/api/speaking/sentences":
+                source = (q.get("source") or ["video"])[0]
+                return self._json({"sentences": speaking.sentences("video" if source == "video" else "passage")})
+            if p.startswith("/api/speaking/rec/"):
+                path = speaking.recording_path(p.rsplit("/", 1)[1])
+                return self._file(path) if path else self._json({"error": "not found"}, 404)
+            if p == "/api/writing":
+                return self._json({"tasks": writing.tasks(), "history": writing.history(), "hasApi": api_ready(),
+                                   "minWords": writing.MIN_WORDS})
+            if p.startswith("/api/writing/"):
+                entry = writing.load(p.rsplit("/", 1)[1])
+                return self._json(entry) if entry else self._json({"error": "not found"}, 404)
+            if p == "/api/asr":
+                return self._json(asr.load_settings().public())
+            if p == "/api/network":
+                return self._json(network.status(self.server.server_port))
+            if p == "/api/network/qr.svg":
+                url = network.phone_url(self.server.server_port)
+                if not url:
+                    return self._json({"error": "not available"}, 404)
+                svg = network.qr_svg(url)
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml")
+                self.send_header("Content-Length", str(len(svg)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(svg)
+                return None
+            if p == "/api/backup":
+                return self._json(backup.status())
+            if p == "/api/backup/export":
+                videos = (q.get("videos") or ["0"])[0] == "1"
+                backup.RESTORE_DIR.mkdir(parents=True, exist_ok=True)
+                tmp = backup.RESTORE_DIR / f"export-{threading.get_ident()}.zip"
+                try:
+                    backup.write_zip(tmp, videos)
+                    return self._file(tmp, "application/zip", backup.file_name())
+                finally:
+                    tmp.unlink(missing_ok=True)
             if p == "/api/tts":  # a sentence read by the neural voice (WAV, cached)
                 q = parse_qs(urlparse(self.path).query)
                 try:
@@ -587,13 +695,51 @@ def make_handler(app: App):
             Blocks other websites (a form or text/plain fetch needs no CORS preflight) and DNS rebinding."""
             if self._local_request():
                 return False
+            p = urlparse(self.path).path
+            if (self._lan_request() and not p.startswith(LOCAL_ONLY)
+                    and self.headers.get("Origin") in (None, f"http://{self.headers.get('Host', '')}")):
+                return False  # a phone with the key, from this app's own pages
             self._json({"error": "请求需要来自本机页面。"}, 403)
             return True
 
         def do_POST(self):
             p = urlparse(self.path).path
-            if self._refuse_foreign():
+            if not self._admit() or self._refuse_foreign():
                 return None
+            if p == "/api/backup/import":  # a backup zip as the raw body
+                n = int(self.headers.get("Content-Length") or 0)
+                if n <= 0:
+                    return self._json({"error": "请选择备份文件。"}, 400)
+                backup.RESTORE_DIR.mkdir(parents=True, exist_ok=True)
+                tmp = backup.RESTORE_DIR / f"upload-{int(time.time())}.zip"
+                try:
+                    with tmp.open("wb") as f:
+                        left = n
+                        while left > 0:
+                            chunk = self.rfile.read(min(1 << 20, left))
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            left -= len(chunk)
+                    return self._json(backup.restore(tmp))
+                except (ValueError, zipfile.BadZipFile) as error:
+                    msg = str(error) if isinstance(error, ValueError) else "这不是有效的 zip 备份文件。"
+                    return self._json({"error": msg}, 400)
+                finally:
+                    tmp.unlink(missing_ok=True)
+            if p == "/api/speaking/recognize":  # a recording from the speaking page (raw audio body)
+                n = int(self.headers.get("Content-Length") or 0)
+                if not 0 < n <= speaking.MAX_UPLOAD:
+                    return self._json({"error": "录音是空的或太长了。"}, 400)
+                try:
+                    path = speaking.save_recording(self.rfile.read(n), self.headers.get("Content-Type", ""))
+                    result = asr.recognize(path)
+                except ValueError as error:
+                    return self._json({"error": str(error)}, 400)
+                except Exception as error:  # noqa: BLE001 - recognition failed; say why
+                    return self._json({"error": f"语音识别失败：{error}"}, 500)
+                return self._json({**result, "rec": path.name,
+                                   "stats": speaking.delivery(result["words"], result["duration"])})
             settings_routes = ("/api/settings", "/api/settings/test", "/api/settings/models")
             body = self._body()
             if p in settings_routes:
@@ -643,6 +789,101 @@ def make_handler(app: App):
                 return self._json(reading.submit_article(app.pipeline, text, title).to_json())
             if p == "/api/tts/download":
                 return self._json(tts.start_download())
+            if p == "/api/speaking/shadow":
+                text = str(body.get("text") or "")[:600]
+                try:
+                    score = min(1.0, max(0.0, float(body.get("score"))))
+                except (TypeError, ValueError):
+                    return self._json({"error": "bad score"}, 400)
+                speaking.add_history({"kind": "shadow", "text": text, "score": round(score, 3),
+                                      "source": str(body.get("source") or "")[:20],
+                                      "rec": str(body.get("rec") or "")[:40]})
+                return self._json(speaking.overview())
+            if p == "/api/speaking/feedback":
+                settings = load_settings()
+                if settings.engine != "api":
+                    return self._json({"error": "口语评分需要先在设置里配置 API。"}, 400)
+                try:
+                    part = int(body.get("part") or 1)
+                    stats = body.get("stats") if isinstance(body.get("stats"), dict) else {}
+                    question = str(body.get("question") or "")[:600]
+                    transcript = str(body.get("transcript") or "").strip()[:6000]
+                    if len(transcript.split()) < 3:
+                        return self._json({"error": "录音里没有识别到足够的英文。"}, 400)
+                    result = speaking.feedback(part, question, transcript, stats, settings, i18n.load()["native"])
+                except (ValueError, TypeError):
+                    return self._json({"error": "bad request"}, 400)
+                except RuntimeError as error:
+                    return self._json({"error": str(error)}, 502)
+                entry = speaking.add_history({"kind": "test", "part": part, "question": question,
+                                              "transcript": transcript, "stats": stats, "result": result,
+                                              "rec": str(body.get("rec") or "")[:40]})
+                return self._json(entry)
+            if p == "/api/writing/mark":
+                settings = load_settings()
+                if settings.engine != "api":
+                    return self._json({"error": "作文批改需要先在设置里配置 API。"}, 400)
+                essay = str(body.get("essay") or "").strip()
+                found = writing.find_task(str(body.get("taskId") or ""))
+                kind, task = found if found else (str(body.get("kind") or "task2"), {})
+                if kind not in writing.MIN_WORDS:
+                    return self._json({"error": "bad kind"}, 400)
+                prompt = task.get("prompt") or str(body.get("prompt") or "").strip()[:2000]
+                if not prompt:
+                    return self._json({"error": "请先选一道题，或粘贴你自己的题目。"}, 400)
+                if writing.word_count(essay) < 40:
+                    return self._json({"error": "作文太短了，至少写 40 个词再批改。"}, 400)
+                if len(essay) > writing.MAX_CHARS:
+                    return self._json({"error": "作文太长了。"}, 400)
+                try:
+                    result = writing.mark(kind, prompt, essay, settings, i18n.load()["native"], task.get("chart"))
+                except RuntimeError as error:
+                    return self._json({"error": str(error)}, 502)
+                seconds = body.get("seconds")
+                entry = writing.save({"kind": kind, "taskId": task.get("id", ""), "prompt": prompt,
+                                      "chart": task.get("chart"), "essay": essay, "words": writing.word_count(essay),
+                                      "seconds": int(seconds) if isinstance(seconds, (int, float)) else None,
+                                      "result": result})
+                return self._json(entry)
+            if p.startswith(LOCAL_ONLY) and not self._local_request():
+                return self._json({"error": "这个设置只能在电脑上修改。"}, 403)
+            if p == "/api/network":
+                network.save(bool(body.get("lan")), new_key=body.get("newKey") is True)
+                return self._json(network.status(self.server.server_port))
+            if p == "/api/backup/settings":
+                try:
+                    backup.set_folder(str(body.get("folder") or ""), body.get("keep"))
+                except backup.MissingFolder as error:  # the page offers to create it
+                    return self._json({"error": str(error)}, 404)
+                except (ValueError, TypeError) as error:
+                    return self._json({"error": str(error)}, 400)
+                return self._json(backup.status())
+            if p == "/api/backup/mkdir":  # create the chosen backup folder
+                folder = Path(str(body.get("folder") or "")).expanduser()
+                if not folder.is_absolute() or not folder.parent.is_dir():
+                    return self._json({"error": "找不到这个文件夹的上一级，请填写完整路径。"}, 400)
+                try:
+                    folder.mkdir(exist_ok=True)
+                except OSError as error:
+                    return self._json({"error": f"无法新建文件夹：{error}"}, 400)
+                return self._json({"ok": True})
+            if p == "/api/backup/now":
+                try:
+                    backup.backup_now()
+                except ValueError as error:
+                    return self._json({"error": str(error)}, 400)
+                return self._json(backup.status())
+            if p in ("/api/asr", "/api/asr/download"):
+                try:
+                    if p == "/api/asr/download":
+                        size = str(body.get("size") or "")
+                        if size not in asr.MODELS:
+                            return self._json({"error": "bad size"}, 400)
+                        asr.download(size)
+                        return self._json(asr.load_settings().public())
+                    return self._json(asr.save_settings(body).public())
+                except ValueError as error:
+                    return self._json({"error": str(error)}, 400)
             if p == "/api/graded/open":
                 out = graded.open_passage(app.pipeline, str(body.get("id") or ""))
                 return self._json(out, 404 if out.get("error") else 200)
@@ -802,7 +1043,7 @@ def make_handler(app: App):
 
         def do_DELETE(self):
             p = unquote(urlparse(self.path).path)
-            if self._refuse_foreign():
+            if not self._admit() or self._refuse_foreign():
                 return None
             if p.startswith("/api/vocab/"):
                 en = p[len("/api/vocab/") :].lower()
@@ -810,6 +1051,9 @@ def make_handler(app: App):
                     items = [v for v in load_vocab() if v.get("en", "").lower() != en]
                     save_vocab(items)
                 return self._json({"ok": True})
+            if p.startswith("/api/writing/"):
+                ok = writing.delete(p.rsplit("/", 1)[1])
+                return self._json({"ok": True}) if ok else self._json({"error": "not found"}, 404)
             if p.startswith("/api/reading/"):
                 ok = reading.delete_article(p.rsplit("/", 1)[1])
                 return self._json({"ok": True}) if ok else self._json({"error": "not found"}, 404)
@@ -951,7 +1195,7 @@ def main(open_browser: bool = True, restart: bool = False):
         if _request_shutdown(url) or _stop_running_instance():
             say("已停止旧的 IELTS Study，正在用最新代码重新启动…")
     try:
-        httpd = Server((HOST, PORT), make_handler(App()))
+        httpd = Server((network.bind_host(), PORT), make_handler(App()))
     except OSError as error:
         if error.errno not in (errno.EADDRINUSE, 10048):  # 10048: WSAEADDRINUSE on Windows
             raise
@@ -963,6 +1207,11 @@ def main(open_browser: bool = True, restart: bool = False):
         say("端口", str(PORT), "被其他程序占用。可以设置环境变量 IELTS_PORT 换一个端口，例如 8766。")
         raise SystemExit(1) from None
     say("已启动：", url, "（按 Ctrl+C 退出）")
+    threading.Thread(target=asr._start_upgrade, daemon=True).start()  # finish a large speech model left half-way
+    backup.start_auto()
+    if network.STARTED["lan"]:
+        phone = network.phone_url(PORT)
+        say("手机访问已开启：", phone or "（没有找到局域网地址）")
     if open_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:

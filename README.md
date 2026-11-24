@@ -28,6 +28,16 @@ no account, no uploads.
 - **Close reading** – graded passages by level (CET-4, CET-6 for Chinese learners; IELTS 5.5, 6.5, 7+), each translated
   sentence by sentence with key words marked. The built-in passages are original texts modelled on each exam's topics,
   length and difficulty; your API can write more at any level, on a topic you choose. Or paste your own article.
+- **Speaking** – *Shadowing*: hear a sentence (the original audio from your videos, or the neural voice for passage
+  sentences), say it, and see word by word what was recognised, with your pace against the original. *Mock test*:
+  IELTS-style Part 1, 2 (with a one-minute preparation timer and cue card) and 3 questions, read out by the examiner
+  voice; your answer is recorded, transcribed, and measured (words per minute, pauses, fillers, unclear words). With an
+  API, it estimates the four speaking bands and gives corrections, better phrasing and a sample answer. Recordings are
+  recognised on your computer.
+- **Writing** – Task 2 essays, Task 1 charts (bar, line, table) and General Training letters, with a timer, word count
+  and auto-saved drafts, or paste your own question. Your API marks it against the four writing criteria, corrects it
+  sentence by sentence (highlighted in your text), suggests better words and rewrites it at Band 8 keeping your ideas.
+  Every marked essay is kept, so you can compare over time. The questions are original, in the style of the test.
 - **Study plan** – four stages from beginner to band 7+, daily goals that fill in as you study, streaks, progress charts,
   and a daily new-word quota that follows your exam date.
 
@@ -101,15 +111,37 @@ Choose the voice and accent in Settings → Playback.
 
 ### Speech recognition
 
-Used only when a video has no human-made English subtitles. The model is downloaded on first use.
+Used when a video has no human-made English subtitles, and for your speaking-practice recordings. Choose the method
+and model size in Settings → Speech recognition.
 
-| Computer | Engine | Default model |
+| Computer | Engine | "Auto" model |
 |---|---|---|
 | Mac with Apple Silicon | [mlx-whisper](https://github.com/ml-explore/mlx-examples) (GPU) | large-v3-turbo (≈1.6 GB) |
 | Windows / Linux with an NVIDIA GPU | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (CUDA) | large-v3-turbo |
 | Any other computer | faster-whisper (CPU) | small.en (≈0.5 GB) |
 
-Set `IELTS_WHISPER` to choose another model.
+So the first video doesn't wait for a 1.6 GB download, "Auto" starts with the small model (≈0.5 GB) and fetches the
+large one in the background; new imports use it as soon as it is there. You can also pick base, small, medium or
+large yourself.
+
+**Cloud recognition** (optional): any OpenAI-compatible `/audio/transcriptions` endpoint with word timestamps, such as
+OpenAI `whisper-1` or Groq `whisper-large-v3-turbo`, with your own API key. It gives computers without a graphics card
+large-model accuracy; the audio is sent as small MP3 pieces, and if the service can't be reached the local model is
+used. `IELTS_WHISPER` still overrides the local model.
+
+### Phone access
+
+Settings → Phone access lets a phone on the same Wi-Fi open the app (review, dictation, reading). After a restart the
+server listens on the local network, and a QR code carries an access key: phones without it are refused, and API keys,
+backups and settings can only be changed on the computer. Browsers only allow the microphone on HTTPS pages, so
+speaking practice stays on the computer.
+
+### Backups
+
+Settings → Backup downloads a zip of your learning record (saved words, review history, mistakes, dictation scores,
+articles, speaking and writing history, kept clips; videos optional, API keys never) and restores one: files it
+replaces are first copied to `data/backups/`. It can also back up once a day into a folder you choose, such as an
+iCloud Drive, OneDrive, Dropbox or Nutstore folder, keeping the latest copies.
 
 ## Commands
 
@@ -126,7 +158,7 @@ The pages show a "restart" banner when the code on disk is newer than the runnin
 | Environment variable | Meaning |
 |---|---|
 | `IELTS_PORT` | port (default 8765) |
-| `IELTS_WHISPER` | speech-recognition model |
+| `IELTS_WHISPER` | local speech-recognition model (overrides Settings) |
 | `IELTS_LIBRARY` | where videos and your progress are kept (default `library/`) |
 | `IELTS_ARTICLES` | where reading articles are kept (default `articles/`) |
 
@@ -137,7 +169,9 @@ Everything stays in the project folder:
 - `library/` – videos, subtitles, dictation results, saved words, your level and study log; `library/kept/` holds
   the sentences (text and a short audio clip) kept from deleted videos
 - `articles/` – pasted articles and the graded passages you have opened or had written
-- `data/` – the dictionary, its index and your API settings (the API key is stored with owner-only permissions)
+- `library/speaking/`, `library/writing/` – speaking recordings and scores, marked essays
+- `data/` – the dictionary, its index, the voice model, and your settings: API (`settings.json`), speech recognition
+  (`asr.json`), phone access (`network.json`), backup folder (`backup.json`). Keys stay here and are never backed up
 
 None of these folders are tracked by git.
 

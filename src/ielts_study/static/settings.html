@@ -19,6 +19,9 @@
         <a href="/settings/playback"><b>播放</b><small>倍速、字幕和高亮</small></a>
         <a href="/settings/study"><b>学习</b><small>雅思词汇水平</small></a>
         <a href="/settings/translation"><b>API</b><small>服务商和模型</small></a>
+        <a href="/settings/speech"><b>语音识别</b><small>本地模型大小、云端识别</small></a>
+        <a href="/settings/devices"><b>手机访问</b><small>同一个 Wi-Fi 下用手机复习</small></a>
+        <a href="/settings/backup"><b>备份</b><small>导出、恢复、自动备份</small></a>
       </nav>
       <div class="settings-content"></div>
       <template id="page-appearance">
@@ -120,6 +123,104 @@
             <div class="settings-label"><span>现在的水平和目标</span><small id="levelSummary">只标出比你现在水平难、又不超出目标太多的词</small></div>
             <a class="btn" href="/level">测试 / 调整</a>
           </div>
+        </section>
+      </template>
+
+      <template id="page-speech">
+        <section class="settings-section" id="speech" aria-labelledby="speechTitle">
+          <h2 id="speechTitle">语音识别</h2>
+          <p class="settings-lead">视频没有字幕时，以及口语练习的录音，都用这里选的方式转成英文。</p>
+          <div class="settings-row">
+            <label class="settings-label" for="asrEngine"><span>识别方式</span><small>本地识别不联网；云端识别更快，没有显卡的电脑也能用大模型，连不上时自动改用本地</small></label>
+            <span class="select-wrap wide"><select class="btn" id="asrEngine"><option value="local">本地</option><option value="cloud">云端</option></select></span>
+          </div>
+          <div class="settings-row">
+            <label class="settings-label" for="asrModel"><span>本地模型</span><small id="asrModelHint"></small></label>
+            <span class="settings-inline">
+              <button type="button" class="btn" id="asrDownload" hidden>下载</button>
+              <span class="select-wrap wide"><select class="btn" id="asrModel"></select></span>
+            </span>
+          </div>
+          <div class="asr-sizes" id="asrSizes"></div>
+          <form id="cloudForm" class="cloud-form" hidden>
+            <h3>云端识别</h3>
+            <div class="settings-grid">
+              <label class="settings-field" for="cloudProvider"><span>服务商</span>
+                <span class="select-wrap"><select id="cloudProvider"></select></span></label>
+              <label class="settings-field" for="cloudModel"><span>模型</span>
+                <input id="cloudModel" type="text" maxlength="200" spellcheck="false" autocapitalize="none"></label>
+              <label class="settings-field span-2" for="cloudUrl"><span>API 地址</span>
+                <input id="cloudUrl" type="url" maxlength="2048" spellcheck="false" autocapitalize="none"></label>
+              <label class="settings-field span-2" for="cloudKey"><span>API Key</span>
+                <input id="cloudKey" type="password" maxlength="4096" autocomplete="off" spellcheck="false">
+                <small id="cloudKeyHint">密钥保存在这台电脑上。</small>
+                <a id="cloudConsole" target="_blank" rel="noopener noreferrer" hidden>获取 API Key ↗</a></label>
+            </div>
+            <p class="settings-help">需要支持逐词时间的 OpenAI 兼容接口，例如 OpenAI 的 whisper-1 或 Groq 的 whisper-large-v3-turbo。音频会压缩成小的 MP3 分段上传给你选的服务商。</p>
+            <div class="settings-actions"><button type="submit" class="btn primary">保存云端识别设置</button></div>
+          </form>
+          <p id="asrStatus" class="settings-status" role="status" aria-live="polite"></p>
+        </section>
+      </template>
+
+      <template id="page-devices">
+        <section class="settings-section" id="devices" aria-labelledby="devicesTitle">
+          <h2 id="devicesTitle">手机访问</h2>
+          <p class="settings-lead">手机和电脑连同一个 Wi-Fi，就能在手机浏览器里复习单词、听写、读文章。电脑需要开着 IELTS Study。</p>
+          <label class="settings-row"><span class="settings-label"><span>允许同一个 Wi-Fi 里的手机访问</span><small>打开后需要重启一次。只有扫过二维码（带访问密钥）的手机能打开，API Key、备份和这些设置仍然只能在电脑上改</small></span><input type="checkbox" role="switch" class="settings-switch" id="lanSwitch"></label>
+          <div class="lan-box" id="lanBox" hidden>
+            <img id="lanQr" alt="用手机相机扫描这个二维码" width="220" height="220">
+            <div>
+              <b>用手机相机扫描二维码</b>
+              <p class="muted">或者在手机浏览器里打开：</p>
+              <code id="lanUrl"></code>
+              <p class="muted" id="lanOthers" hidden></p>
+              <p class="muted">口语练习需要麦克风，手机浏览器只允许 HTTPS 页面录音，所以口语请在电脑上练。第一次打开时，电脑可能会询问是否允许传入连接，请选择允许。</p>
+              <button type="button" class="btn" id="lanNewKey">换一个访问密钥</button>
+            </div>
+          </div>
+          <div class="restart-note" id="lanRestart" hidden>
+            <span>重启后生效</span><button type="button" class="btn primary" id="lanRestartBtn">立即重启</button>
+          </div>
+          <p id="lanStatus" class="settings-status" role="status" aria-live="polite"></p>
+        </section>
+      </template>
+
+      <template id="page-backup">
+        <section class="settings-section" id="backup" aria-labelledby="backupTitle">
+          <h2 id="backupTitle">备份</h2>
+          <p class="settings-lead">收藏的词句、复习进度、错句本、听写成绩、文章、口语和作文记录都在资料库里。备份不含 API Key；视频文件很大，默认不放进备份。</p>
+          <div class="settings-row">
+            <div class="settings-label"><span>导出备份</span><small>下载一个 zip 文件，换电脑时在新电脑上恢复</small></div>
+            <span class="settings-inline">
+              <label class="settings-check"><input type="checkbox" id="withVideos"> 包含视频</label>
+              <a class="btn" id="exportBtn" href="/api/backup/export" download>下载备份</a>
+            </span>
+          </div>
+          <div class="settings-row">
+            <div class="settings-label"><span>从备份恢复</span><small>用备份里的文件替换现在的同名文件；被替换的文件会先另存一份，不会丢</small></div>
+            <span class="settings-inline">
+              <input type="file" id="restoreFile" accept=".zip,application/zip" hidden>
+              <button type="button" class="btn" id="restoreBtn">选择备份文件…</button>
+            </span>
+          </div>
+          <form class="cloud-form" id="autoForm">
+            <h3>每天自动备份到文件夹</h3>
+            <p class="settings-help">选一个会同步到网盘的文件夹（iCloud Drive、OneDrive、Dropbox、坚果云等），电脑开着 IELTS Study 时每天备份一次，保留最近几份。</p>
+            <div class="backup-suggest" id="backupSuggest"></div>
+            <div class="settings-grid">
+              <label class="settings-field span-2" for="backupFolder"><span>文件夹</span>
+                <input id="backupFolder" type="text" placeholder="文件夹的完整路径，可以点上面的同步文件夹" spellcheck="false" autocapitalize="none"></label>
+              <label class="settings-field" for="backupKeep"><span>保留份数</span>
+                <input id="backupKeep" type="number" min="1" max="60"></label>
+            </div>
+            <p class="muted" id="backupLast"></p>
+            <div class="settings-actions">
+              <button type="button" class="btn" id="backupNow">立即备份</button>
+              <button type="submit" class="btn primary">保存</button>
+            </div>
+          </form>
+          <p id="backupStatus" class="settings-status" role="status" aria-live="polite"></p>
         </section>
       </template>
 
@@ -701,6 +802,158 @@ if (form) {
     render(settings);
     controls.disabled = false;
   }).catch(error => showMessage(error.message, true));
+}
+
+// ---------- 语音识别: local model size, cloud recognition
+if ($("#asrEngine")) {
+  const SIZE_LABEL = { base: "基础模型", small: "小模型", medium: "中模型", large: "大模型" };
+  const SIZE_OPTION = { base: "基础 · 最快", small: "小 · 快", medium: "中 · 较准", large: "大 · 最准" };
+  const SHORT = { base: "基础", small: "小", medium: "中", large: "大" };
+  let asr = null, timer = null;
+  const status = (msg, err) => { $("#asrStatus").textContent = msg; $("#asrStatus").classList.toggle("err", !!err); };
+  const render = s => {
+    asr = s;
+    clearTimeout(timer);
+    const l = s.local;
+    $("#asrEngine").value = s.engine;
+    $("#asrModel").replaceChildren(new Option(`自动 · ${SHORT[l.using]}`, "auto"),
+      ...Object.keys(l.sizes).map(k => new Option(SIZE_OPTION[k], k)));
+    $("#asrModel").value = s.model;
+    const d = l.download;
+    $("#asrModelHint").textContent = l.override ? `环境变量 IELTS_WHISPER 指定了模型：${l.override}`
+      : d.status === "downloading" ? `正在后台下载${SIZE_LABEL[d.size]}… ${d.percent ?? 0}%`
+      : d.status === "error" ? `下载失败：${d.error}`
+      : l.gpu ? "这台电脑能快速运行大模型。选「自动」时先用小模型，大模型在后台下载好后自动换上"
+      : "这台电脑没有可用的显卡，「自动」用小模型；想更准可以选中模型，识别会慢一些";
+    const target = s.model === "auto" ? l.target : s.model;
+    $("#asrDownload").hidden = l.sizes[target].downloaded || d.status === "downloading";
+    $("#asrDownload").dataset.size = target;
+    $("#asrSizes").innerHTML = Object.entries(l.sizes).map(([k, v]) =>
+      `<span class="${v.downloaded ? "ok" : ""}">${SHORT[k]} · ${v.mb >= 1000 ? (v.mb / 1000).toFixed(1) + " GB" : v.mb + " MB"} · ${v.downloaded ? "已下载" : "未下载"}</span>`).join("");
+    $("#cloudForm").hidden = s.engine !== "cloud" && !editingCloud;
+    $("#cloudProvider").replaceChildren(...s.providers.map(p => new Option(p.name + (p.hasKey ? " · 已填 Key" : ""), p.id)));
+    $("#cloudProvider").value = s.provider;
+    fillCloud();
+    if (d.status === "downloading") timer = setTimeout(load, 2000);
+  };
+  let editingCloud = false;
+  const fillCloud = () => {
+    const p = asr.providers.find(x => x.id === $("#cloudProvider").value);
+    const same = p.id === asr.provider;
+    $("#cloudUrl").value = same ? asr.baseUrl : p.baseUrl;
+    $("#cloudModel").value = same ? asr.cloudModel : p.model;
+    $("#cloudKey").value = "";
+    $("#cloudKey").placeholder = p.hasKey ? "已保存，留空就继续用" : "填写这个服务商的 API Key";
+    $("#cloudConsole").hidden = !p.console;
+    $("#cloudConsole").href = p.console || "#";
+  };
+  const load = () => api("/api/asr").then(render).catch(e => status(e.message, true));
+  const save = async body => {
+    try { render(await api("/api/asr", { method: "POST", body })); status("已保存"); return true; }
+    catch (e) { status(e.message, true); return false; }
+  };
+  $("#asrModel").onchange = () => save({ model: $("#asrModel").value });
+  $("#asrEngine").onchange = async () => {
+    if ($("#asrEngine").value === "cloud") {
+      const p = asr.providers.find(x => x.id === asr.provider);
+      if (!p.hasKey) { editingCloud = true; $("#cloudForm").hidden = false; status("填写云端服务商的 API Key 后保存。"); return; }
+    }
+    editingCloud = false;
+    save({ engine: $("#asrEngine").value });
+  };
+  $("#cloudProvider").onchange = fillCloud;
+  $("#asrDownload").onclick = async () => { render(await api("/api/asr/download", { method: "POST", body: { size: $("#asrDownload").dataset.size } })); };
+  $("#cloudForm").onsubmit = async e => {
+    e.preventDefault();
+    if (await save({ engine: "cloud", provider: $("#cloudProvider").value, baseUrl: $("#cloudUrl").value,
+      cloudModel: $("#cloudModel").value, apiKey: $("#cloudKey").value })) editingCloud = false;
+  };
+  load();
+}
+
+// ---------- 手机访问: LAN mode
+if ($("#lanSwitch")) {
+  const show = s => {
+    $("#lanSwitch").checked = s.lan;
+    $("#lanRestart").hidden = !s.needsRestart;
+    $("#lanBox").hidden = !(s.lan && s.running && s.url);
+    if (s.lan && s.running && s.url) {
+      $("#lanUrl").textContent = s.url;
+      $("#lanQr").src = `/api/network/qr.svg?t=${Date.now()}`;
+      $("#lanOthers").hidden = !s.others.length;
+      $("#lanOthers").textContent = `手机打不开时，把地址里的 ${s.ip} 换成：${s.others.map(u => new URL(u).hostname).join("、")}`;
+    }
+    $("#lanStatus").textContent = s.lan && !s.ip ? "没有找到这台电脑的局域网地址，请确认已经连上 Wi-Fi。" : "";
+  };
+  const load = () => api("/api/network").then(show).catch(e => { $("#lanStatus").textContent = e.message; });
+  $("#lanSwitch").onchange = async () => show(await api("/api/network", { method: "POST", body: { lan: $("#lanSwitch").checked } }));
+  $("#lanNewKey").onclick = async () => {
+    if (!await confirmDialog("换一个访问密钥吗？", { detail: "已经扫过码的手机需要重新扫码。" })) return;
+    show(await api("/api/network", { method: "POST", body: { lan: true, newKey: true } }));
+  };
+  $("#lanRestartBtn").onclick = async () => {
+    $("#lanRestartBtn").disabled = true;
+    await api("/api/restart", { method: "POST" }).catch(() => {});
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      try { await api("/api/version"); break; } catch { /* still restarting */ }
+    }
+    $("#lanRestartBtn").disabled = false;
+    load();
+  };
+  load();
+}
+
+// ---------- 备份
+if ($("#backupFolder")) {
+  const status = (msg, err) => { $("#backupStatus").textContent = msg; $("#backupStatus").classList.toggle("err", !!err); };
+  const show = s => {
+    $("#backupFolder").value = s.folder;
+    $("#backupKeep").value = s.keep;
+    $("#backupLast").textContent = s.lastError ? `上次自动备份失败：${s.lastError}`
+      : s.last ? `上次备份：${new Date(s.last * 1000).toLocaleString()}${s.files.length ? ` · 文件夹里有 ${s.files.length} 份` : ""}` : "还没有自动备份过。";
+    $("#backupSuggest").innerHTML = s.suggestions.length ? `<span class="muted">这台电脑上的同步文件夹：</span>` +
+      s.suggestions.map(x => `<button type="button" class="btn" data-path="${esc(x.path)}">${esc(x.label)}</button>`).join("") : "";
+  };
+  const load = () => api("/api/backup").then(show).catch(e => status(e.message, true));
+  $("#withVideos").onchange = () => { $("#exportBtn").href = `/api/backup/export${$("#withVideos").checked ? "?videos=1" : ""}`; };
+  $("#backupSuggest").onclick = e => { const b = e.target.closest("[data-path]"); if (b) $("#backupFolder").value = b.dataset.path; };
+  $("#autoForm").onsubmit = async e => {
+    e.preventDefault();
+    const folder = $("#backupFolder").value.trim();
+    try {
+      show(await api("/api/backup/settings", { method: "POST", body: { folder, keep: Number($("#backupKeep").value) || 10 } }));
+      status(folder ? "已保存。每天会自动备份一次。" : "已关闭自动备份。");
+    } catch (err) {
+      if (folder && err.status === 404 && await confirmDialog("这个文件夹还不存在，要新建吗？", { detail: folder })) {
+        try { await api("/api/backup/mkdir", { method: "POST", body: { folder } }); return $("#autoForm").requestSubmit(); }
+        catch (e2) { return status(e2.message, true); }
+      }
+      status(err.message, true);
+    }
+  };
+  $("#backupNow").onclick = async () => {
+    $("#backupNow").disabled = true;
+    status("正在备份…");
+    try { show(await api("/api/backup/now", { method: "POST" })); status("备份好了。"); }
+    catch (e) { status(e.message, true); }
+    finally { $("#backupNow").disabled = false; }
+  };
+  $("#restoreBtn").onclick = () => $("#restoreFile").click();
+  $("#restoreFile").onchange = async () => {
+    const file = $("#restoreFile").files[0];
+    $("#restoreFile").value = "";
+    if (!file) return;
+    if (!await confirmDialog(`用「${file.name}」恢复吗？`, { detail: "备份里的文件会替换现在的同名文件，被替换的文件会先另存到 data/backups 文件夹。", ok: "恢复" })) return;
+    status("正在恢复…");
+    try {
+      const r = await fetch("/api/backup/import", { method: "POST", headers: { "content-type": "application/zip" }, body: file });
+      const out = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(out.error || `请求失败 ${r.status}`);
+      status(`已恢复 ${out.restored} 个文件${out.keptAside ? `，原来的 ${out.keptAside} 个文件另存在 ${out.asideFolder}` : ""}。刷新页面就能看到。`);
+    } catch (e) { status(e.message, true); }
+  };
+  load();
 }
 </script>
 </body>

@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>口语练习</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap home-wrap">
+    <header class="hero page-heading">
+      <div>
+        <h1>口语练习</h1>
+        <p>跟读原句，逐词对照你读对了哪些；或者按雅思口语 Part 1、2、3 答题，看语速、停顿和 AI 评分。录音只在这台电脑上识别和保存。</p>
+      </div>
+      <div class="speak-today" id="today"></div>
+    </header>
+
+    <div class="tabs reading-tabs" id="tabs" role="tablist" aria-label="练习方式">
+      <button type="button" class="btn" role="tab" data-tab="shadow">跟读打分</button>
+      <button type="button" class="btn" role="tab" data-tab="test">口语模考</button>
+      <button type="button" class="btn" role="tab" data-tab="history">练习记录</button>
+    </div>
+    <p class="err speak-mic" id="micNote" hidden></p>
+
+    <!-- 跟读打分 -->
+    <section id="shadowPanel" hidden>
+      <div class="speak-source">
+        <span class="muted">句子来源</span>
+        <div class="tabs" id="sourceTabs">
+          <button type="button" class="btn" data-source="video">我的视频原句</button>
+          <button type="button" class="btn" data-source="passage">分级阅读句子</button>
+        </div>
+        <label class="speak-check"><input type="checkbox" id="hideText"> 先不看原文</label>
+      </div>
+      <article class="speak-card" id="shadowCard">
+        <div class="speak-meta" id="sentMeta"></div>
+        <p class="speak-sentence" id="sentText"></p>
+        <p class="speak-zh" id="sentZh"></p>
+        <div class="speak-actions">
+          <button type="button" class="btn" id="playModel">▶ 听原句 <kbd>R</kbd></button>
+          <button type="button" class="btn primary speak-rec" id="recShadow">● 开始跟读 <kbd>空格</kbd></button>
+          <button type="button" class="btn" id="playMine" disabled>▶ 我的录音</button>
+          <button type="button" class="btn" id="nextSent">下一句 <kbd>→</kbd></button>
+        </div>
+        <div class="speak-level" id="shadowLevel" hidden><i></i></div>
+        <div class="speak-result" id="shadowResult" aria-live="polite"></div>
+      </article>
+      <p class="settings-help">听完原句后跟着读，读完再按一次按钮或空格键停止；最长录 30 秒。识别用的是设置里选的语音识别模型。</p>
+    </section>
+
+    <!-- 口语模考 -->
+    <section id="testPanel" hidden>
+      <div class="tabs reading-tabs" id="partTabs" role="tablist" aria-label="口语部分">
+        <button type="button" class="btn" data-part="1">Part 1 · 日常问答</button>
+        <button type="button" class="btn" data-part="2">Part 2 · 个人陈述</button>
+        <button type="button" class="btn" data-part="3">Part 3 · 深入讨论</button>
+      </div>
+      <article class="speak-card" id="testCard">
+        <div class="speak-meta" id="qMeta"></div>
+        <div id="qBody"></div>
+        <textarea class="speak-notes" id="notes" rows="4" placeholder="准备时间里可以在这里记几个关键词" hidden></textarea>
+        <div class="speak-actions">
+          <button type="button" class="btn" id="hearQ">▶ 听题目</button>
+          <button type="button" class="btn primary speak-rec" id="recTest">● 开始回答</button>
+          <button type="button" class="btn" id="playAnswer" disabled>▶ 我的回答</button>
+          <button type="button" class="btn" id="nextQ">换一题</button>
+        </div>
+        <div class="speak-timer" id="timer" hidden></div>
+        <div class="speak-level" id="testLevel" hidden><i></i></div>
+        <div class="speak-result" id="testResult" aria-live="polite"></div>
+      </article>
+    </section>
+
+    <!-- 练习记录 -->
+    <section id="historyPanel" hidden>
+      <div class="speak-stats" id="shadowStats"></div>
+      <div class="section-h"><h2>模考记录</h2><span class="muted" id="testCount"></span></div>
+      <div class="speak-history" id="testHistory"></div>
+      <div class="speak-result" id="historyDetail"></div>
+    </section>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+let info = null, tab = "shadow", source = "video", sentences = [], sentIndex = 0;
+let part = 1, question = null, lastAnswer = null;
+const recorder = { stream: null, media: null, chunks: [], timer: null, raf: null, onDone: null, startedAt: 0 };
+const model = new Audio();
+let modelStop = null;
+
+function pref(key, fallback) { try { return localStorage.getItem(key) || fallback; } catch { return fallback; } }
+function setPref(key, value) { try { localStorage.setItem(key, value); } catch { /* private mode */ } }
+
+// ---------------------------------------------------------------- recording
+const micOk = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+function mimeType() {
+  return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find(t => MediaRecorder.isTypeSupported?.(t)) || "";
+}
+
+// Record until stopped, `maxSecs` pass, or (with `autoStop`) the speaker has been quiet for 1.5 s after speaking.
+async function startRecording({ maxSecs, autoStop, level, onTick }) {
+  stopModel();
+  if (!recorder.stream) recorder.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  const type = mimeType();
+  recorder.media = new MediaRecorder(recorder.stream, type ? { mimeType: type } : undefined);
+  recorder.chunks = [];
+  recorder.media.ondataavailable = e => e.data.size && recorder.chunks.push(e.data);
+  const done = new Promise(resolve => {
+    recorder.media.onstop = () => resolve(new Blob(recorder.chunks, { type: recorder.media.mimeType || type || "audio/webm" }));
+  });
+  recorder.media.start();
+  recorder.startedAt = performance.now();
+  // a level meter, and silence detection
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 1024;
+  ctx.createMediaStreamSource(recorder.stream).connect(analyser);
+  const buf = new Float32Array(analyser.fftSize);
+  let spoke = false, quietSince = performance.now();
+  level.hidden = false;
+  const tick = () => {
+    analyser.getFloatTimeDomainData(buf);
+    const rms = Math.sqrt(buf.reduce((s, v) => s + v * v, 0) / buf.length);
+    level.firstElementChild.style.width = `${Math.min(100, rms * 900)}%`;
+    const now = performance.now(), secs = (now - recorder.startedAt) / 1000;
+    if (rms > 0.02) { spoke = true; quietSince = now; }
+    onTick?.(secs);
+    if ((autoStop && spoke && now - quietSince > 1500) || secs >= maxSecs) return stopRecording();
+    recorder.raf = requestAnimationFrame(tick);
+  };
+  recorder.raf = requestAnimationFrame(tick);
+  const blob = await done;
+  cancelAnimationFrame(recorder.raf);
+  level.hidden = true;
+  ctx.close();
+  return blob;
+}
+function recording() { return recorder.media?.state === "recording"; }
+function stopRecording() { if (recording()) recorder.media.stop(); }
+
+async function recognize(blob) {
+  const r = await fetch("/api/speaking/recognize", { method: "POST", headers: { "content-type": blob.type || "audio/webm" }, body: blob });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `请求失败 ${r.status}`);
+  return data;
+}
+
+// ---------------------------------------------------------------- model audio
+function stopModel() {
+  model.pause();
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  if (typeof ttsAudio !== "undefined") ttsAudio.pause();
+  cancelAnimationFrame(modelStop);
+}
+function playClip(src, start, end) {
+  stopModel();
+  if (!model.src.endsWith(src)) model.src = src;
+  model.currentTime = start;
+  model.play().catch(() => {});
+  const watch = () => { if (model.currentTime >= end) model.pause(); else modelStop = requestAnimationFrame(watch); };
+  modelStop = requestAnimationFrame(watch);
+}
+function playBlob(blob) { stopModel(); model.src = URL.createObjectURL(blob); model.play().catch(() => {}); }
+
+// ---------------------------------------------------------------- shadowing
+async function loadSentences() {
+  $("#sentText").textContent = "正在挑句子…";
+  const out = await api(`/api/speaking/sentences?source=${source}`);
+  sentences = out.sentences;
+  sentIndex = 0;
+  if (!sentences.length && source === "video") { source = "passage"; renderSourceTabs(); return loadSentences(); }
+  showSentence();
+}
+function renderSourceTabs() {
+  $$("#sourceTabs .btn").forEach(b => b.classList.toggle("on", b.dataset.source === source));
+  $("#sourceTabs [data-source=video]").disabled = !info.videoSentences;
+  $("#sourceTabs [data-source=video]").title = info.videoSentences ? "" : "导入视频后才有视频原句";
+}
+function current() { return sentences[sentIndex]; }
+function showSentence() {
+  const s = current();
+  $("#shadowResult").innerHTML = "";
+  $("#playMine").disabled = true;
+  if (!s) { $("#sentText").textContent = "没有可以跟读的句子。"; return; }
+  $("#sentMeta").textContent = s.source === "video" ? `视频原句 · ${s.title}` : `分级阅读 · ${s.title}`;
+  $("#sentText").textContent = s.text;
+  $("#sentText").classList.toggle("blurred", $("#hideText").checked);
+  $("#sentZh").textContent = s.zh || "";
+  $("#sentZh").hidden = !s.zh || $("#hideText").checked;
+  prefetchSpeech(s.source === "passage" ? s.text : "", 1);
+}
+function playSentence() {
+  const s = current();
+  if (!s) return;
+  if (s.source === "video") playClip(s.media, s.start, s.end);
+  else speak(s.text, 1);
+}
+function modelSecs(s) { return s.source === "video" ? s.end - s.start : s.text.split(/\s+/).length / 2.6; }
+
+function speakHtml(result) {
+  const pct = Math.round(result.score * 100);
+  const verdict = pct >= 95 ? "非常清楚" : pct >= 80 ? "大部分读对了，看看标出来的词" : pct >= 60 ? "对照红色的词，再听一遍原句" : "先放慢跟读，一次读半句";
+  const words = result.words.map(w => w.s === "ok"
+    ? `<span class="dw ok">${esc(w.text)}</span>`
+    : `<span class="dw ${w.s}">${w.typed && w.s !== "miss" ? `<s>${esc(w.typed)}</s>` : ""}<span>${esc(w.text)}</span></span>`).join(" ");
+  return `
+    <div class="dict-score ${pct >= 80 ? "good" : "bad"}"><b>${pct}%</b><span>${verdict}</span></div>
+    <div class="dict-words">${words}</div>
+    ${result.extras.length ? `<div class="dict-extra">多读了：${result.extras.map(esc).join("、")}</div>` : ""}
+    <div class="dict-legend"><span class="dw spell"><span>接近</span></span><span class="dw wrong"><span>读成别的词</span></span><span class="dw miss"><span>没识别到</span></span></div>`;
+}
+
+let lastShadowBlob = null;
+async function toggleShadow() {
+  if (recording()) return stopRecording();
+  const s = current();
+  if (!s || !micOk) return;
+  const btn = $("#recShadow");
+  btn.innerHTML = "■ 停止";
+  btn.classList.add("on");
+  $("#shadowResult").innerHTML = "";
+  let blob;
+  try {
+    blob = await startRecording({ maxSecs: SHADOW_LIMIT, autoStop: false, level: $("#shadowLevel"),
+      onTick: secs => { btn.innerHTML = `■ 停止 <span class="speak-count">${fmtTime(secs)} / ${fmtTime(SHADOW_LIMIT)}</span>`; } });
+  } catch (e) {
+    btn.innerHTML = "● 开始跟读 <kbd>空格</kbd>"; btn.classList.remove("on");
+    $("#shadowResult").innerHTML = `<p class="err">${esc(micError(e))}</p>`;
+    return;
+  }
+  btn.innerHTML = "● 再读一遍 <kbd>空格</kbd>";
+  btn.classList.remove("on");
+  lastShadowBlob = blob;
+  $("#playMine").disabled = false;
+  $("#shadowResult").innerHTML = `<p class="muted">正在识别…</p>`;
+  try {
+    const out = await recognize(blob);
+    const graded = gradeDictation(s.text, out.text);
+    const mine = out.stats.seconds ? out.stats.words / out.stats.seconds : 0;
+    const theirs = s.text.split(/\s+/).length / modelSecs(s);
+    const pace = mine && s.source === "video"
+      ? `语速：你 ${mine.toFixed(1)} 词/秒 · 原句 ${theirs.toFixed(1)} 词/秒${mine < theirs * 0.75 ? "（可以再连贯一些）" : ""}` : "";
+    $("#shadowResult").innerHTML = speakHtml(graded) + `
+      <p class="speak-heard"><span class="muted">识别到：</span>${esc(out.text || "（没有识别到英文）")}</p>
+      ${pace ? `<p class="muted">${pace}</p>` : ""}
+      ${out.stats.unclear.length ? `<p class="muted">发音不够清楚的词：${out.stats.unclear.map(esc).join("、")}</p>` : ""}`;
+    info = { ...info, ...await api("/api/speaking/shadow", { method: "POST", body: { text: s.text, score: graded.score, source: s.source, rec: out.rec } }) };
+    renderToday();
+  } catch (e) {
+    $("#shadowResult").innerHTML = `<p class="err">${esc(e.message)}</p>`;
+  }
+}
+function micError(e) {
+  return e && e.name === "NotAllowedError" ? "浏览器没有麦克风权限。请在地址栏左侧允许使用麦克风后再试。"
+    : e && e.name === "NotFoundError" ? "没有找到麦克风。" : (e && e.message) || "无法录音";
+}
+
+// ---------------------------------------------------------------- speaking test
+const LIMITS = { 1: 45, 2: 120, 3: 90 };
+const SHADOW_LIMIT = 30;  // seconds; shadowing stops when you press again, or at this limit
+function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
+function newQuestion() {
+  const q = info.questions;
+  if (part === 1) {
+    const topic = pick(q.part1);
+    question = { part: 1, topic: topic.topic, list: topic.questions, i: 0 };
+  } else if (part === 2) {
+    question = { part: 2, card: pick(q.part2) };
+  } else {
+    const card = pick(q.part2);
+    question = { part: 3, topic: card.card, list: card.part3, i: 0 };
+  }
+  showQuestion();
+}
+function questionText() {
+  if (question.part === 2) {
+    const c = question.card;
+    return `${c.card} You should say: ${c.points.join("; ")}; ${c.explain}`;
+  }
+  return question.list[question.i];
+}
+function showQuestion() {
+  lastAnswer = null;
+  $("#testResult").innerHTML = "";
+  $("#playAnswer").disabled = true;
+  $("#timer").hidden = true;
+  $("#notes").hidden = question.part !== 2;
+  $("#notes").value = "";
+  if (question.part === 2) {
+    const c = question.card;
+    $("#qMeta").textContent = "Part 2 · 准备 1 分钟，然后说 1–2 分钟";
+    $("#qBody").innerHTML = `
+      <div class="cue-card"><b>${esc(c.card)}</b><span>You should say:</span>
+        <ul>${c.points.map(x => `<li>${esc(x)}</li>`).join("")}</ul><span>${esc(c.explain)}</span></div>`;
+    $("#recTest").innerHTML = "● 开始准备（1 分钟）";
+    $("#nextQ").textContent = "换一题";
+  } else {
+    $("#qMeta").textContent = `Part ${question.part} · ${question.topic} · 第 ${question.i + 1} / ${question.list.length} 题 · 建议回答 ${question.part === 1 ? "20–40 秒" : "40–90 秒"}`;
+    $("#qBody").innerHTML = `<p class="speak-question">${esc(question.list[question.i])}</p>`;
+    $("#recTest").innerHTML = "● 开始回答";
+    $("#nextQ").textContent = question.i + 1 < question.list.length ? "下一题" : "换一组";
+  }
+}
+let prepTimer = null;
+async function toggleTest() {
+  if (recording()) return stopRecording();
+  if (!micOk) return;
+  if (question.part === 2 && !prepTimer && !$("#recTest").dataset.ready) return startPrep();
+  clearInterval(prepTimer); prepTimer = null;
+  delete $("#recTest").dataset.ready;
+  const btn = $("#recTest"), limit = LIMITS[question.part];
+  btn.innerHTML = "■ 说完了";
+  btn.classList.add("on");
+  $("#timer").hidden = false;
+  $("#testResult").innerHTML = "";
+  let blob;
+  try {
+    blob = await startRecording({ maxSecs: limit, autoStop: false, level: $("#testLevel"),
+      onTick: secs => { $("#timer").textContent = `录音中 ${fmtTime(secs)} / ${fmtTime(limit)}`; } });
+  } catch (e) {
+    btn.classList.remove("on"); showQuestion();
+    $("#testResult").innerHTML = `<p class="err">${esc(micError(e))}</p>`;
+    return;
+  }
+  btn.classList.remove("on");
+  btn.innerHTML = "● 重新回答";
+  $("#timer").hidden = true;
+  $("#playAnswer").disabled = false;
+  $("#playAnswer").onclick = () => playBlob(blob);
+  $("#testResult").innerHTML = `<p class="muted">正在识别你的回答…</p>`;
+  try {
+    const out = await recognize(blob);
+    lastAnswer = { ...out, part: question.part, question: questionText() };
+    renderAnswer();
+  } catch (e) {
+    $("#testResult").innerHTML = `<p class="err">${esc(e.message)}</p>`;
+  }
+}
+function startPrep() {
+  let left = 60;
+  const btn = $("#recTest");
+  $("#timer").hidden = false;
+  btn.innerHTML = "● 现在开始说";
+  btn.dataset.ready = "1";
+  $("#notes").focus();
+  const show = () => { $("#timer").textContent = `准备时间还剩 ${left} 秒`; };
+  show();
+  prepTimer = setInterval(() => {
+    left -= 1;
+    show();
+    if (left <= 0) { clearInterval(prepTimer); prepTimer = null; toggleTest(); }
+  }, 1000);
+}
+function statsHtml(s) {
+  const pace = s.wpm < 90 ? "偏慢" : s.wpm > 190 ? "偏快" : "自然";
+  return `<div class="speak-stats">
+    <div><b>${fmtTime(s.seconds)}</b><span>说话时长</span></div>
+    <div><b>${s.wpm}</b><span>每分钟词数 · ${pace}</span></div>
+    <div><b>${s.pauses}</b><span>1 秒以上的停顿</span></div>
+    <div><b>${s.fillers}</b><span>um / uh 等口头禅</span></div>
+    <div><b>${s.distinct}</b><span>用到的不同单词</span></div>
+  </div>
+  ${s.unclear.length ? `<p class="muted">识别不太确定的词（可能发音不清楚）：${s.unclear.map(esc).join("、")}</p>` : ""}`;
+}
+function renderAnswer() {
+  const a = lastAnswer;
+  const enough = a.stats.words >= 3;
+  $("#testResult").innerHTML = `
+    <h3>你的回答</h3>
+    <p class="speak-transcript">${esc(a.text || "（没有识别到英文）")}</p>
+    ${statsHtml(a.stats)}
+    <div class="speak-actions">
+      ${info.hasApi ? `<button type="button" class="btn primary" id="getFeedback"${enough ? "" : " disabled"}>AI 评分和修改建议</button>`
+        : `<span class="muted">按雅思四项标准评分需要先<a href="/settings/translation">配置 API</a>。</span>`}
+      ${question.part === 2 ? `<button type="button" class="btn" id="toPart3">接着练这个话题的 Part 3</button>` : ""}
+    </div>
+    <div id="feedback"></div>`;
+  $("#getFeedback")?.addEventListener("click", getFeedback);
+  $("#toPart3")?.addEventListener("click", () => {
+    const c = question.card;
+    part = 3; renderPartTabs();
+    question = { part: 3, topic: c.card, list: c.part3, i: 0 };
+    showQuestion();
+  });
+}
+async function getFeedback() {
+  const btn = $("#getFeedback");
+  btn.disabled = true;
+  btn.textContent = "正在评分，大约需要半分钟…";
+  try {
+    const entry = await api("/api/speaking/feedback", { method: "POST", body: {
+      part: lastAnswer.part, question: lastAnswer.question, transcript: lastAnswer.text, stats: lastAnswer.stats, rec: lastAnswer.rec } });
+    btn.remove();
+    $("#feedback").innerHTML = feedbackHtml(entry.result);
+    bindSample($("#feedback"));
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "AI 评分和修改建议";
+    $("#feedback").innerHTML = `<p class="err">${esc(e.message)}</p>`;
+  }
+}
+function band(b) { return b == null ? "–" : Number(b).toFixed(1); }
+function feedbackHtml(r) {
+  const list = (title, items) => items.length ? `<h4>${title}</h4><ul>${items.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  return `
+    <div class="band-head"><b>${band(r.overall)}</b><span>估计总分</span></div>
+    <div class="band-grid">${r.criteria.map(c => `
+      <div class="band-item"><div><b>${band(c.band)}</b><span>${esc(c.name)}</span></div><p>${esc(c.comment)}</p></div>`).join("")}
+    </div>
+    <p class="muted">分数由 AI 按公开的雅思评分标准估计，发音分只能根据识别结果粗略判断，仅供参考。</p>
+    ${list("做得好的地方", r.strengths)}${list("下一步重点", r.improve)}
+    ${r.corrections.length ? `<h4>改错</h4><div class="fix-list">${r.corrections.map(c => `
+      <div class="fix"><s>${esc(c.original)}</s><b>${esc(c.better)}</b><span>${esc(c.why)}</span></div>`).join("")}</div>` : ""}
+    ${r.vocabulary.length ? `<h4>换个更好的说法</h4><div class="fix-list">${r.vocabulary.map(c => `
+      <div class="fix"><s>${esc(c.instead)}</s><b>${esc(c.try)}</b><span>${esc(c.why)}</span></div>`).join("")}</div>` : ""}
+    ${r.sample ? `<h4>参考回答 <button type="button" class="btn sample-say">▶ 朗读</button></h4><p class="speak-sample">${esc(r.sample)}</p>` : ""}`;
+}
+function bindSample(root) {
+  $(".sample-say", root)?.addEventListener("click", () => speak($(".speak-sample", root).textContent, 0.95));
+}
+
+// ---------------------------------------------------------------- history and tabs
+function renderToday() {
+  $("#today").innerHTML = info.shadowCount ? `今天跟读 <b>${info.shadowToday}</b> 句${info.shadowAverage != null ? ` · 最近平均 <b>${Math.round(info.shadowAverage * 100)}%</b>` : ""}` : "";
+}
+function renderHistory() {
+  $("#shadowStats").innerHTML = `
+    <div><b>${info.shadowCount}</b><span>跟读过的句子</span></div>
+    <div><b>${info.shadowAverage != null ? Math.round(info.shadowAverage * 100) + "%" : "–"}</b><span>最近 50 句平均</span></div>
+    <div><b>${info.tests.length}</b><span>评过分的模考回答</span></div>`;
+  $("#testCount").textContent = info.tests.length ? `${info.tests.length} 次` : "";
+  $("#testHistory").innerHTML = info.tests.length ? info.tests.map((t, i) => `
+    <button type="button" class="speak-history-item" data-i="${i}">
+      <b>${band(t.result?.overall)}</b>
+      <span><span class="muted">Part ${t.part} · ${new Date(t.at * 1000).toLocaleDateString()}</span>${esc(t.question)}</span>
+    </button>`).join("") : `<p class="muted">还没有评过分的模考回答。在「口语模考」里答一题，再点「AI 评分」。</p>`;
+}
+function renderPartTabs() { $$("#partTabs .btn").forEach(b => b.classList.toggle("on", Number(b.dataset.part) === part)); }
+function showTab(id) {
+  tab = id;
+  setPref("speakingTab", id);
+  stopRecording(); stopModel();
+  $$("#tabs .btn").forEach(b => { b.classList.toggle("on", b.dataset.tab === id); b.setAttribute("aria-selected", b.dataset.tab === id); });
+  $("#shadowPanel").hidden = id !== "shadow";
+  $("#testPanel").hidden = id !== "test";
+  $("#historyPanel").hidden = id !== "history";
+  if (id === "shadow" && !sentences.length) loadSentences();
+  if (id === "test" && !question) newQuestion();
+  if (id === "history") renderHistory();
+}
+
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) showTab(b.dataset.tab); });
+$("#sourceTabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-source]");
+  if (!b || b.disabled) return;
+  source = b.dataset.source; setPref("speakingSource", source); renderSourceTabs(); loadSentences();
+});
+$("#partTabs").addEventListener("click", e => {
+  const b = e.target.closest("[data-part]");
+  if (!b) return;
+  stopRecording(); clearInterval(prepTimer); prepTimer = null;
+  part = Number(b.dataset.part); renderPartTabs(); newQuestion();
+});
+$("#hideText").addEventListener("change", () => { setPref("speakingHide", $("#hideText").checked ? "1" : "0"); showSentence(); });
+$("#sentText").addEventListener("click", () => $("#sentText").classList.remove("blurred"));
+$("#playModel").addEventListener("click", playSentence);
+$("#recShadow").addEventListener("click", toggleShadow);
+$("#playMine").addEventListener("click", () => lastShadowBlob && playBlob(lastShadowBlob));
+$("#nextSent").addEventListener("click", () => { stopRecording(); sentIndex = (sentIndex + 1) % Math.max(1, sentences.length); if (sentIndex === 0) loadSentences(); else showSentence(); });
+$("#hearQ").addEventListener("click", () => speak(question.part === 2 ? questionText() : question.list[question.i], 0.95));
+$("#recTest").addEventListener("click", toggleTest);
+$("#nextQ").addEventListener("click", () => {
+  stopRecording(); clearInterval(prepTimer); prepTimer = null; delete $("#recTest").dataset.ready;
+  if (question.part !== 2 && question.i + 1 < question.list.length) { question.i += 1; showQuestion(); }
+  else newQuestion();
+});
+$("#testHistory").addEventListener("click", e => {
+  const b = e.target.closest("[data-i]");
+  if (!b) return;
+  const t = info.tests[Number(b.dataset.i)];
+  $("#historyDetail").innerHTML = `<h3>Part ${t.part} · ${esc(t.question)}</h3>
+    ${t.rec ? `<audio controls preload="none" src="/api/speaking/rec/${encodeURIComponent(t.rec)}"></audio>` : ""}
+    <p class="speak-transcript">${esc(t.transcript)}</p>${t.stats?.wpm != null ? statsHtml({ unclear: [], ...t.stats }) : ""}${feedbackHtml(t.result)}`;
+  bindSample($("#historyDetail"));
+  $("#historyDetail").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (tab === "shadow") {
+    if (e.code === "Space") { e.preventDefault(); toggleShadow(); }
+    else if (e.key === "r" || e.key === "R") playSentence();
+    else if (e.key === "ArrowRight") $("#nextSent").click();
+  }
+});
+
+(async () => {
+  info = await api("/api/speaking");
+  if (!micOk) {
+    $("#micNote").hidden = false;
+    $("#micNote").textContent = window.isSecureContext
+      ? "这个浏览器不支持录音。请换用最新版 Chrome、Edge 或 Safari。"
+      : "通过局域网用手机打开时，浏览器只允许 HTTPS 页面使用麦克风。口语练习请在电脑上打开。";
+    $$(".speak-rec").forEach(b => { b.disabled = true; });
+  }
+  source = pref("speakingSource", info.videoSentences ? "video" : "passage");
+  if (!info.videoSentences) source = "passage";
+  $("#hideText").checked = pref("speakingHide", "0") === "1";
+  renderSourceTabs(); renderPartTabs(); renderToday();
+  showTab(["shadow", "test", "history"].includes(pref("speakingTab", "shadow")) ? pref("speakingTab", "shadow") : "shadow");
+})();
+</script>
+</body>
+</html>
