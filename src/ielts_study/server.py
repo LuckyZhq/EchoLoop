@@ -9,6 +9,7 @@ import shutil
 import threading
 import time
 import webbrowser
+from pathlib import Path
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlparse
@@ -124,6 +125,38 @@ def sidebar() -> dict:
         if len(recent) == 3:
             break
     return {"mistakes": len(list_mistakes()), "recent": recent}
+
+
+def code_fingerprint() -> str:
+    """Changes whenever a Python file of the app changes. Pages are read from disk on every request,
+    but Python code only takes effect after a restart, so the two can drift apart."""
+    import hashlib
+
+    h = hashlib.sha1()
+    package = Path(__file__).resolve().parent
+    for f in sorted([*package.glob("*.py"), *package.glob("*.json")]):
+        st = f.stat()
+        h.update(f"{f.name}:{st.st_mtime_ns}:{st.st_size};".encode())
+    return h.hexdigest()[:12]
+
+
+RUNNING_VERSION = code_fingerprint()
+
+
+def version_info() -> dict:
+    current = code_fingerprint()
+    return {"running": RUNNING_VERSION, "current": current, "stale": current != RUNNING_VERSION}
+
+
+def restart_in_place() -> None:
+    """Replace this process with a fresh one running the current code (same port, no new browser tab)."""
+    import os
+    import sys
+
+    time.sleep(0.3)  # let the HTTP response reach the page first
+    os.environ["IELTS_NO_BROWSER"] = "1"
+    args = [a for a in sys.argv if a != "--restart"]
+    os.execv(sys.executable, [sys.executable, *args])  # the listening socket is not inherited
 
 
 def home_stats() -> dict:
@@ -263,6 +296,8 @@ def make_handler(app: App):
                 return self._file(STATIC_DIR / "article.html", "text/html; charset=utf-8")
             if p == "/api/home":
                 return self._json(home_stats())
+            if p == "/api/version":
+                return self._json(version_info())
             if p == "/api/reading":
                 return self._json(reading.list_articles())
             if p.startswith("/api/reading/"):
@@ -373,6 +408,10 @@ def make_handler(app: App):
                     return self._json({"error": "请粘贴以 http(s):// 开头的视频链接"}, 400)
                 job = app.pipeline.submit(url, str(body.get("quality") or "720"), bool(body.get("overwrite")))
                 return self._json(job.to_json())
+            if p == "/api/restart":
+                self._json({"ok": True})
+                threading.Thread(target=restart_in_place, daemon=True).start()
+                return None
             if p == "/api/reading":
                 if not self._local_request():
                     return self._json({"error": "请求需要来自本机页面。"}, 403)
@@ -509,6 +548,20 @@ def _stop_running_instance() -> bool:
     return stopped
 
 
+def _running_is_stale(url: str) -> bool:
+    """True when the server on the port runs older code than this checkout (or predates /api/version)."""
+    from urllib.error import HTTPError
+    from urllib.request import urlopen
+
+    try:
+        with urlopen(url + "api/version", timeout=2) as response:
+            return json.loads(response.read()).get("running") != RUNNING_VERSION
+    except HTTPError as error:
+        return error.code == 404
+    except (OSError, ValueError):
+        return False
+
+
 def stop() -> int:
     """`ielts-study --stop`: quit the server that is running in the background (e.g. started by the desktop app)."""
     url = f"http://{HOST}:{PORT}/"
@@ -526,8 +579,11 @@ def main(open_browser: bool = True, restart: bool = False):
     LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
     print("IELTS Study 启动中…")
     url = f"http://{HOST}:{PORT}/"
-    if restart and _already_running(url) and _stop_running_instance():
-        print("已停止旧的 IELTS Study，正在用最新代码重新启动…")
+    if _already_running(url) and (restart or _running_is_stale(url)):
+        if not restart:
+            print("后台运行的是旧版本，正在换成最新代码…")
+        if _stop_running_instance():
+            print("已停止旧的 IELTS Study，正在用最新代码重新启动…")
     try:
         httpd = ThreadingHTTPServer((HOST, PORT), make_handler(App()))
     except OSError as error:
@@ -535,7 +591,6 @@ def main(open_browser: bool = True, restart: bool = False):
             raise
         if _already_running(url):
             print(f"IELTS Study 已经在运行：{url}")
-            print("如果改了代码要重启：uv run ielts-study --restart")
             if open_browser:
                 webbrowser.open(url)
             raise SystemExit(0) from None  # not an error: the page is open

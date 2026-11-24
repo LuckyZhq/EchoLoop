@@ -133,6 +133,32 @@ async function refreshSidebar() {
 }
 window.addEventListener("pageshow", event => { if (event.persisted) refreshSidebar(); });
 
+// Pages are read from disk on every request, but the server's Python code only changes after a restart.
+// When the code on disk is newer than the running server, offer the restart here.
+async function checkVersion() {
+  let info;
+  try { info = await api("/api/version"); } catch { return; }
+  if (!info.stale || $("#updateBar")) return;
+  const bar = document.createElement("div");
+  bar.id = "updateBar";
+  bar.className = "update-bar";
+  bar.setAttribute("role", "status");
+  bar.innerHTML = `<span>程序已更新，重启后台服务后生效。</span><button type="button" class="btn primary">立即重启</button>`;
+  const button = $("button", bar);
+  button.onclick = async () => {
+    button.disabled = true;
+    button.textContent = "正在重启…";
+    try { await api("/api/restart", { method: "POST" }); } catch { /* the server may already be going down */ }
+    for (let i = 0; i < 60; i++) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      try { if (!(await api("/api/version")).stale) { location.reload(); return; } } catch { /* still starting */ }
+    }
+    button.textContent = "重启没有完成，请重新打开 IELTS-study";
+  };
+  document.body.prepend(bar);
+}
+checkVersion();
+
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }

@@ -37,10 +37,12 @@ LOG="$APP_DIR/data/server.log"
 export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 running() { curl -s -I --max-time 2 "$URL" 2>/dev/null | grep -qi '^server: ielts-study'; }
+# Up to date = the server runs the code that is on disk now (older builds have no /api/version).
+fresh() { curl -s --max-time 2 "${URL}api/version" 2>/dev/null | grep -q '"stale": false'; }
 alert() { osascript -e "display alert \"IELTS-study\" message \"$1\" as critical" >/dev/null 2>&1; }
 
-# Already running: just open the page.
-if running; then open "$URL"; exit 0; fi
+# Already running the current code: just open the page. An older server is restarted by `ielts-study` below.
+if running && fresh; then open "$URL"; exit 0; fi
 
 [[ -d "$APP_DIR" ]] || { alert "找不到项目文件夹：$APP_DIR。移动过文件夹的话，在新位置运行 zsh assets/build_app.sh 重新生成启动器。"; exit 1; }
 command -v uv >/dev/null || { alert "找不到 uv，请先安装 uv。"; exit 1; }
@@ -51,7 +53,7 @@ cd "$APP_DIR"
 # Start in the background, detached from this launcher, and wait for the page to answer.
 PYTHONUNBUFFERED=1 IELTS_NO_BROWSER=1 nohup uv run ielts-study >> "$LOG" 2>&1 < /dev/null &!
 for i in {1..120}; do
-  if running; then open "$URL"; exit 0; fi
+  if running && fresh; then open "$URL"; exit 0; fi
   sleep 0.5
 done
 alert "启动超时（60 秒）。日志在：$LOG"

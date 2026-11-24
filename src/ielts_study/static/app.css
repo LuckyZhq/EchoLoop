@@ -65,6 +65,9 @@ button, select { cursor: pointer; }
 input[type="checkbox"] { accent-color: var(--button); }
 :where(button, a, select, input, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 [hidden] { display: none !important; }
+.update-bar { position: fixed; top: 12px; left: 16px; right: 16px; z-index: 100; display: flex; align-items: center; gap: 14px; width: fit-content; margin: 0 auto; padding: 8px 8px 8px 18px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); box-shadow: var(--floating-shadow); font-weight: 600; }
+.update-bar span { min-width: 0; }
+.update-bar .btn { flex: none; }
 
 .workspace { display: grid; grid-template-columns: 196px minmax(0, 1fr); min-height: 100vh; }
 .workspace-nav {
