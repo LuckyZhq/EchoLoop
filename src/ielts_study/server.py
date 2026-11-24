@@ -376,11 +376,20 @@ def make_handler(app: App):
                 return
             return self._json({"error": "not found"}, 404)
 
+        def _refuse_foreign(self) -> bool:
+            """Writes (POST / DELETE) are only accepted from this app's own pages on this computer.
+
+            Blocks other websites (a form or text/plain fetch needs no CORS preflight) and DNS rebinding."""
+            if self._local_request():
+                return False
+            self._json({"error": "请求需要来自本机页面。"}, 403)
+            return True
+
         def do_POST(self):
             p = urlparse(self.path).path
+            if self._refuse_foreign():
+                return None
             settings_routes = ("/api/settings", "/api/settings/test", "/api/settings/models")
-            if (p == "/api/import" or p in settings_routes) and not self._local_request():
-                return self._json({"error": "请求需要来自本机页面。"}, 403)
             body = self._body()
             if p in settings_routes:
                 if not body:
@@ -413,8 +422,6 @@ def make_handler(app: App):
                 threading.Thread(target=restart_in_place, daemon=True).start()
                 return None
             if p == "/api/reading":
-                if not self._local_request():
-                    return self._json({"error": "请求需要来自本机页面。"}, 403)
                 text = str(body.get("text") or "").strip()
                 if len(re.findall(r"[A-Za-z]+", text)) < 3:
                     return self._json({"error": "请粘贴一段英文文章。"}, 400)
@@ -423,15 +430,11 @@ def make_handler(app: App):
                 title = re.sub(r"\s+", " ", str(body.get("title") or "")).strip()[:120]
                 return self._json(reading.submit_article(app.pipeline, text, title).to_json())
             if p.startswith("/api/video/") and p.endswith("/retranslate"):
-                if not self._local_request():
-                    return self._json({"error": "请求需要来自本机页面。"}, 403)
                 vid = p.split("/")[3]
                 if not SAFE_ID.match(vid) or not (LIBRARY_DIR / vid / "data.json").exists():
                     return self._json({"error": "not found"}, 404)
                 return self._json(app.pipeline.retranslate(vid).to_json())
             if p == "/api/recent":
-                if not self._local_request():
-                    return self._json({"error": "请求需要来自本机页面。"}, 403)
                 vid = str(body.get("videoId") or "")
                 if not SAFE_ID.match(vid) or not (LIBRARY_DIR / vid / "data.json").exists():
                     return self._json({"error": "not found"}, 404)
@@ -442,8 +445,6 @@ def make_handler(app: App):
                 touch_recent(vid, t)
                 return self._json({"ok": True})
             if p.startswith("/api/dictation/"):
-                if not self._local_request():
-                    return self._json({"error": "请求需要来自本机页面。"}, 403)
                 vid = p.rsplit("/", 1)[1]
                 if not SAFE_ID.match(vid) or not (LIBRARY_DIR / vid / "data.json").exists():
                     return self._json({"error": "not found"}, 404)
@@ -491,6 +492,8 @@ def make_handler(app: App):
 
         def do_DELETE(self):
             p = unquote(urlparse(self.path).path)
+            if self._refuse_foreign():
+                return None
             if p.startswith("/api/vocab/"):
                 en = p[len("/api/vocab/") :].lower()
                 with _vocab_lock:
@@ -498,8 +501,6 @@ def make_handler(app: App):
                     save_vocab(items)
                 return self._json({"ok": True})
             if p.startswith("/api/reading/"):
-                if not self._local_request():
-                    return self._json({"error": "请求需要来自本机页面。"}, 403)
                 ok = reading.delete_article(p.rsplit("/", 1)[1])
                 return self._json({"ok": True}) if ok else self._json({"error": "not found"}, 404)
             if p.startswith("/api/video/"):
