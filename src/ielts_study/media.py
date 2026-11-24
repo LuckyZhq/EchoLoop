@@ -26,6 +26,34 @@ def ffmpeg_dir() -> Path:
     return bin_dir
 
 
+THUMB_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+
+
+def local_thumbnail(vdir: Path) -> Path | None:
+    return next((f for f in (vdir / f"thumb{ext}" for ext in THUMB_TYPES.values()) if f.is_file()), None)
+
+
+def save_thumbnail(url: str, vdir: Path) -> Path | None:
+    """Download the cover image into vdir as thumb.jpg/png/webp. Returns None if it can't be fetched."""
+    from urllib.request import Request, urlopen
+
+    if not url.startswith("https://"):
+        return None
+    try:
+        with urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=10) as r:
+            ext = THUMB_TYPES.get(r.headers.get_content_type())
+            body = r.read(3_000_001)
+    except OSError:
+        return None
+    if not ext or len(body) > 3_000_000:
+        return None
+    target = vdir / f"thumb{ext}"
+    tmp = target.with_suffix(".part")
+    tmp.write_bytes(body)
+    tmp.replace(target)
+    return target
+
+
 def _base_opts(log) -> dict:
     class _Logger:
         def debug(self, msg):

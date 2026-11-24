@@ -209,6 +209,7 @@ class Pipeline:
                     "created": int(time.time()),
                     "cues": cues,
                 }
+                media.save_thumbnail(data["thumbnail"], staged_video)  # so the library shows covers offline
                 (staged_video / "data.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
                 previous = staging / "previous"
                 if vdir.exists():
@@ -266,6 +267,24 @@ def friendly_error(msg: str) -> str:
     return msg
 
 
+_thumb_fetching: set[str] = set()
+
+
+def _thumbnail_url(vdir: Path, data: dict) -> str:
+    """The local copy of the cover when there is one. Videos imported before covers were saved locally
+    fetch theirs once in the background; until then the remote address is used."""
+    from .media import local_thumbnail, save_thumbnail
+
+    local = local_thumbnail(vdir)
+    if local:
+        return f"/media/{vdir.name}/{local.name}"
+    remote = data.get("thumbnail") or ""
+    if remote and vdir.name not in _thumb_fetching:
+        _thumb_fetching.add(vdir.name)
+        threading.Thread(target=save_thumbnail, args=(remote, vdir), daemon=True).start()
+    return remote
+
+
 def _file_size(f: Path) -> int:
     try:
         return f.stat().st_size if f.is_file() else 0
@@ -292,7 +311,7 @@ def list_library() -> list[dict]:
                 "title": data.get("title"),
                 "uploader": data.get("uploader"),
                 "duration": data.get("duration"),
-                "thumbnail": data.get("thumbnail"),
+                "thumbnail": _thumbnail_url(d, data),
                 "created": data.get("created", 0),
                 "cueCount": len(cues),
                 "phraseCount": sum(1 for c in cues if any(m["type"] == "phrase" for m in c.get("marks", []))),

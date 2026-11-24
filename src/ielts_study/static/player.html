@@ -658,6 +658,7 @@ document.addEventListener("keydown", e => {
   const translator = { api: "API 翻译", local: "本地翻译", "api+local": "API 翻译（部分改用本地）" }[data.translator] || "";
   $("#cueCount").textContent = [`${cues.length} 句字幕`, data.subtitleSource === "whisper" ? "本地识别" : "平台字幕", translator].filter(Boolean).join(" · ");
   video.src = `/media/${encodeURIComponent(vid)}/${encodeURIComponent(data.video)}`;
+  if (data.poster) video.poster = data.poster;  // shown before playing, and all the time for audio-only videos
   const vocab = await api("/api/vocab").catch(() => []);
   saved = new Set(vocab.map(v => v.en.toLowerCase()));
   dict.records = await api(`/api/dictation/${encodeURIComponent(vid)}`).catch(() => ({}));

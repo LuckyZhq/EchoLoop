@@ -338,7 +338,11 @@ def make_handler(app: App):
                 data = self._video_data(vid)
                 if not data:
                     return self._json({"error": "not found"}, 404)
-                return self._json(ensure_annotation(LIBRARY_DIR / vid, data, app.dic))
+                from .media import local_thumbnail
+
+                data = ensure_annotation(LIBRARY_DIR / vid, data, app.dic)
+                thumb = local_thumbnail(LIBRARY_DIR / vid)
+                return self._json({**data, "poster": f"/media/{vid}/{thumb.name}" if thumb else ""})
             if p.startswith("/api/dictation/"):
                 vid = p.rsplit("/", 1)[1]
                 if not SAFE_ID.match(vid):
@@ -346,7 +350,7 @@ def make_handler(app: App):
                 return self._json(load_dictation(vid))
             if p.startswith("/media/"):
                 parts = p.split("/")
-                if len(parts) == 4 and SAFE_ID.match(parts[2]) and re.match(r"^video\.\w+$", parts[3]):
+                if len(parts) == 4 and SAFE_ID.match(parts[2]) and re.match(r"^(video|thumb)\.\w+$", parts[3]):
                     return self._file(LIBRARY_DIR / parts[2] / parts[3])
                 return self._json({"error": "not found"}, 404)
             if p.startswith("/api/jobs/"):
