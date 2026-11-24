@@ -299,7 +299,7 @@ if (storageList) {
     const mode = btn.dataset.shrink;
     const title = $(".storage-title", item).textContent;
     const warn = mode === "audio" ? "播放器里将只有声音、没有画面。" : "画面会变得没那么清楚。";
-    if (!confirm(`「${title}」${SHRINK[mode]}？\n${warn}这一步不能撤销。`)) return;
+    if (!(await confirmDialog(`「${title}」${SHRINK[mode]}？`, { detail: `${warn}这一步不能撤销。`, ok: "压缩", danger: true }))) return;
     $$("button", item).forEach(b => { b.disabled = true; });
     try {
       let job = await api(`/api/video/${encodeURIComponent(item.dataset.id)}/shrink`, { method: "POST", body: { mode } });
@@ -311,7 +311,7 @@ if (storageList) {
       if (job.stage === "error") throw new Error(job.error || "压缩失败");
       toast(`已压缩：${fmtBytes(job.result.before)} → ${fmtBytes(job.result.after)}`);
     } catch (error) {
-      alert(error.message);
+      alertDialog(error.message);
     }
     loadStorage();
   });

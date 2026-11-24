@@ -874,5 +874,13 @@
  "播客音频下载失败：": "Podcast sesi indirilemedi: ",
  "播客音频下载失败：文件是空的": "Podcast sesi indirilemedi: dosya boş",
  "只下载到": "Yalnızca indirilen",
- "的试看片段（完整": "önizleme (tamamı"
+ "的试看片段（完整": "önizleme (tamamı",
+ "确定删除这个视频及其字幕吗？": "Bu videoyu ve alt yazılarını silmek istiyor musunuz?",
+ "错句和收藏的词句会保留，连同这几句的原声。": "Hatalarınız ve kaydettiğiniz sözcükler, bu cümlelerin sesiyle birlikte kalır.",
+ "确定删除这篇文章吗？": "Bu makaleyi silmek istiyor musunuz?",
+ "已收藏的词句会保留。": "Kaydettiğiniz sözcükler kalır.",
+ "取消": "İptal",
+ "确定": "Tamam",
+ "知道了": "Tamam",
+ "压缩": "Sıkıştır"
 }

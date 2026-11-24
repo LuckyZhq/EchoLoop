@@ -874,5 +874,13 @@
  "播客音频下载失败：": "Tải âm thanh podcast thất bại: ",
  "播客音频下载失败：文件是空的": "Tải âm thanh podcast thất bại: tệp trống",
  "只下载到": "Chỉ tải được",
- "的试看片段（完整": "đoạn xem trước (bản đầy đủ"
+ "的试看片段（完整": "đoạn xem trước (bản đầy đủ",
+ "确定删除这个视频及其字幕吗？": "Xóa video này và phụ đề của nó?",
+ "错句和收藏的词句会保留，连同这几句的原声。": "Các câu sai và từ đã lưu của bạn sẽ được giữ lại, cùng với âm thanh của những câu đó.",
+ "确定删除这篇文章吗？": "Xóa bài viết này?",
+ "已收藏的词句会保留。": "Các từ đã lưu của bạn sẽ được giữ lại.",
+ "取消": "Hủy",
+ "确定": "Đồng ý",
+ "知道了": "Đã hiểu",
+ "压缩": "Nén"
 }

@@ -874,5 +874,13 @@
  "播客音频下载失败：": "Error al descargar el audio del pódcast: ",
  "播客音频下载失败：文件是空的": "Error al descargar el audio del pódcast: el archivo está vacío",
  "只下载到": "Solo se descargó",
- "的试看片段（完整": "de la vista previa (duración completa"
+ "的试看片段（完整": "de la vista previa (duración completa",
+ "确定删除这个视频及其字幕吗？": "¿Eliminar este vídeo y sus subtítulos?",
+ "错句和收藏的词句会保留，连同这几句的原声。": "Tus errores y las palabras guardadas se conservan, junto con el audio de esas frases.",
+ "确定删除这篇文章吗？": "¿Eliminar este artículo?",
+ "已收藏的词句会保留。": "Tus palabras guardadas se conservan.",
+ "取消": "Cancelar",
+ "确定": "Aceptar",
+ "知道了": "Entendido",
+ "压缩": "Comprimir"
 }

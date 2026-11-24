@@ -874,5 +874,13 @@
  "播客音频下载失败：": "Falha ao baixar o áudio do podcast: ",
  "播客音频下载失败：文件是空的": "Falha ao baixar o áudio do podcast: o arquivo está vazio",
  "只下载到": "Só foi baixado",
- "的试看片段（完整": "da prévia (versão completa"
+ "的试看片段（完整": "da prévia (versão completa",
+ "确定删除这个视频及其字幕吗？": "Excluir este vídeo e as legendas dele?",
+ "错句和收藏的词句会保留，连同这几句的原声。": "Seus erros e palavras salvas permanecem, junto com o áudio dessas frases.",
+ "确定删除这篇文章吗？": "Excluir este artigo?",
+ "已收藏的词句会保留。": "Suas palavras salvas permanecem.",
+ "取消": "Cancelar",
+ "确定": "OK",
+ "知道了": "Entendi",
+ "压缩": "Compactar"
 }

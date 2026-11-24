@@ -161,7 +161,7 @@ document.addEventListener("click", async e => {
   if (o) { openPassage(o); return; }
   const d = e.target.closest("[data-del], .del");
   if (d) {
-    if (!confirm("确定删除这篇文章吗？已收藏的词句会保留。")) return;
+    if (!(await confirmDialog("确定删除这篇文章吗？", { detail: "已收藏的词句会保留。", ok: "删除", danger: true }))) return;
     await api(`/api/reading/${encodeURIComponent(d.dataset.del || d.dataset.id)}`, { method: "DELETE" });
     if (d.dataset.del) { graded = await api("/api/graded"); renderLevel(); } else loadList();
   }

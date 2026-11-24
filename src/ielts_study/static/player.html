@@ -437,7 +437,7 @@ async function retranslate() {
     showLanguageNotice($("#langNotice"), data.lang, "这个视频", retranslate);  // hides once the languages match
     toast("已重新翻译");
   } catch (e) {
-    alert(e.message);
+    alertDialog(e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = "↻ 重新翻译";

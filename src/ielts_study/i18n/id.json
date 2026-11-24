@@ -874,5 +874,13 @@
  "播客音频下载失败：": "Unduhan audio podcast gagal: ",
  "播客音频下载失败：文件是空的": "Unduhan audio podcast gagal: file-nya kosong",
  "只下载到": "Hanya mengunduh",
- "的试看片段（完整": "cuplikan (versi lengkap"
+ "的试看片段（完整": "cuplikan (versi lengkap",
+ "确定删除这个视频及其字幕吗？": "Hapus video ini dan subtitelnya?",
+ "错句和收藏的词句会保留，连同这几句的原声。": "Kesalahan dan kata yang Anda simpan tetap ada, beserta audio kalimat-kalimat itu.",
+ "确定删除这篇文章吗？": "Hapus artikel ini?",
+ "已收藏的词句会保留。": "Kata yang Anda simpan tetap ada.",
+ "取消": "Batal",
+ "确定": "OK",
+ "知道了": "Mengerti",
+ "压缩": "Kompres"
 }

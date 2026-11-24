@@ -111,7 +111,7 @@ async function retranslate() {
     render();
     toast("已重新翻译");
   } catch (e) {
-    alert(e.message);
+    alertDialog(e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = "↻ 重新翻译";

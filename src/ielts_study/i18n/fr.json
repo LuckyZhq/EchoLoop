@@ -874,5 +874,13 @@
  "播客音频下载失败：": "Échec du téléchargement de l'audio du podcast : ",
  "播客音频下载失败：文件是空的": "Échec du téléchargement de l'audio du podcast : le fichier est vide",
  "只下载到": "N'a téléchargé que",
- "的试看片段（完整": "l'aperçu (version intégrale"
+ "的试看片段（完整": "l'aperçu (version intégrale",
+ "确定删除这个视频及其字幕吗？": "Supprimer cette vidéo et ses sous-titres ?",
+ "错句和收藏的词句会保留，连同这几句的原声。": "Vos erreurs et les mots enregistrés restent, ainsi que le son de ces phrases.",
+ "确定删除这篇文章吗？": "Supprimer cet article ?",
+ "已收藏的词句会保留。": "Vos mots enregistrés restent.",
+ "取消": "Annuler",
+ "确定": "OK",
+ "知道了": "OK",
+ "压缩": "Compresser"
 }

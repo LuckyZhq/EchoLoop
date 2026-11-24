@@ -874,5 +874,13 @@
  "播客音频下载失败：": "Podcast audio download failed: ",
  "播客音频下载失败：文件是空的": "Podcast audio download failed: the file is empty",
  "只下载到": "Only downloaded",
- "的试看片段（完整": "of preview (full length"
+ "的试看片段（完整": "of preview (full length",
+ "确定删除这个视频及其字幕吗？": "Delete this video and its subtitles?",
+ "错句和收藏的词句会保留，连同这几句的原声。": "Your mistakes and saved words stay, along with the sound of those sentences.",
+ "确定删除这篇文章吗？": "Delete this article?",
+ "已收藏的词句会保留。": "Your saved words stay.",
+ "取消": "Cancel",
+ "确定": "OK",
+ "知道了": "OK",
+ "压缩": "Compress"
 }

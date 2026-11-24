@@ -896,3 +896,15 @@ mark.cloze-answer { padding: 0 3px; border-radius: 5px; background: var(--word-b
 /* members-only video: only the preview was downloaded */
 .preview-note { margin-top: 4px; color: var(--warn); font-size: 12px; font-weight: 600; }
 .player-preview { margin: -6px 0 12px; font-size: 13px; }
+
+/* confirm / alert dialogs, centred over a dimmed page */
+.app-dialog { width: min(420px, calc(100vw - 32px)); margin: auto; padding: 24px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: var(--panel-shadow), 0 24px 60px #0000002e; }
+.app-dialog::backdrop { background: #0a0f1a59; backdrop-filter: blur(2px); }
+.app-dialog[open] { animation: app-dialog-in .14s ease-out; }
+@keyframes app-dialog-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+.app-dialog-msg { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+.app-dialog-detail { margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; white-space: pre-line; overflow-wrap: anywhere; }
+.app-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.app-dialog-actions .btn { min-width: 84px; justify-content: center; }
+.btn.primary.danger { border-color: var(--bad); background: var(--bad); color: var(--surface); }
+@media (prefers-reduced-motion: reduce) { .app-dialog[open] { animation: none; } }

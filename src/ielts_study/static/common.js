@@ -467,8 +467,38 @@ async function confirmRetranslate(count, what) {
     : settings.engine === "api"
       ? `用 ${settings.model} 翻译成${target}，并按单词、短语对照。\n会按服务商价格计费。`
       : `用本地离线翻译翻成${target}（没有短语对照）。第一次用这种语言时会先下载它的离线翻译模型。`;
-  return confirm(`重新翻译${what}的 ${count} 句？\n${how}`);
+  return confirmDialog(`重新翻译${what}的 ${count} 句？`, { detail: how, ok: "重新翻译" });
 }
+
+// A dialog in the middle of the page (the browser's own confirm/alert sit at the top edge).
+// Resolves true for the main button; Esc, the backdrop and Cancel resolve false.
+function showDialog(message, { detail = "", ok = "确定", cancel = "取消", danger = false, alert = false } = {}) {
+  return new Promise(resolve => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "app-dialog";
+    dialog.innerHTML = `
+      <p class="app-dialog-msg"></p>
+      ${detail ? `<p class="app-dialog-detail"></p>` : ""}
+      <div class="app-dialog-actions">
+        ${alert ? "" : `<button type="button" class="btn" data-answer="0">${esc(cancel)}</button>`}
+        <button type="button" class="btn primary${danger ? " danger" : ""}" data-answer="1">${esc(ok)}</button>
+      </div>`;
+    $(".app-dialog-msg", dialog).textContent = message;
+    if (detail) $(".app-dialog-detail", dialog).textContent = detail;
+    let answer = false;
+    dialog.addEventListener("click", e => {
+      const b = e.target.closest("[data-answer]");
+      if (b) { answer = b.dataset.answer === "1"; dialog.close(); }
+      else if (e.target === dialog) dialog.close();  // a click on the backdrop
+    });
+    dialog.addEventListener("close", () => { dialog.remove(); resolve(answer); });
+    document.body.append(dialog);
+    dialog.showModal();
+    $("[data-answer='1']", dialog).focus();
+  });
+}
+function confirmDialog(message, options = {}) { return showDialog(message, options); }
+function alertDialog(message) { return showDialog(message, { alert: true, ok: "知道了" }); }
 
 // A bar saying the content was translated into another language than the learner's, with a button to switch.
 function showLanguageNotice(el, contentLang, what, onSwitch) {
