@@ -85,6 +85,13 @@
             <span class="select-wrap"><select class="btn" id="playbackSpeed" data-preference="speed"></select></span>
           </div>
           <div class="settings-row">
+            <label class="settings-label" for="ttsEngine"><span>朗读声音</span><small id="ttsState">神经语音在本机生成，听起来接近真人录音；第一次使用时下载模型（约 165 MB）</small></label>
+            <span class="settings-inline">
+              <button type="button" class="btn" id="ttsDownload" hidden>下载</button>
+              <span class="select-wrap"><select class="btn" id="ttsEngine" data-preference="ttsEngine"></select></span>
+            </span>
+          </div>
+          <div class="settings-row">
             <label class="settings-label" for="voiceAccent"><span>朗读口音</span><small id="voiceName">单词复习、错句本和文章里的朗读用这个口音。雅思录音以英式为主，四六级以美式为主</small></label>
             <span class="settings-inline">
               <button type="button" class="btn" id="voiceTry">▶ 试听</button>
@@ -233,7 +240,31 @@ window.addEventListener("pageshow", () => preferenceControls.forEach(showPrefere
 
 // 朗读口音: say which voice will be used, and let it be heard.
 if ($("#voiceTry")) {
+  const NEURAL_NAMES = { uk: "Kokoro · Emma（英式女声）", "uk-male": "Kokoro · George（英式男声）", us: "Kokoro · Heart（美式女声）" };
+  let timer = null;
+  const showEngine = async () => {
+    clearTimeout(timer);
+    let s;
+    try { s = await api("/api/tts/status"); } catch { return; }
+    ttsState = s;
+    const neural = readPreference("ttsEngine") === "neural";
+    $("#ttsDownload").hidden = !neural || !(s.status === "missing" || s.status === "error");
+    $("#ttsState").textContent = !neural ? "用电脑自带的语音朗读"
+      : s.status === "ready" ? "神经语音已就绪：在本机生成，听起来接近真人录音"
+      : s.status === "downloading" ? `正在下载神经语音模型… ${s.percent}%`
+      : s.status === "error" ? `下载失败：${s.error}`
+      : "神经语音在本机生成，听起来接近真人录音；第一次使用时下载模型（约 165 MB）";
+    if (s.status === "downloading") timer = setTimeout(showEngine, 1500);
+    else if (s.status === "ready") showVoice();
+  };
+  $("#ttsDownload").onclick = async () => { await api("/api/tts/download", { method: "POST" }); showEngine(); };
+  $("#ttsEngine").addEventListener("change", () => { showEngine(); showVoice(); });
+  showEngine();
   const showVoice = () => {
+    if (useNeural() && ttsState?.status === "ready") {
+      $("#voiceName").textContent = `使用：${NEURAL_NAMES[readPreference("voice")]}`;
+      return;
+    }
     const v = pickVoice();
     const natural = v && /Premium|Enhanced|Neural|Natural|Google/i.test(v.name);
     $("#voiceName").textContent = v

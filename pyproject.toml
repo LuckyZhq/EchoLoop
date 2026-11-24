@@ -17,6 +17,7 @@ dependencies = [
     "opencc-python-reimplemented>=0.1.7",
     "spacy>=3.8.18",
     "yt-dlp[default]>=2026.10.26",
+    "kokoro-onnx>=0.6.1",
 ]
 
 [project.scripts]

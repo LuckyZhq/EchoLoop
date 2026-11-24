@@ -892,5 +892,22 @@
  "使用：": "Suara: ",
  "。想要更自然的声音，可以在系统的语音设置里下载「增强」「高级」版本的英文语音，这里会自动选用。": ". Untuk suara yang lebih alami, unduh suara bahasa Inggris versi Enhanced atau Premium di pengaturan suara sistem Anda; suara tersebut akan digunakan secara otomatis.",
  "这台电脑没有这种口音的语音，会用默认的英文语音。": "Komputer ini tidak memiliki suara dengan aksen ini, jadi suara bahasa Inggris bawaan akan digunakan.",
- "再听一遍（R）": "Dengarkan lagi (R)"
+ "再听一遍（R）": "Dengarkan lagi (R)",
+ "英式男声 · 雅思": "Suara pria Britania · IELTS",
+ "神经语音（更自然）": "Suara neural (lebih alami)",
+ "系统语音": "Suara sistem",
+ "朗读声音": "Suara baca nyaring",
+ "神经语音在本机生成，听起来接近真人录音；第一次使用时下载模型（约 165 MB）": "Suara neural dihasilkan di komputer ini dan terdengar mirip rekaman asli; modelnya (sekitar 165 MB) diunduh saat pertama kali digunakan",
+ "用电脑自带的语音朗读": "Membaca dengan suara bawaan komputer Anda",
+ "神经语音已就绪：在本机生成，听起来接近真人录音": "Suara neural siap: dihasilkan di komputer ini, mirip rekaman asli",
+ "正在下载神经语音模型…": "Mengunduh model suara neural…",
+ "下载失败：": "Gagal mengunduh: ",
+ "正在下载神经语音（约 165 MB），下载好之前先用系统语音": "Mengunduh suara neural (sekitar 165 MB); suara sistem digunakan sampai siap",
+ "Kokoro · Emma（英式女声）": "Kokoro · Emma (wanita Britania)",
+ "Kokoro · George（英式男声）": "Kokoro · George (pria Britania)",
+ "Kokoro · Heart（美式女声）": "Kokoro · Heart (wanita Amerika)",
+ "神经语音模型下载失败，请检查网络后重试：": "Model suara neural tidak dapat diunduh. Periksa jaringan Anda dan coba lagi: ",
+ "神经语音模型还没下载": "Model suara neural belum diunduh",
+ "文件校验失败": "file gagal pemeriksaan checksum",
+ "神经语音": "Suara neural"
 }

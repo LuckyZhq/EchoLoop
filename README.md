@@ -91,6 +91,14 @@ Your browser opens <http://127.0.0.1:8765>. The first start installs dependencie
 Afterwards you can start it by double-clicking `scripts/IELTS-Study.bat` (Windows) or running `scripts/start.sh`
 (macOS / Linux). On a Mac, `zsh assets/build_app.sh` puts an IELTS-study app on your desktop.
 
+### Read-aloud voice
+
+Words and sentences are read aloud by a neural voice model, [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M), run on your
+computer: British (female or male) for IELTS, American for CET. Its model (about 165 MB) is downloaded from Hugging
+Face the first time something is read aloud (hf-mirror.com is tried if Hugging Face can't be reached; an interrupted
+download continues where it stopped); until then, and for the Australian accent, your system's voice is used.
+Choose the voice and accent in Settings → Playback.
+
 ### Speech recognition
 
 Used only when a video has no human-made English subtitles. The model is downloaded on first use.

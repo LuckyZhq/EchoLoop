@@ -892,5 +892,22 @@
  "使用：": "Giọng: ",
  "。想要更自然的声音，可以在系统的语音设置里下载「增强」「高级」版本的英文语音，这里会自动选用。": ". Để có giọng tự nhiên hơn, hãy tải giọng tiếng Anh Enhanced hoặc Premium trong phần cài đặt giọng nói của hệ thống; giọng đó sẽ được dùng tự động.",
  "这台电脑没有这种口音的语音，会用默认的英文语音。": "Máy tính này không có giọng đọc với chất giọng này, nên sẽ dùng giọng tiếng Anh mặc định.",
- "再听一遍（R）": "Nghe lại (R)"
+ "再听一遍（R）": "Nghe lại (R)",
+ "英式男声 · 雅思": "Giọng nam Anh · IELTS",
+ "神经语音（更自然）": "Giọng nơ-ron (tự nhiên hơn)",
+ "系统语音": "Giọng hệ thống",
+ "朗读声音": "Giọng đọc thành tiếng",
+ "神经语音在本机生成，听起来接近真人录音；第一次使用时下载模型（约 165 MB）": "Giọng nơ-ron được tạo trên máy tính này và nghe gần như bản ghi âm thật; mô hình của giọng (khoảng 165 MB) được tải xuống trong lần sử dụng đầu tiên",
+ "用电脑自带的语音朗读": "Đọc bằng giọng có sẵn của máy tính bạn",
+ "神经语音已就绪：在本机生成，听起来接近真人录音": "Giọng nơ-ron đã sẵn sàng: được tạo trên máy tính này, gần như bản ghi âm thật",
+ "正在下载神经语音模型…": "Đang tải mô hình giọng nơ-ron…",
+ "下载失败：": "Tải xuống thất bại: ",
+ "正在下载神经语音（约 165 MB），下载好之前先用系统语音": "Đang tải giọng nơ-ron (khoảng 165 MB); giọng hệ thống được dùng cho đến khi sẵn sàng",
+ "Kokoro · Emma（英式女声）": "Kokoro · Emma (nữ Anh)",
+ "Kokoro · George（英式男声）": "Kokoro · George (nam Anh)",
+ "Kokoro · Heart（美式女声）": "Kokoro · Heart (nữ Mỹ)",
+ "神经语音模型下载失败，请检查网络后重试：": "Không thể tải mô hình giọng nơ-ron. Hãy kiểm tra mạng và thử lại: ",
+ "神经语音模型还没下载": "Mô hình giọng nơ-ron chưa được tải xuống",
+ "文件校验失败": "tệp không khớp mã kiểm tra",
+ "神经语音": "Giọng nói neural"
 }

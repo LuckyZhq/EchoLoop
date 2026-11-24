@@ -892,5 +892,22 @@
  "使用：": "Ses: ",
  "。想要更自然的声音，可以在系统的语音设置里下载「增强」「高级」版本的英文语音，这里会自动选用。": ". Daha doğal bir ses için sisteminizin konuşma ayarlarından Gelişmiş veya Premium bir İngilizce ses indirin; otomatik olarak kullanılır.",
  "这台电脑没有这种口音的语音，会用默认的英文语音。": "Bu bilgisayarda bu aksana sahip bir ses yok, bu nedenle varsayılan İngilizce ses kullanılır.",
- "再听一遍（R）": "Tekrar dinle (R)"
+ "再听一遍（R）": "Tekrar dinle (R)",
+ "英式男声 · 雅思": "İngiliz erkek sesi · IELTS",
+ "神经语音（更自然）": "Nöral ses (daha doğal)",
+ "系统语音": "Sistem sesi",
+ "朗读声音": "Sesli okuma sesi",
+ "神经语音在本机生成，听起来接近真人录音；第一次使用时下载模型（约 165 MB）": "Nöral ses bu bilgisayarda oluşturulur ve gerçek bir kayda yakın duyulur; modeli (yaklaşık 165 MB) ilk kullanımda indirilir",
+ "用电脑自带的语音朗读": "Bilgisayarınızın kendi sesiyle okur",
+ "神经语音已就绪：在本机生成，听起来接近真人录音": "Nöral ses hazır: bu bilgisayarda oluşturulur, gerçek bir kayda yakın",
+ "正在下载神经语音模型…": "Nöral ses modeli indiriliyor…",
+ "下载失败：": "İndirme başarısız: ",
+ "正在下载神经语音（约 165 MB），下载好之前先用系统语音": "Nöral ses indiriliyor (yaklaşık 165 MB); hazır olana kadar sistem sesi kullanılır",
+ "Kokoro · Emma（英式女声）": "Kokoro · Emma (İngiliz kadın sesi)",
+ "Kokoro · George（英式男声）": "Kokoro · George (İngiliz erkek sesi)",
+ "Kokoro · Heart（美式女声）": "Kokoro · Heart (Amerikan kadın sesi)",
+ "神经语音模型下载失败，请检查网络后重试：": "Nöral ses modeli indirilemedi. Ağınızı kontrol edip yeniden deneyin: ",
+ "神经语音模型还没下载": "Nöral ses modeli henüz indirilmedi",
+ "文件校验失败": "dosya sağlama toplamı doğrulamasını geçemedi",
+ "神经语音": "Nöral ses"
 }

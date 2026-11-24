@@ -892,5 +892,22 @@
  "使用：": "Voice: ",
  "。想要更自然的声音，可以在系统的语音设置里下载「增强」「高级」版本的英文语音，这里会自动选用。": ". For a more natural voice, download an Enhanced or Premium English voice in your system's speech settings; it will be used automatically.",
  "这台电脑没有这种口音的语音，会用默认的英文语音。": "This computer has no voice with this accent, so the default English voice is used.",
- "再听一遍（R）": "Hear it again (R)"
+ "再听一遍（R）": "Hear it again (R)",
+ "英式男声 · 雅思": "British male · IELTS",
+ "神经语音（更自然）": "Neural voice (more natural)",
+ "系统语音": "System voice",
+ "朗读声音": "Read-aloud voice",
+ "神经语音在本机生成，听起来接近真人录音；第一次使用时下载模型（约 165 MB）": "The neural voice is generated on this computer and sounds close to a real recording; its model (about 165 MB) is downloaded the first time",
+ "用电脑自带的语音朗读": "Reads with your computer's own voice",
+ "神经语音已就绪：在本机生成，听起来接近真人录音": "Neural voice ready: generated on this computer, close to a real recording",
+ "正在下载神经语音模型…": "Downloading the neural voice model…",
+ "下载失败：": "Download failed: ",
+ "正在下载神经语音（约 165 MB），下载好之前先用系统语音": "Downloading the neural voice (about 165 MB); the system voice is used until it is ready",
+ "Kokoro · Emma（英式女声）": "Kokoro · Emma (British female)",
+ "Kokoro · George（英式男声）": "Kokoro · George (British male)",
+ "Kokoro · Heart（美式女声）": "Kokoro · Heart (American female)",
+ "神经语音模型下载失败，请检查网络后重试：": "The neural voice model could not be downloaded. Check your network and try again: ",
+ "神经语音模型还没下载": "The neural voice model has not been downloaded yet",
+ "文件校验失败": "the file failed its checksum",
+ "神经语音": "Neural voice"
 }

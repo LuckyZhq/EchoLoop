@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import graded, i18n, keep, languages, placement, plan, reading, review, wordbook
+from . import graded, i18n, keep, languages, placement, plan, reading, review, tts, wordbook
 from .settings import load_settings, save_settings, settings_from
 
 VOCAB_PATH = LIBRARY_DIR / "vocab.json"
@@ -456,6 +456,22 @@ def make_handler(app: App):
                 return self._json(reading.list_articles())
             if p == "/api/graded":
                 return self._json(graded.overview(i18n.load()["native"]))
+            if p == "/api/tts/status":
+                return self._json(tts.status())
+            if p == "/api/tts":  # a sentence read by the neural voice (WAV, cached)
+                q = parse_qs(urlparse(self.path).query)
+                try:
+                    audio = tts.synthesize((q.get("text") or [""])[0], (q.get("accent") or ["uk"])[0],
+                                           float((q.get("speed") or ["1"])[0]))
+                except (RuntimeError, ValueError) as error:
+                    return self._json({"error": str(error)}, 409 if not tts.ready() else 400)
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/wav")
+                self.send_header("Content-Length", str(len(audio)))
+                self.send_header("Cache-Control", "private, max-age=86400")
+                self.end_headers()
+                self.wfile.write(audio)
+                return None
             if p.startswith("/api/reading/"):
                 data = reading.load_article(p.rsplit("/", 1)[1])
                 if not data:
@@ -625,6 +641,8 @@ def make_handler(app: App):
                     return self._json({"error": f"文章太长了，请控制在 {reading.MAX_CHARS // 1000}k 字符以内，或分几次粘贴。"}, 400)
                 title = re.sub(r"\s+", " ", str(body.get("title") or "")).strip()[:120]
                 return self._json(reading.submit_article(app.pipeline, text, title).to_json())
+            if p == "/api/tts/download":
+                return self._json(tts.start_download())
             if p == "/api/graded/open":
                 out = graded.open_passage(app.pipeline, str(body.get("id") or ""))
                 return self._json(out, 404 if out.get("error") else 200)

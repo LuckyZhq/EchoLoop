@@ -146,6 +146,7 @@ function showCard() {
   $("#showBtn").hidden = false;
   $$(".grade").forEach(b => { $("small", b).textContent = card.preview[b.dataset.grade]; b.disabled = false; });
   const meet = firstMeet(card);
+  prefetchSpeech(card.sentence, 1);  // the neural voice: ready by the time the answer is shown
   $("#typeForm").hidden = meet;
   $("#bookActions").hidden = !meet;
   $("#showBtn").hidden = meet;

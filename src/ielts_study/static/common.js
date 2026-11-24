@@ -8,7 +8,8 @@ const preferenceOptions = {
   quality: [["480", "480p"], ["720", "720p"], ["1080", "1080p"], ["1440", "1440p"], ["2160", "2160p"], ["best", "最高可用"]],
   speed: ["0.6", "0.75", "0.9", "1", "1.25", "1.5"].map(rate => [rate, rate + "×"]),
   vocabLevel: [["5.5", "5.5 及以下"], ["6", "6 分"], ["6.5", "6.5 分"], ["7", "7 分"], ["7.5", "7.5 及以上"], ["general", "不限雅思"]],
-  voice: [["uk", "英式 · 雅思"], ["us", "美式 · 四六级"], ["au", "澳式"]],
+  voice: [["uk", "英式 · 雅思"], ["uk-male", "英式男声 · 雅思"], ["us", "美式 · 四六级"], ["au", "澳式"]],
+  ttsEngine: [["neural", "神经语音"], ["system", "系统语音"]],
 };
 const preferenceDefaults = {
   appearance: "system",
@@ -25,6 +26,7 @@ const preferenceDefaults = {
   gloss: true,
   nowColor: "green",
   voice: "uk",
+  ttsEngine: "neural",
 };
 
 // Continuous preferences: [min, max]. Stored as a string number.
@@ -529,6 +531,7 @@ function toast(msg) {
 // voices, Edge's Natural voices, then Chrome's Google voices, then the system's standard ones.
 const VOICE_ACCENTS = {
   uk: { lang: "en-GB", names: /Serena|Daniel|Kate|Arthur|Martha|Stephanie|Jamie|Oliver|Google UK|Sonia|Libby|Ryan|Maisie|Thomas/ },
+  "uk-male": { lang: "en-GB", names: /Daniel|Arthur|Oliver|Jamie|Google UK English Male|Ryan|Thomas/ },
   us: { lang: "en-US", names: /Ava|Zoe|Allison|Samantha|Evan|Tom|Nathan|Google US|Aria|Jenny|Guy|Michelle|Alex/ },
   au: { lang: "en-AU", names: /Karen|Lee|Matilda|Catherine|Natasha|William|Gordon/ },
 };
@@ -549,7 +552,45 @@ function pickVoice(accent = readPreference("voice")) {
 }
 if ("speechSynthesis" in window) speechSynthesis.getVoices();  // voices load asynchronously: start early
 
+// The neural voice (Kokoro, run by the local server) reads British and American English much more naturally than
+// system voices. Until its model is downloaded — the first use starts that — the system voice stands in.
+const NEURAL_ACCENTS = ["uk", "uk-male", "us"];
+const ttsAudio = new Audio();
+let ttsState = null, ttsCheckedAt = 0;
+async function neuralState() {
+  if (ttsState?.status === "ready" || Date.now() - ttsCheckedAt < 10000) return ttsState || { status: "unknown" };
+  ttsCheckedAt = Date.now();
+  try { ttsState = await api("/api/tts/status"); } catch { ttsState = { status: "error" }; }
+  return ttsState;
+}
+function useNeural() { return readPreference("ttsEngine") === "neural" && NEURAL_ACCENTS.includes(readPreference("voice")); }
+function speechUrl(text, rate) {
+  return `/api/tts?${new URLSearchParams({ text, accent: readPreference("voice"), speed: String(Math.round(rate * 100) / 100) })}`;
+}
+// Warm the server's cache for something about to be read (e.g. the next card's sentence).
+function prefetchSpeech(text, rate = 1) {
+  if (text && useNeural() && ttsState?.status === "ready") fetch(speechUrl(text, rate)).catch(() => {});
+}
+
 function speak(text, rate = 0.95) {
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  ttsAudio.pause();
+  if (!useNeural()) return systemSpeak(text, rate);
+  neuralState().then(state => {
+    if (state.status !== "ready") {
+      if (state.status === "missing") {
+        ttsState = { status: "downloading" };
+        api("/api/tts/download", { method: "POST" }).catch(() => {});
+        toast("正在下载神经语音（约 165 MB），下载好之前先用系统语音");
+      }
+      return systemSpeak(text, rate);
+    }
+    ttsAudio.src = speechUrl(text, rate);
+    ttsAudio.play().catch(() => systemSpeak(text, rate));
+  });
+}
+
+function systemSpeak(text, rate = 0.95) {
   if (!("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);

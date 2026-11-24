@@ -892,5 +892,22 @@
  "使用：": "Stimme: ",
  "。想要更自然的声音，可以在系统的语音设置里下载「增强」「高级」版本的英文语音，这里会自动选用。": ". Für eine natürlichere Stimme laden Sie in den Spracheinstellungen Ihres Systems eine englische Stimme in der Qualität „Erweitert“ oder „Premium“ herunter; sie wird automatisch verwendet.",
  "这台电脑没有这种口音的语音，会用默认的英文语音。": "Auf diesem Computer ist keine Stimme mit diesem Akzent verfügbar, daher wird die standardmäßige englische Stimme verwendet.",
- "再听一遍（R）": "Noch einmal anhören (R)"
+ "再听一遍（R）": "Noch einmal anhören (R)",
+ "英式男声 · 雅思": "Britisch, männlich · IELTS",
+ "神经语音（更自然）": "Neuronale Stimme (natürlicher)",
+ "系统语音": "Systemstimme",
+ "朗读声音": "Vorlesestimme",
+ "神经语音在本机生成，听起来接近真人录音；第一次使用时下载模型（约 165 MB）": "Die neuronale Stimme wird auf diesem Computer erzeugt und klingt fast wie eine echte Aufnahme; das Modell (etwa 165 MB) wird beim ersten Mal heruntergeladen",
+ "用电脑自带的语音朗读": "Liest mit der Stimme Ihres Computers",
+ "神经语音已就绪：在本机生成，听起来接近真人录音": "Neuronale Stimme bereit: auf diesem Computer erzeugt, nah an einer echten Aufnahme",
+ "正在下载神经语音模型…": "Das neuronale Stimmenmodell wird heruntergeladen…",
+ "下载失败：": "Download fehlgeschlagen: ",
+ "正在下载神经语音（约 165 MB），下载好之前先用系统语音": "Die neuronale Stimme wird heruntergeladen (etwa 165 MB); bis sie bereit ist, wird die Systemstimme verwendet",
+ "Kokoro · Emma（英式女声）": "Kokoro · Emma (britisch, weiblich)",
+ "Kokoro · George（英式男声）": "Kokoro · George (britisch, männlich)",
+ "Kokoro · Heart（美式女声）": "Kokoro · Heart (amerikanisch, weiblich)",
+ "神经语音模型下载失败，请检查网络后重试：": "Das neuronale Stimmenmodell konnte nicht heruntergeladen werden. Prüfen Sie Ihre Netzwerkverbindung und versuchen Sie es erneut: ",
+ "神经语音模型还没下载": "Das neuronale Stimmenmodell wurde noch nicht heruntergeladen",
+ "文件校验失败": "die Datei hat die Prüfsummenprüfung nicht bestanden",
+ "神经语音": "Neuronale Stimme"
 }
