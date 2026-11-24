@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>错句本</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap vocab-wrap">
+    <header class="hero page-heading">
+      <div>
+        <h1>错句本</h1>
+        <p>听写低于 90% 的句子都在这里。重练到 90% 以上会自动移出。</p>
+      </div>
+      <label class="btn mistakes-cover"><input type="checkbox" id="cover"> 遮住原文</label>
+    </header>
+    <div id="groups"></div>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+function scoreClass(score) { return score >= 0.6 ? "mid" : "low"; }
+
+function render(items) {
+  if (!items.length) {
+    $("#groups").innerHTML = `<div class="empty" style="margin-top:28px">还没有错句。在播放器里点「✎ 听写」开始练习。</div>`;
+    return;
+  }
+  const groups = new Map();
+  for (const m of items) {
+    if (!groups.has(m.videoId)) groups.set(m.videoId, { title: m.title, items: [] });
+    groups.get(m.videoId).items.push(m);
+  }
+  $("#groups").innerHTML = [...groups].map(([vid, g]) => {
+    const player = `/player/${encodeURIComponent(vid)}`;
+    g.items.sort((a, b) => a.i - b.i);
+    return `
+    <section class="mistake-group">
+      <div class="section-h">
+        <h2>${esc(g.title)}</h2><span class="muted">${g.items.length} 句</span>
+        <a class="btn primary mistake-all" href="${player}?t=${g.items[0].start}&dictate=wrong">✎ 重练这些错句</a>
+      </div>
+      <div class="vlist">${g.items.map(m => `
+        <article class="vitem mistake">
+          <div>
+            <div class="h">
+              <span class="mscore ${scoreClass(m.score)}">${Math.round(m.score * 100)}%</span>
+              <span class="muted mistake-meta">${fmtTime(m.start)} · 练了 ${m.tries} 次${m.best > m.score ? ` · 最好 ${Math.round(m.best * 100)}%` : ""}</span>
+            </div>
+            <div class="mistake-text">${esc(m.text)}</div>
+            ${m.zh ? `<div class="mistake-zh">${esc(m.zh)}</div>` : ""}
+          </div>
+          <div class="ops">
+            <button class="iconbtn" data-speak="${esc(m.text)}" title="朗读">🔊</button>
+            <a class="iconbtn" href="${player}?t=${m.start}&dictate=1">✎ 重练这句</a>
+          </div>
+          ${m.typed ? `<div class="sent">你写的：${esc(m.typed)}</div>` : ""}
+        </article>`).join("")}
+      </div>
+    </section>`;
+  }).join("");
+}
+
+$("#cover").addEventListener("change", e => document.body.classList.toggle("cover-answers", e.target.checked));
+document.addEventListener("click", e => {
+  const sp = e.target.closest("[data-speak]");
+  if (sp) speak(sp.dataset.speak);
+});
+api("/api/mistakes").then(render).catch(e => { $("#groups").innerHTML = `<p class="err">${esc(e.message)}</p>`; });
+</script>
+</body>
+</html>

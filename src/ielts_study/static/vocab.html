@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>收藏词句</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap vocab-wrap">
+  <header class="hero page-heading">
+    <div>
+      <h1>收藏词句</h1>
+      <p>看视频时收藏的单词和短语。点「原句」回到它出现的位置。</p>
+    </div>
+    <button class="btn" id="csv" title="导出为 CSV，可导入 Anki">⤓ 导出 CSV</button>
+  </header>
+  <div class="section-h">
+    <div class="tabs">
+      <button class="btn on" data-f="all">全部</button>
+      <button class="btn" data-f="phrase">短语</button>
+      <button class="btn" data-f="word">单词</button>
+    </div>
+    <span class="muted" id="count"></span>
+  </div>
+  <div class="vlist" id="list"></div>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+let items = [], filter = "all";
+function render() {
+  const shown = items.filter(v => filter === "all" || v.type === filter);
+  $("#count").textContent = `${shown.length} 条`;
+  $("#list").innerHTML = shown.length ? shown.map(v => `
+    <div class="vitem">
+      <div>
+        <div class="h"><b>${esc(v.en)}</b>${v.phonetic ? `<span class="muted" style="color:var(--muted);font-size:13px">/${esc(v.phonetic)}/</span>` : ""}
+          <span class="badge ${v.type}">${v.type === "phrase" ? "短语" : "单词"}</span></div>
+        <div>${esc(v.zh)}</div>
+        ${v.note ? `<div style="color:var(--muted);font-size:13px">${esc(v.note)}</div>` : ""}
+      </div>
+      <div class="ops">
+        <button class="iconbtn" data-speak="${esc(v.en)}">🔊</button>
+        ${v.videoId ? `<a class="iconbtn" href="/player/${encodeURIComponent(v.videoId)}?t=${v.time}">▶ 原句</a>` : ""}
+        ${v.articleId ? `<a class="iconbtn" href="/reading/${encodeURIComponent(v.articleId)}#s${v.sentenceIndex || 0}">▤ 原文</a>` : ""}
+        <button class="iconbtn" data-del="${esc(v.en)}">删除</button>
+      </div>
+      ${v.sentence ? `<div class="sent">${esc(v.sentence)}<br>${esc(v.sentenceZh || "")}</div>` : ""}
+    </div>`).join("") : `<div class="empty">这里暂时没有词句。</div>`;
+}
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-f]");
+  if (t) { filter = t.dataset.f; $$("[data-f]").forEach(b => b.classList.toggle("on", b === t)); render(); }
+  const sp = e.target.closest("[data-speak]");
+  if (sp) speak(sp.dataset.speak);
+  const d = e.target.closest("[data-del]");
+  if (d) { await api(`/api/vocab/${encodeURIComponent(d.dataset.del.toLowerCase())}`, { method: "DELETE" }); items = items.filter(v => v.en !== d.dataset.del); render(); }
+});
+$("#csv").onclick = () => {
+  const q = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const rows = [["英文", "音标", "中文", "说明", "例句", "例句翻译"], ...items.map(v => [v.en, v.phonetic, v.zh, v.note, v.sentence, v.sentenceZh])];
+  const blob = new Blob(["﻿" + rows.map(r => r.map(q).join(",")).join("\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "收藏词句.csv"; a.click();
+};
+api("/api/vocab").then(v => { items = v; render(); });
+</script>
+</body>
+</html>

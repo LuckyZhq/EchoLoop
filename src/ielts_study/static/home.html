@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IELTS Study</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap intro">
+    <!-- 首页：整个工具的介绍 + 每个功能的介绍。具体功能都在左侧各自的按钮里。 -->
+    <section class="intro-hero">
+      <div class="intro-hero-text">
+        <p class="intro-eyebrow">IELTS Study · 本机运行的雅思学习工作台</p>
+        <h1>把任何英文视频，变成一节<span class="intro-hl">雅思课</span>。</h1>
+        <p class="intro-lede">粘贴 YouTube、Bilibili 或 TED 链接，得到双语字幕：每个短语的中文就写在它下面，读到哪个词就亮哪个词。重点短语、雅思难词和听写练习一起生成。也可以粘贴英文文章逐句精读。</p>
+        <div class="intro-cta">
+          <a class="btn primary" href="/listening">开始视频精听 <span aria-hidden="true">→</span></a>
+          <a class="btn" href="/reading">文章精读</a>
+        </div>
+        <p class="intro-today" id="today" hidden></p>
+      </div>
+
+      <figure class="intro-screen" aria-label="字幕演示：短语对照和跟读高亮">
+        <div class="intro-screen-bar">
+          <span class="intro-rec" aria-hidden="true"></span>
+          <span class="intro-screen-title">Podcast · How I learn English on the go</span>
+          <button type="button" class="intro-play" id="play" aria-pressed="true">❚❚ 暂停演示</button>
+        </div>
+        <div class="intro-caption" id="caption"></div>
+        <p class="intro-sentence-zh">我通常在上班路上听播客，因为这能让我充分利用通勤时间。</p>
+        <div class="intro-card" role="note">
+          <b>commute</b><span class="intro-ph">/kəˈmjuːt/ · 雅思难词</span>
+          <span class="intro-card-zh">n. 通勤（路程）；vi. 上下班往返</span>
+          <span class="intro-tags">词频排名 6867 · 六级 / 考研 / 托福 / 雅思</span>
+        </div>
+      </figure>
+    </section>
+
+    <section class="intro-block" aria-labelledby="modulesTitle">
+      <div class="intro-head">
+        <div><p class="intro-eyebrow">功能</p><h2 id="modulesTitle">听力、单词、阅读，<br>用同一个词本串起来。</h2></div>
+        <p>在视频和文章里点到的生词都进同一个「收藏词句」，带着原句和翻译；听写没过关的句子自动进「错句本」。每个功能都在左侧栏里有自己的入口。</p>
+      </div>
+      <div class="intro-modules">
+        <article class="intro-module m-listen">
+          <h3>听力 <small>Listening</small></h3>
+          <p>导入视频后，在播放器里跟读、查词、听写。</p>
+          <ul>
+            <li>英文按单词和短语分段，中文写在对应短语的正下方</li>
+            <li>正在说的单词高亮，可选淡绿、淡黄、淡蓝</li>
+            <li>单句循环、自动暂停、0.6× 到 1.5× 变速</li>
+            <li>按 D 进入听写：边听边打，按词对比打分</li>
+            <li>平台有字幕就用平台字幕，没有就在本机用 Whisper 转写</li>
+          </ul>
+          <div class="intro-links"><a class="btn primary" href="/listening">视频精听</a><a class="btn" href="/mistakes">错句本</a></div>
+        </article>
+        <article class="intro-module m-words">
+          <h3>单词 <small>Vocabulary</small></h3>
+          <p>每个收藏都带着你遇到它的那句话。</p>
+          <ul>
+            <li>点任意单词查离线词典 ECDICT</li>
+            <li>重点短语来自精选口语表达和词典短语</li>
+            <li>点「原句」跳回视频的那一秒或文章的那一句</li>
+            <li>一键导出 CSV，可导入 Anki</li>
+          </ul>
+          <div class="intro-links"><a class="btn primary" href="/vocab">收藏词句</a></div>
+        </article>
+        <article class="intro-module m-read">
+          <h3>阅读 <small>Reading</small></h3>
+          <p>粘贴雅思阅读、新闻或范文，逐句精读。</p>
+          <ul>
+            <li>自动拆句、逐句翻译</li>
+            <li>按你的目标分数标出难词</li>
+            <li>点句末的「译」只看这一句的中文</li>
+            <li>按 C 切换逐句中英对照</li>
+          </ul>
+          <div class="intro-links"><a class="btn primary" href="/reading">文章精读</a></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="intro-block intro-levels" aria-labelledby="levelsTitle">
+      <div>
+        <p class="intro-eyebrow">词汇分级</p>
+        <h2 id="levelsTitle">选你的目标分数，<br>只标你还不会的词。</h2>
+        <p class="intro-muted">难词只从雅思词表里挑，再按词频排名过滤：目标越高，标出来的词越少、越难。换分数不用重新导入，所有视频和文章立刻更新。</p>
+        <div class="intro-bands" role="group" aria-label="目标分数">
+          <button type="button" class="intro-band" data-band="5.5">5.5<small>排名 &gt; 2500</small></button>
+          <button type="button" class="intro-band" data-band="6">6<small>排名 &gt; 3500</small></button>
+          <button type="button" class="intro-band" data-band="6.5">6.5<small>排名 &gt; 4500</small></button>
+          <button type="button" class="intro-band" data-band="7">7<small>排名 &gt; 6000</small></button>
+          <button type="button" class="intro-band" data-band="7.5">7.5<small>排名 &gt; 8000</small></button>
+        </div>
+        <p class="intro-muted intro-small">词频排名取自 ECDICT。播放器里每句最多标 2 个，优先标最难的。<a href="/settings/study">在设置里改目标分数</a></p>
+      </div>
+      <div class="intro-panel">
+        <p class="intro-label">示例句</p>
+        <p class="intro-sample" id="sample"></p>
+        <div class="intro-table-scroll">
+          <table class="intro-ranks">
+            <thead><tr><th>单词</th><th>释义</th><th class="num">词频排名</th><th class="num">标注</th></tr></thead>
+            <tbody id="ranks"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="intro-block" aria-labelledby="dictTitle">
+      <div class="intro-head">
+        <div><p class="intro-eyebrow">听写</p><h2 id="dictTitle">听一句，打一句，<br>错在哪里一眼看清。</h2></div>
+        <p>按词对齐你打的和原句。缩写、数字和英美拼写都按相同处理：<i>don't</i> 等于 <i>do not</i>，<i>colour</i> 等于 <i>color</i>。低于 90% 的句子进错句本，重练到 90% 以上自动移出。</p>
+      </div>
+      <div class="intro-dict">
+        <div class="intro-panel">
+          <p class="intro-label">你打的</p>
+          <p class="intro-typed">it help me make the most of my compute</p>
+          <p class="intro-label" style="margin-top:20px">对照原句</p>
+          <div class="intro-diff" aria-label="对照结果：9 个词里对了 7 个">
+            <span class="ok">It</span><span class="bad"><s>help</s><em>helps</em></span><span class="ok">me</span><span class="ok">make</span><span class="ok">the</span><span class="ok">most</span><span class="ok">of</span><span class="ok">my</span><span class="bad"><s>compute</s><em>commute</em></span>
+          </div>
+        </div>
+        <div class="intro-panel">
+          <p class="intro-label">这一句</p>
+          <div class="intro-score"><b>78%</b><span>9 个词对了 7 个</span></div>
+          <div class="intro-meter" aria-hidden="true"><i style="width:78%"></i></div>
+          <div class="intro-meter-legend"><span>0</span><span>过关线 90%</span></div>
+          <p class="intro-muted">没过关，已加入错句本。在错句本里点「重练这句」，播放器会跳到这一句，并先遮住原文。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="intro-block" aria-labelledby="stepsTitle">
+      <div class="intro-head">
+        <div><p class="intro-eyebrow">导入一个视频时</p><h2 id="stepsTitle">从链接到可以学，<br>一共五步。</h2></div>
+        <p>进度条会显示每一步。中途出错的话，已经下载和转写的部分不会丢：比如 API 某一批翻译失败，只把这一批改用本地翻译。</p>
+      </div>
+      <ol class="intro-steps">
+        <li><h3>读取视频信息</h3><p>标题、时长、可用的清晰度和字幕。</p></li>
+        <li><h3>下载视频</h3><p>用 yt-dlp 下载，清晰度上限在设置里选。</p></li>
+        <li><h3>获取英文字幕</h3><p>有人工字幕就直接用；没有就用 Whisper 在本机识别，并记下每个词的时间。</p></li>
+        <li><h3>翻译字幕</h3><p>本地离线翻译，或用你自己的 API Key 按短语对照翻译。</p></li>
+        <li><h3>标注重点</h3><p>分析句子结构，查词典，找出短语动词、固定搭配和雅思难词。</p></li>
+      </ol>
+    </section>
+
+    <section class="intro-block intro-local" aria-label="数据都在本机">
+      <div>
+        <h3>数据都在本机</h3>
+        <p>视频、字幕、听写成绩、文章和词本都存在项目文件夹里，没有账号，也不上传视频。</p>
+      </div>
+      <div>
+        <h3>可以完全离线</h3>
+        <p>选「本地翻译」时，转写、翻译、查词都不联网，只有下载视频需要网络。</p>
+      </div>
+      <div>
+        <h3>翻译模型由你选</h3>
+        <p>想要更好的翻译，可以接 DeepSeek、OpenAI 等服务商。只把字幕文字发给你选的服务商。<a href="/settings/translation">翻译设置</a></p>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+// ---------- subtitle demo: words light up one by one, each phrase's Chinese underneath
+const CHUNKS = [
+  ["I usually listen to podcasts", "我通常听播客"],
+  ["on my way to work", "在上班路上"],
+  ["because", "因为"],
+  ["it helps me", "这能让我"],
+  ["make the most of", "充分利用"],
+  ["my commute.", "通勤时间"],
+];
+const caption = $("#caption");
+let n = 0;
+caption.innerHTML = CHUNKS.map(([en, zh], c) => `<span class="intro-chunk"><span class="intro-en">${
+  en.split(" ").map(w => {
+    const bare = w.replace(/[^A-Za-z]/g, "").toLowerCase();
+    const cls = bare === "commute" ? " hard" : c === 4 ? " phr" : "";
+    return `<span class="intro-w${cls}" data-i="${n++}">${w}</span>`;
+  }).join(" ")}</span><span class="intro-zh">${zh}</span></span>`).join("");
+const demoWords = $$(".intro-w");
+let spoken = 11;  // resting frame: "make" is being spoken
+function light(i) {
+  demoWords.forEach(w => w.classList.toggle("now", +w.dataset.i === i));
+  $$(".intro-chunk").forEach(ch => ch.classList.toggle("now", !!ch.querySelector(`[data-i="${i}"]`)));
+}
+light(spoken);
+let timer = null;
+function play(on) {
+  clearInterval(timer);
+  timer = on ? setInterval(() => { spoken = (spoken + 1) % (demoWords.length + 3); light(spoken < demoWords.length ? spoken : -1); }, 430) : null;
+  $("#play").setAttribute("aria-pressed", on);
+  $("#play").textContent = on ? "❚❚ 暂停演示" : "▶ 播放演示";
+}
+$("#play").onclick = () => play(!timer);
+play(!matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+// ---------- band levels: real ECDICT ranks, same rule as the player (IELTS word rarer than the band's threshold)
+const WORDS = {
+  exacerbated: ["exacerbate", "使恶化，加剧", 7171],
+  congestion: ["congestion", "拥挤，堵塞", 8954],
+  foster: ["foster", "培养，促进", 4359],
+  commute: ["commute", "通勤", 6867],
+  mitigate: ["mitigate", "缓和，减轻", 8991],
+  pollution: ["pollution", "污染", 2147],
+};
+$("#sample").innerHTML = "Rapid urbanisation has exacerbated traffic congestion, so cities must foster greener ways to commute and mitigate pollution."
+  .replace(/[A-Za-z]+/g, w => WORDS[w] ? `<span class="k" data-w="${w}">${w}</span>` : w);
+function setBand(band) {
+  const limit = LEVEL_RANK[band];
+  $$(".intro-band").forEach(b => b.setAttribute("aria-pressed", b.dataset.band === band));
+  $$("#sample .k").forEach(k => k.classList.toggle("on", WORDS[k.dataset.w][2] > limit));
+  $("#ranks").innerHTML = Object.values(WORDS).sort((a, b) => b[2] - a[2]).map(([en, zh, rank]) => `
+    <tr class="${rank > limit ? "" : "off"}"><td>${en}</td><td>${zh}</td><td class="num">${rank.toLocaleString("en-US")}</td>
+    <td class="num"><span class="state">${rank > limit ? "标出" : "不标"}</span></td></tr>`).join("");
+}
+$$(".intro-band").forEach(b => b.addEventListener("click", () => setBand(b.dataset.band)));
+const myLevel = readPreference("vocabLevel");
+setBand(LEVEL_RANK[myLevel] ? myLevel : "6");  // start from the learner's own level
+
+// ---------- a one-line "today" note and a resume link, when there is history
+api("/api/home").then(s => {
+  const last = s.recent[0];
+  const parts = [`今天听写 ${s.dictatedToday} 句`, `收藏 ${s.savedToday} 个词句`];
+  if (s.mistakes) parts.push(`<a href="/mistakes">${s.mistakes} 句待重练</a>`);
+  if (last) parts.push(`继续上次：<a href="/player/${encodeURIComponent(last.id)}?t=${last.time}">${esc(last.title)}</a>`);
+  $("#today").innerHTML = parts.join(" · ");
+  $("#today").hidden = false;
+}).catch(() => {});
+</script>
+</body>
+</html>

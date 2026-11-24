@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设置</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap settings-wrap">
+    <header class="hero"><h1>设置</h1><p>按你的学习习惯调整外观、播放和 API。所有设置都只保存在这台电脑上。</p></header>
+    <div class="settings-layout">
+      <nav class="settings-index" aria-label="设置分类">
+        <a href="/settings/appearance"><b>外观</b><small>主题、字幕字号</small></a>
+        <a href="/settings/download"><b>下载</b><small>视频清晰度</small></a>
+        <a href="/settings/playback"><b>播放</b><small>倍速、字幕和高亮</small></a>
+        <a href="/settings/study"><b>学习</b><small>雅思词汇水平</small></a>
+        <a href="/settings/translation"><b>API</b><small>服务商和模型</small></a>
+      </nav>
+      <div class="settings-content"></div>
+      <template id="page-appearance">
+        <section class="settings-section" id="appearance" aria-labelledby="appearanceTitle">
+          <h2 id="appearanceTitle">外观</h2>
+          <p class="settings-lead">界面颜色和学习文字的大小。</p>
+          <div class="settings-row">
+            <label class="settings-label" for="theme"><span>界面主题</span><small>选「跟随系统」时会随 macOS 的浅色、深色自动切换</small></label>
+            <span class="select-wrap"><select class="btn" id="theme" data-preference="appearance"></select></span>
+          </div>
+          <div class="settings-row stack">
+            <label class="settings-label" for="textSize"><span>字幕字号</span><small>视频字幕、逐句原文、听写和错句本；点百分比恢复默认</small></label>
+            <span class="range-wrap">
+              <span class="range-end small" aria-hidden="true">A</span>
+              <input type="range" id="textSize" data-preference="textSize" min="0.8" max="1.8" step="0.05">
+              <span class="range-end big" aria-hidden="true">A</span>
+              <button type="button" class="range-value" id="textSizeValue" title="恢复默认大小"></button>
+            </span>
+          </div>
+          <div class="text-preview" aria-hidden="true">
+            <div class="text-preview-label">预览</div>
+            <div class="caption"><div class="en">I swear listening to podcasts is going to <mark class="phrase">improve</mark> your English.</div><div class="zh">我发誓听播客会提高你的英语水平。</div></div>
+          </div>
+          <p class="settings-help">整个页面要放大缩小，可以用浏览器的 ⌘+ / ⌘−。</p>
+        </section>
+      </template>
+
+      <template id="page-download">
+        <section class="settings-section" id="download" aria-labelledby="downloadTitle">
+          <h2 id="downloadTitle">下载</h2>
+          <p class="settings-lead">导入视频时下载的画质。不影响字幕和翻译。</p>
+          <div class="settings-row">
+            <label class="settings-label" for="downloadQuality"><span>视频清晰度上限</span><small>越高画面越清楚，文件也越大；720p 适合大多数学习场景</small></label>
+            <span class="select-wrap"><select class="btn" id="downloadQuality" data-preference="quality"></select></span>
+          </div>
+          <p class="settings-help" id="qualityHint" hidden>YouTube 的 1440p 及以上不提供 H.264 编码，会下载 VP9 或 AV1。Chrome 可以正常播放，Safari 可能无法播放。</p>
+        </section>
+      </template>
+
+      <template id="page-playback">
+        <section class="settings-section" id="playback" aria-labelledby="playbackTitle">
+          <h2 id="playbackTitle">播放</h2>
+          <p class="settings-lead">打开视频时的默认状态。播放器里用快捷键可以临时切换。</p>
+          <div class="settings-row">
+            <label class="settings-label" for="playbackSpeed"><span>默认倍速</span><small>听不清时可以先用 0.75× 精听</small></label>
+            <span class="select-wrap"><select class="btn" id="playbackSpeed" data-preference="speed"></select></span>
+          </div>
+          <label class="settings-row"><span class="settings-label"><span>显示中文字幕</span><small>播放器里按 C 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="zh"></label>
+          <label class="settings-row"><span class="settings-label"><span>高亮重点词句</span><small>重点短语和难词的底色，按 M 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="marks"></label>
+          <label class="settings-row"><span class="settings-label"><span>字幕跟随播放</span><small>右侧逐句原文自动滚到正在播放的那句</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="follow"></label>
+          <label class="settings-row"><span class="settings-label"><span>逐词中文释义</span><small>视频字幕里每个英文单词下面显示简短中文，按 G 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="gloss"></label>
+          <label class="settings-row"><span class="settings-label"><span>高亮正在读的单词</span><small>播放时标出读到哪个词</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="karaoke"></label>
+          <div class="settings-row">
+            <label class="settings-label" for="nowColor"><span>朗读高亮颜色</span><small>正在读的那个单词的底色</small></label>
+            <span class="select-wrap"><select class="btn" id="nowColor" data-preference="nowColor"></select></span>
+          </div>
+          <label class="settings-row"><span class="settings-label"><span>逐句暂停</span><small>每句播完自动暂停，适合跟读，按 P 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="autoPause"></label>
+          <label class="settings-row"><span class="settings-label"><span>单句循环</span><small>反复播放当前这一句，按 L 临时切换</small></span><input type="checkbox" role="switch" class="settings-switch" data-preference="loop"></label>
+        </section>
+      </template>
+
+      <template id="page-study">
+        <section class="settings-section" id="study" aria-labelledby="studyTitle">
+          <h2 id="studyTitle">学习</h2>
+          <p class="settings-lead">决定播放器里标出哪些难词。改了之后所有视频立即生效，不用重新导入。</p>
+          <div class="settings-row">
+            <label class="settings-label" for="vocabLevel"><span>词汇水平（雅思）</span><small>选你现在大约的雅思分数。只标出雅思词表里比这个水平更难的词，常见词默认你已认识；「不限雅思」按词频标出所有生僻词</small></label>
+            <span class="select-wrap wide"><select class="btn" id="vocabLevel" data-preference="vocabLevel"></select></span>
+          </div>
+        </section>
+      </template>
+
+      <template id="page-translation">
+        <form id="translation" class="settings-section" aria-labelledby="translationTitle">
+          <h2 id="translationTitle">API</h2>
+          <p class="settings-lead">选择导入视频时使用的字幕翻译服务。</p>
+          <fieldset id="settingsControls" disabled>
+            <fieldset id="providerPicker" class="provider-picker">
+              <legend class="visually-hidden">服务商</legend>
+              <section class="provider-box" aria-labelledby="ownedTitle">
+                <div class="provider-box-head"><h3 id="ownedTitle">已拥有</h3><small>点一下就切换，不用再填写。</small></div>
+                <div id="ownedProviders" class="provider-options"></div>
+              </section>
+              <section class="provider-box" aria-labelledby="otherTitle">
+                <div class="provider-box-head"><h3 id="otherTitle">未拥有</h3><small>选择后填写 API Key，保存后会移到「已拥有」。</small></div>
+                <div id="otherProviders" class="provider-options"></div>
+              </section>
+            </fieldset>
+
+            <div id="providerForm" class="provider-form" hidden>
+            <div id="apiFields" class="settings-grid">
+              <label class="settings-field" for="baseUrl">
+                <span>API 地址</span>
+                <input id="baseUrl" type="url" placeholder="https://api.example.com/v1" maxlength="2048" spellcheck="false" autocapitalize="none">
+              </label>
+              <label class="settings-field span-2" for="apiKey">
+                <span>API Key</span>
+                <input id="apiKey" type="password" placeholder="服务商需要时填写" maxlength="4096" autocomplete="off" spellcheck="false" aria-describedby="keyHint">
+                <small id="keyHint">密钥保存在这台电脑上。</small>
+                <a id="providerConsole" target="_blank" rel="noopener noreferrer" hidden>获取 API Key ↗</a>
+              </label>
+              <label id="removeKey" class="settings-check span-2" hidden><input type="checkbox" id="clearKey"> 保存时移除已保存的密钥</label>
+              <div class="settings-field">
+                <label id="modelLabel" for="model">模型名称</label>
+                <span id="modelPicker" class="select-wrap" hidden>
+                  <select id="modelSelect" aria-labelledby="modelLabel" aria-describedby="modelHint"></select>
+                </span>
+                <input id="model" type="text" placeholder="填写服务商提供的模型 ID" maxlength="200" spellcheck="false" autocapitalize="none" aria-labelledby="modelLabel" aria-describedby="modelHint">
+                <small id="modelHint" role="status"></small>
+              </div>
+            </div>
+
+            <p class="settings-help" id="externalHelp">测试连接会发送一条示例。翻译时只发送英文字幕文本。</p>
+            <div class="settings-actions">
+              <button type="button" id="cancelEdit" class="btn ghost" hidden>收起</button>
+              <button type="button" id="testApi" class="btn">测试连接</button>
+              <button type="submit" class="btn primary">保存 API 设置</button>
+            </div>
+            </div>
+          </fieldset>
+          <p id="settingsStatus" class="settings-status" role="status" aria-live="polite"></p>
+        </form>
+      </template>
+    </div>
+  </main>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+const settingsLinks = $$(".settings-index a");
+const currentPath = location.pathname.replace(/\/+$/, "");
+const oldSection = location.hash.slice(1);
+const requestedPath = currentPath === "/settings"
+  ? "/settings/" + (oldSection === "agent" ? "translation" : oldSection)
+  : currentPath;
+const activeLink = settingsLinks.find(link => link.pathname === requestedPath) || settingsLinks[0];
+const section = activeLink.pathname.split("/").pop();
+activeLink.setAttribute("aria-current", "page");
+document.title = (activeLink.querySelector("b") || activeLink).textContent + " · 设置";
+$(".settings-content").append($("#page-" + section).content.cloneNode(true));
+if (location.pathname !== activeLink.pathname || location.hash) {
+  history.replaceState(history.state, "", activeLink.pathname + location.search);
+}
+
+const preferenceControls = $$("[data-preference]");
+function showPreference(control) {
+  const value = readPreference(control.dataset.preference);
+  if (control.type === "checkbox") control.checked = value;
+  else control.value = value;
+  if (control.dataset.preference === "textSize") {
+    const percent = Math.round(Number(value) * 100) + "%";
+    control.setAttribute("aria-valuetext", percent);
+    $("#textSizeValue").textContent = percent;
+    $("#textSizeValue").classList.toggle("is-default", value === "1");
+  }
+  if (control.dataset.preference === "quality") {
+    $("#qualityHint").hidden = !["1440", "2160", "best"].includes(value);
+  }
+}
+
+for (const control of preferenceControls) {
+  const name = control.dataset.preference;
+  const options = preferenceOptions[name];
+  if (options) control.replaceChildren(...options.map(([value, label]) => new Option(label, value)));
+  showPreference(control);
+  if (control.type === "range") {
+    // Live update while dragging; the "change" handler below saves and confirms on release.
+    control.addEventListener("input", () => {
+      try { localStorage.setItem(name, control.value); } catch {}
+      applyAppearance();
+      showPreference(control);
+    });
+  }
+  control.addEventListener("change", () => {
+    const value = control.type === "checkbox" ? (control.checked ? "1" : "0") : control.value;
+    try {
+      localStorage.setItem(name, value);
+      if (name === "appearance" || name === "textSize" || name === "nowColor") applyAppearance();
+      toast("偏好已保存");
+    } catch {
+      toast("无法保存偏好");
+    }
+    showPreference(control);
+  });
+}
+window.addEventListener("pageshow", () => preferenceControls.forEach(showPreference));
+window.addEventListener("storage", event => {
+  for (const control of preferenceControls) {
+    if (event.key === null || event.key === control.dataset.preference) showPreference(control);
+  }
+});
+
+const textSizeReset = $("#textSizeValue");
+if (textSizeReset) textSizeReset.onclick = () => {
+  const slider = $("#textSize");
+  slider.value = "1";
+  slider.dispatchEvent(new Event("change"));
+};
+
+const form = $("#translation");
+if (form) {
+  const controls = $("#settingsControls");
+  const providerPicker = $("#providerPicker");
+  const ownedProviders = $("#ownedProviders");
+  const otherProviders = $("#otherProviders");
+  const baseUrl = $("#baseUrl");
+  const apiKey = $("#apiKey");
+  const model = $("#model");
+  const modelSelect = $("#modelSelect");
+  const modelPicker = $("#modelPicker");
+  const modelHint = $("#modelHint");
+  const clearKey = $("#clearKey");
+  let savedSettings;
+  let provider;
+  let modelsRequest;
+  let modelsTimer;
+  let keepModel = false;
+  let committedAddress = "";
+
+  function showMessage(message, error = false) {
+    const status = $("#settingsStatus");
+    status.textContent = message;
+    status.classList.toggle("err", error);
+  }
+
+  function normalizeAddress(value) {
+    return value.trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, "").replace(/\/+$/, "");
+  }
+
+  function showModelInput(manual) {
+    model.hidden = !manual;
+    $("#modelLabel").htmlFor = manual ? "model" : "modelSelect";
+  }
+
+  function resetModelPicker() {
+    clearTimeout(modelsTimer);
+    modelsRequest?.abort();
+    modelsRequest = null;
+    modelPicker.hidden = true;
+    showModelInput(true);
+    modelHint.textContent = "";
+  }
+
+  async function refreshModels() {
+    resetModelPicker();
+    if (!provider) return;
+    const address = normalizeAddress(baseUrl.value);
+    if (!address || !baseUrl.validity.valid) {
+      modelHint.textContent = "填写有效的 API 地址后可自动获取模型。";
+      return;
+    }
+    const key = apiKey.value.trim();
+    const canUseSavedKey = provider.hasApiKey && address === normalizeAddress(provider.baseUrl) && !clearKey.checked;
+    if (clearKey.checked || (!key && !canUseSavedKey && provider.id !== "custom")) {
+      modelHint.textContent = "填写 API Key 后可自动获取模型。";
+      return;
+    }
+
+    const request = new AbortController();
+    modelsRequest = request;
+    modelHint.textContent = "正在获取模型…";
+    try {
+      const {models} = await api("/api/settings/models", {
+        method: "POST",
+        body: {provider: provider.id, baseUrl: address, apiKey: key},
+        signal: request.signal,
+      });
+      if (request.signal.aborted) return;
+      if (!models.length) {
+        modelHint.textContent = "未找到可用于字幕翻译的文本模型。可以手动填写模型 ID。";
+        return;
+      }
+      const placeholder = new Option("选择一个模型", "");
+      placeholder.disabled = true;
+      const manual = new Option("手动输入模型 ID…", "");
+      modelSelect.replaceChildren(placeholder, ...models.map(({id, name}) => new Option(
+        name && name.toLowerCase() !== id.toLowerCase() ? `${name} · ${id}` : id, id
+      )), manual);
+      const matches = models.some(({id}) => id === model.value.trim());
+      const keepManual = !matches && keepModel && Boolean(model.value.trim());
+      if (keepManual) manual.selected = true;
+      else modelSelect.value = matches ? model.value.trim() : "";
+      if (!keepManual) model.value = modelSelect.value;
+      modelPicker.hidden = false;
+      showModelInput(keepManual);
+      modelHint.textContent = keepManual
+        ? "当前模型未出现在列表中。可以保留手动输入，或从列表重新选择。"
+        : `已筛出 ${models.length} 个文本模型。`;
+    } catch (error) {
+      if (!request.signal.aborted) modelHint.textContent = `${error.message} 可以手动填写模型 ID。`;
+    }
+  }
+
+  function scheduleModels() {
+    resetModelPicker();
+    modelsTimer = setTimeout(refreshModels, 450);
+  }
+
+  // A provider is "owned" once it has a saved key (custom APIs may need no key: a saved address and model is enough).
+  const isOwned = item => item.hasApiKey || (item.id === "custom" && item.hasSavedModel && Boolean(item.baseUrl));
+  const modelLists = {};  // provider id → [{id, name}] from the provider, for the inline model menu
+  let editing = null;     // owned provider whose address / key form is open via 修改
+
+  // Close the form without saving: the selection goes back to the provider in use.
+  function closeForm() {
+    editing = null;
+    showMessage("");
+    form.elements.engine.value = activeValue(savedSettings);
+    updateProvider();
+  }
+
+  function activeValue(settings) {
+    return settings.engine === "api" ? settings.provider : "local";
+  }
+
+  // The address / key / model form appears only when something has to be filled in:
+  // a provider you don't own yet, or an owned one you chose to 修改.
+  function updateProvider() {
+    const selected = form.elements.engine.value;
+    provider = savedSettings.providers.find(item => item.id === selected);
+    const showForm = Boolean(provider) && (!isOwned(provider) || editing === provider.id);
+    const formBox = $("#providerForm");
+    formBox.hidden = !showForm;
+    $("#cancelEdit").hidden = !showForm;
+    $$(".provider-option").forEach(row => row.classList.toggle("open", showForm && row.dataset.id === selected));
+    for (const input of $$("#apiFields input")) input.disabled = !showForm;
+    if (showForm) {
+      $(`.provider-option[data-id="${selected}"]`)?.after(formBox);
+      baseUrl.value = provider.baseUrl;
+      committedAddress = normalizeAddress(baseUrl.value);
+      model.value = provider.model;
+      keepModel = provider.hasSavedModel;
+      apiKey.value = "";
+      clearKey.checked = false;
+      $("#removeKey").hidden = !provider.hasApiKey;
+      $("#keyHint").textContent = provider.hasApiKey
+        ? "此服务商的密钥已保存。沿用相同地址时，留空即可继续使用。"
+        : "密钥保存在这台电脑上。";
+      const consoleLink = $("#providerConsole");
+      consoleLink.hidden = !provider.console;
+      if (provider.console) consoleLink.href = provider.console;
+      refreshModels();
+    } else {
+      resetModelPicker();
+    }
+  }
+
+  function modelLabel({id, name}) {
+    if (!name) return id;
+    const pretty = name.replace(/[-_]+/g, " ");  // "DeepSeek-V4-Pro" → "DeepSeek V4 Pro"
+    return name.toLowerCase() === id.toLowerCase() ? pretty : `${pretty} · ${id}`;
+  }
+
+  function fillModelMenu(select, item) {
+    const models = [...(modelLists[item.id] || [])];
+    if (item.model && !models.some(m => m.id === item.model)) models.unshift({id: item.model, name: ""});
+    select.replaceChildren(...models.map(m => new Option(modelLabel(m), m.id)));
+    select.value = item.model;
+  }
+
+  async function loadModelList(item, select) {
+    if (modelLists[item.id]) return;
+    try {
+      const {models} = await api("/api/settings/models", {method: "POST", body: {provider: item.id, baseUrl: item.baseUrl}});
+      modelLists[item.id] = models;
+      if (select.isConnected) fillModelMenu(select, item);
+    } catch { /* keep just the saved model */ }
+  }
+
+  // Owned providers and 本地翻译 switch at once, like the picker on the import page.
+  async function quickSave(body, label) {
+    controls.disabled = true;
+    showMessage("正在切换…");
+    try {
+      render(await api("/api/settings", {method: "POST", body}));
+      showMessage(`已切换为 ${label}，将用于下一次翻译。`);
+    } catch (error) {
+      showMessage(error.message, true);
+      render(savedSettings);
+    } finally {
+      controls.disabled = false;
+    }
+  }
+
+  function createProviderOption(item) {
+    const {id, name} = item;
+    const owned = id === "local" || isOwned(item);
+    const row = document.createElement("div");
+    row.className = "provider-option";
+    row.dataset.id = id;
+    const main = document.createElement("label");
+    main.className = "provider-main";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "engine";
+    radio.value = id;
+    const title = document.createElement("span");
+    title.className = "provider-name";
+    title.textContent = name;
+    main.append(radio, title);
+    row.append(main);
+    // The row is a switch: clicking it again while its form is open closes the form.
+    main.addEventListener("click", event => {
+      const formBox = $("#providerForm");
+      if (radio.checked && !formBox.hidden && formBox.previousElementSibling === row) {
+        event.preventDefault();
+        closeForm();
+      }
+    });
+    if (!owned) {
+      const chevron = document.createElement("span");
+      chevron.className = "provider-chevron";
+      chevron.setAttribute("aria-hidden", "true");
+      main.append(chevron);
+    }
+    if (id === activeValue(savedSettings)) {
+      const badge = document.createElement("span");
+      badge.className = "provider-badge";
+      badge.textContent = "正在使用";
+      main.append(badge);
+    }
+    if (owned && id !== "local") {
+      const wrap = document.createElement("span");
+      wrap.className = "select-wrap provider-model";
+      const select = document.createElement("select");
+      select.className = "btn";
+      select.setAttribute("aria-label", `${name} 使用的模型`);
+      fillModelMenu(select, item);
+      select.onchange = () => {
+        radio.checked = true;
+        quickSave({engine: "api", provider: id, model: select.value}, select.selectedOptions[0].text.split(" · ")[0]);
+      };
+      wrap.append(select);
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "btn ghost provider-edit";
+      edit.textContent = "修改";
+      edit.title = "修改地址或 API Key";
+      edit.onclick = () => {
+        editing = editing === id ? null : id;
+        radio.checked = true;
+        showMessage("");
+        updateProvider();
+      };
+      row.append(wrap, edit);
+      loadModelList(item, select);
+    }
+    return row;
+  }
+
+  function render(settings) {
+    savedSettings = settings;
+    editing = null;
+    controls.append($("#providerForm"));  // park the form before rebuilding the rows
+    const owned = settings.providers.filter(isOwned);
+    const others = settings.providers.filter(item => !isOwned(item));
+    ownedProviders.replaceChildren(...owned.map(createProviderOption), createProviderOption({id: "local", name: "本地翻译（离线）"}));
+    otherProviders.replaceChildren(...others.map(createProviderOption));
+    otherProviders.closest(".provider-box").hidden = !others.length;
+    form.elements.engine.value = activeValue(settings);
+    updateProvider();
+  }
+
+  async function submit(test) {
+    if (controls.disabled || !form.reportValidity()) return;
+    const selection = form.elements.engine.value;
+    const body = {engine: selection === "local" ? "local" : "api"};
+    if (body.engine === "api") {
+      if (!model.value.trim()) {
+        showMessage("请选择或填写模型名称。", true);
+        (model.hidden ? modelSelect : model).focus();
+        return;
+      }
+      body.provider = selection;
+      body.baseUrl = baseUrl.value;
+      body.model = model.value;
+      body.apiKey = apiKey.value;
+      body.clearKey = !test && clearKey.checked;
+    }
+    controls.disabled = true;
+    showMessage(test ? "正在测试连接…" : "正在保存…");
+    try {
+      const settings = await api(test ? "/api/settings/test" : "/api/settings", {method: "POST", body});
+      if (!test) render(settings);  // a newly saved provider moves to 已拥有 and the form closes
+      showMessage(test ? "连接成功，可以保存设置。" : "设置已保存，将用于下一次翻译。");
+    } catch (error) {
+      showMessage(error.message, true);
+    } finally {
+      controls.disabled = false;
+    }
+  }
+
+  baseUrl.oninput = () => {
+    const address = normalizeAddress(baseUrl.value);
+    if (address !== committedAddress) apiKey.value = "";
+    committedAddress = address;
+    scheduleModels();
+  };
+  apiKey.oninput = scheduleModels;
+  clearKey.onchange = refreshModels;
+  model.oninput = () => { keepModel = true; };
+  modelSelect.onchange = () => {
+    keepModel = true;
+    showModelInput(!modelSelect.value);
+    if (modelSelect.value) {
+      model.value = modelSelect.value;
+      modelHint.textContent = "";
+    } else {
+      modelHint.textContent = "填写服务商提供的模型 ID。";
+      model.focus();
+    }
+  };
+  providerPicker.onchange = event => {
+    if (event.target.name !== "engine") return;  // the inline model menus save on their own
+    showMessage("");
+    editing = null;
+    const choice = event.target.value;
+    const item = savedSettings.providers.find(entry => entry.id === choice);
+    if (choice === "local") return quickSave({engine: "local"}, "本地翻译");
+    if (item && isOwned(item)) return quickSave({engine: "api", provider: choice, model: item.model}, item.name);
+    updateProvider();  // not owned yet: open the form under this row
+  };
+  $("#cancelEdit").onclick = closeForm;
+  $("#testApi").onclick = () => submit(true);
+  form.onsubmit = event => { event.preventDefault(); submit(false); };
+  api("/api/settings").then(settings => {
+    render(settings);
+    controls.disabled = false;
+  }).catch(error => showMessage(error.message, true));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文章精读</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap home-wrap">
+    <section class="import-panel" aria-labelledby="readingTitle">
+      <header class="hero">
+        <h1 id="readingTitle">文章精读</h1>
+        <p>粘贴一篇英文文章（雅思阅读、新闻、范文都可以），逐句翻译并标出重点短语和难词。</p>
+      </header>
+      <form class="reading-form" id="form">
+        <input id="title" type="text" maxlength="120" placeholder="标题（可不填）" aria-label="文章标题" autocomplete="off">
+        <textarea id="text" rows="9" placeholder="在这里粘贴英文文章。段落之间空一行或换行即可。" aria-label="英文文章" spellcheck="false"></textarea>
+        <div class="reading-actions">
+          <span class="hint" id="engineHint"></span>
+          <span class="hint" id="count"></span>
+          <button type="submit" class="btn primary" id="go">开始精读 <span aria-hidden="true">→</span></button>
+        </div>
+      </form>
+      <div class="err" id="formErr" role="status"></div>
+      <div class="reading-job" id="job" hidden></div>
+    </section>
+
+    <div class="section-h"><h2>我的文章</h2><span class="muted" id="libCount"></span></div>
+    <div class="article-list" id="list"></div>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+const textBox = $("#text");
+function updateCount() {
+  const words = (textBox.value.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length;
+  $("#count").textContent = words ? `${words} 词` : "";
+}
+textBox.addEventListener("input", updateCount);
+
+async function loadEngine() {
+  try {
+    const s = await api("/api/settings");
+    $("#engineHint").innerHTML = s.engine === "api"
+      ? `翻译：${esc(s.model)} · <a href="/settings/translation">更换</a>`
+      : `翻译：本地（离线） · <a href="/settings/translation">改用 API</a>`;
+  } catch { /* hint stays empty */ }
+}
+
+async function loadList() {
+  const items = await api("/api/reading");
+  $("#libCount").textContent = items.length ? `${items.length} 篇` : "";
+  $("#list").innerHTML = items.length ? items.map(a => `
+    <article class="article-item">
+      <a class="article-link" href="/reading/${encodeURIComponent(a.id)}">
+        <b>${esc(a.title)}</b>
+        <span class="article-preview">${esc(a.preview)}</span>
+        <span class="article-meta">${a.wordCount} 词 · ${a.sentenceCount} 句 · ${a.translator === "local" ? "本地翻译" : "API 翻译"} · ${new Date(a.created * 1000).toLocaleDateString("zh-CN")}</span>
+      </a>
+      <button type="button" class="del iconbtn" data-id="${esc(a.id)}" aria-label="删除 ${esc(a.title)}">删除</button>
+    </article>`).join("") : `<div class="empty">还没有文章。粘贴一篇英文文章开始精读。</div>`;
+}
+
+$("#list").addEventListener("click", async e => {
+  const btn = e.target.closest(".del");
+  if (!btn) return;
+  if (!confirm("确定删除这篇文章吗？已收藏的词句会保留。")) return;
+  await api(`/api/reading/${encodeURIComponent(btn.dataset.id)}`, { method: "DELETE" });
+  loadList();
+});
+
+$("#form").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("#formErr").textContent = "";
+  const text = textBox.value.trim();
+  if (!text) { $("#formErr").textContent = "请先粘贴英文文章。"; return; }
+  $("#go").disabled = true;
+  const box = $("#job");
+  try {
+    let job = await api("/api/reading", { method: "POST", body: { title: $("#title").value, text } });
+    box.hidden = false;
+    while (job.stage !== "done" && job.stage !== "error") {
+      box.innerHTML = `<b>${esc(job.stageLabel)}</b> <span class="muted">${job.stage === "translate" || job.stage === "annotate" ? Math.round(job.percent) + "%" : ""}</span>
+        <div class="recent-bar"><i style="width:${job.stage === "annotate" ? 85 + job.percent * .15 : job.stage === "translate" ? 10 + job.percent * .75 : 5}%"></i></div>`;
+      await new Promise(r => setTimeout(r, 800));
+      job = await api(`/api/jobs/${job.id}`);
+    }
+    if (job.stage === "error") throw new Error(job.error || "处理失败");
+    location.href = `/reading/${encodeURIComponent(job.videoId)}`;
+  } catch (error) {
+    box.hidden = true;
+    $("#formErr").textContent = error.message;
+    $("#go").disabled = false;
+  }
+});
+
+loadEngine();
+loadList();
+</script>
+</body>
+</html>

@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>播放器</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap player-wrap">
+  <header class="player-header">
+    <a class="back-link" href="/listening">← 资料库</a>
+    <h1 id="title"></h1>
+  </header>
+
+  <div class="player" id="player">
+    <div class="left">
+      <div class="study-stage">
+        <video id="video" controls playsinline preload="metadata"></video>
+        <div class="caption" id="caption"><div class="en" id="capEn"></div><div class="zh" id="capZh"></div></div>
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="prev" title="上一句 (←)">⏮ 上一句</button>
+        <button class="btn" id="replay" title="重听本句 (↑)">↺ 重听</button>
+        <button class="btn" id="next" title="下一句 (→)">下一句 ⏭</button>
+        <button class="btn" id="dictBtn" title="听写模式 (D)" aria-pressed="false">✎ 听写</button>
+        <button class="btn" id="retranslate" title="用设置里的 API 模型重新翻译这个视频，并按单词和短语对照中文">↻ 重新翻译</button>
+        <span class="select-wrap">
+          <select class="btn" id="export" aria-label="导出字幕" title="导出字幕">
+            <option value="" selected disabled hidden>⤓ 导出 SRT</option>
+            <option value="bilingual">双语字幕</option><option value="en">仅英文</option><option value="zh">仅中文</option>
+          </select>
+        </span>
+      </div>
+      <section class="dict" id="dict" aria-label="听写" hidden>
+        <div class="dict-head">
+          <b>听写</b><span class="dict-progress" id="dictProgress"></span>
+          <label class="dict-only"><input type="checkbox" id="dictWrongOnly"> 只练错句</label>
+        </div>
+        <form class="dict-form" id="dictForm" autocomplete="off">
+          <input id="dictInput" type="text" aria-label="写下听到的句子" placeholder="听完把这句写下来，按 Enter 检查" autocapitalize="off" spellcheck="false">
+          <button type="submit" class="btn primary" id="dictCheck">检查</button>
+        </form>
+        <div class="dict-tools">
+          <button type="button" class="btn ghost" id="dictReplay" title="重听 (↑)">↺ 重听</button>
+          <button type="button" class="btn ghost" id="dictSlow" title="0.75× 慢速重听">🐢 慢速</button>
+          <button type="button" class="btn ghost" id="dictHint">提示首字母</button>
+          <button type="button" class="btn ghost" id="dictReveal">看答案</button>
+          <span class="dict-keys">Enter 检查 / 下一句　↑ 重听</span>
+        </div>
+        <div class="dict-result" id="dictResult" aria-live="polite"></div>
+        <p class="dict-note" id="dictSourceNote" hidden>这段字幕来自本地语音识别，个别词本身可能不准；英式、美式拼写都算对。</p>
+      </section>
+      <div class="notes" id="notes"></div>
+      <div class="kbd"><kbd>空格</kbd> 播放/暂停　<kbd>←</kbd><kbd>→</kbd> 上/下一句　<kbd>↑</kbd> 重听　<kbd>L</kbd> 单句循环　<kbd>P</kbd> 逐句暂停　<kbd>C</kbd> 中文　<kbd>M</kbd> 标注　<kbd>G</kbd> 逐词释义　<kbd>D</kbd> 听写　点击单词查词</div>
+    </div>
+
+    <div class="transcript">
+      <div class="th">
+        <div class="side-switch" role="group" aria-label="学习面板">
+          <button type="button" id="showTranscript" aria-pressed="true" aria-controls="list">逐句字幕</button>
+          <button type="button" id="showFocus" aria-pressed="false" aria-controls="focusList">本片词句 <span id="focusCount" class="focus-count"></span></button>
+        </div>
+      </div>
+      <div class="transcript-meta" id="transcriptMeta"><span id="cueCount"></span></div>
+      <div class="list" id="list"></div>
+      <div class="list focus-list" id="focusList" hidden></div>
+    </div>
+  </div>
+  </main>
+</div>
+
+<div class="pop" id="pop"></div>
+
+<script src="/static/common.js"></script>
+<script>
+const vid = decodeURIComponent(location.pathname.split("/").pop());
+const video = $("#video");
+const player = $("#player");
+let data = null, cues = [], cur = -1, loop = false, autoPause = false, saved = new Set();
+let pauseAt = null;
+
+function noteFor(cue, key) { return cue?.notes?.[key]; }
+
+function noteHtml(n, cue) {
+  const isSaved = saved.has(n.en.toLowerCase());
+  return `<div class="note ${n.type}">
+    <div class="h"><b>${esc(n.en)}</b>${n.phonetic ? `<span class="ph">/${esc(n.phonetic)}/</span>` : ""}
+      <span class="badge ${n.type}">${n.type === "phrase" ? "重点短语" : n.lookup ? "查词" : "难词"}</span>
+      <span class="act">
+        <button class="iconbtn" data-speak="${esc(n.en)}" title="发音">🔊</button>
+        <button class="iconbtn ${isSaved ? "saved" : ""}" data-save="${esc(n.type === "phrase" ? "p:" : "w:")}${esc(n.en)}" data-cue="${cue.i}">${isSaved ? "★ 已收藏" : "☆ 收藏"}</button>
+      </span></div>
+    <div class="zh">${esc(n.zh)}</div>
+    ${n.note ? `<div class="tip">${esc(n.note)}</div>` : ""}
+  </div>`;
+}
+
+function renderList() {
+  $("#list").innerHTML = cues.map(c => `
+    <div class="cue" data-i="${c.i}">
+      <div class="tm">${fmtTime(c.start)}<span class="dscore"></span></div>
+      <div><div class="en">${renderMarked(c.text, visibleMarks(c))}</div><div class="zh">${esc(c.zh)}</div></div>
+    </div>`).join("");
+}
+
+function renderFocusList() {
+  const entries = new Map();
+  for (const cue of cues) {
+    for (const { key } of visibleMarks(cue)) {
+      const note = cue.notes?.[key];
+      if (note && !entries.has(key)) entries.set(key, { note, cue });
+    }
+  }
+  $("#focusCount").textContent = entries.size;
+  $("#focusList").innerHTML = entries.size ? [...entries.values()].map(({ note, cue }) => `
+    <article class="focus-entry">
+      ${noteHtml(note, cue)}
+      <button type="button" class="focus-source" data-focus-cue="${cue.i}">
+        <span class="focus-time">${fmtTime(cue.start)}</span>
+        <span>${esc(cue.text)}</span>
+        <span aria-hidden="true">↗</span>
+      </button>
+    </article>`).join("") : '<p class="empty">这段视频暂无标注词句。</p>';
+}
+
+function followCurrent() {
+  if ($("#list").hidden || !readPreference("follow")) return;
+  $(".cue.active")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+function showFocus(show) {
+  $("#showTranscript").setAttribute("aria-pressed", !show);
+  $("#showFocus").setAttribute("aria-pressed", show);
+  $("#transcriptMeta").hidden = show;
+  $("#list").hidden = show;
+  $("#focusList").hidden = !show;
+  if (!show) followCurrent();
+}
+
+function setCurrent(i) {
+  if (i === cur) return;
+  cur = i;
+  $$(".cue.active").forEach(el => el.classList.remove("active"));
+  const c = cues[i];
+  if (!c) { $("#capEn").innerHTML = ""; $("#capZh").textContent = ""; $("#notes").innerHTML = ""; return; }
+  $(`.cue[data-i="${i}"]`)?.classList.add("active");
+  followCurrent();
+  const caption = $("#capEn");
+  const layered = glossOn && (Array.isArray(c.gl) || Array.isArray(c.seg));
+  caption.classList.toggle("interlinear", layered);
+  caption.innerHTML = layered ? renderInterlinear(c.text, visibleMarks(c), c.gl, c.seg) : renderMarked(c.text, visibleMarks(c));
+  $("#capZh").textContent = c.zh || "";
+  renderNotes();
+  spokenK = -1;
+  updateSpoken();
+  if (dict.on) dictReset();
+}
+
+function renderNotes() {
+  const c = cues[cur];
+  if (!c) return;
+  const seen = new Set();
+  const ns = visibleMarks(c).filter(m => !seen.has(m.key) && seen.add(m.key)).map(m => noteFor(c, m.key)).filter(Boolean);
+  $("#notes").innerHTML = ns.map(n => noteHtml(n, c)).join("");
+}
+
+// ---------- highlight the word being spoken
+// Whisper imports carry real word timings (cue.wt); otherwise estimate from the word's position in the line.
+let karaoke = true, glossOn = true, spokenK = -1, spokenCue = -1;
+function wordStarts(c) {
+  if (c._ws) return c._ws;
+  const matches = [...c.text.matchAll(WORD_RE)];
+  if (Array.isArray(c.wt) && c.wt.length === matches.length) return (c._ws = c.wt.map(w => w[0]));
+  const len = Math.max(1, c.text.length), dur = Math.max(0.1, c.end - c.start);
+  return (c._ws = matches.map(m => c.start + dur * (m.index / len)));
+}
+
+function updateSpoken() {
+  const c = cues[cur];
+  let k = -1;
+  if (c && karaoke && !dict.on) {
+    const t = video.currentTime;
+    if (t >= c.start - 0.05 && t <= c.end + 0.3) {
+      const starts = wordStarts(c);
+      while (k + 1 < starts.length && starts[k + 1] <= t + 0.03) k++;
+    }
+  }
+  if (k === spokenK && cur === spokenCue) return;
+  spokenK = k; spokenCue = cur;
+  $$(".k-now, .ic-now").forEach(el => el.classList.remove("k-now", "ic-now"));
+  if (k < 0) return;
+  for (const root of [$("#capEn"), $(`.cue[data-i="${cur}"] .en`)]) {
+    const el = root?.querySelector(`[data-k="${k}"]`);
+    el?.classList.add("k-now");
+    el?.closest(".ic")?.classList.add("ic-now");  // light up the phrase's Chinese too
+  }
+}
+
+let spokenFrame = 0;
+function spokenLoop() {
+  updateSpoken();
+  spokenFrame = video.paused ? 0 : requestAnimationFrame(spokenLoop);
+}
+video.addEventListener("play", () => { if (!spokenFrame) spokenFrame = requestAnimationFrame(spokenLoop); });
+video.addEventListener("seeked", updateSpoken);
+
+function indexAt(t) {
+  // last cue that started at or before t
+  let lo = 0, hi = cues.length - 1, ans = -1;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (cues[mid].start <= t + 0.05) { ans = mid; lo = mid + 1; } else hi = mid - 1; }
+  return ans;
+}
+
+let ownSeek = false;
+function seekCue(i, play = true) {
+  i = Math.max(0, Math.min(cues.length - 1, i));
+  ownSeek = true;
+  video.currentTime = cues[i].start + 0.01;
+  setCurrent(i);
+  pauseAt = autoPause ? cues[i].end : null;
+  if (play) video.play();
+}
+
+video.addEventListener("timeupdate", () => {
+  const t = video.currentTime;
+  const c = cues[cur];
+  if (c && loop && t >= c.end - 0.05) { video.currentTime = c.start + 0.01; return; }
+  if (pauseAt !== null && t >= pauseAt - 0.05) { video.pause(); pauseAt = null; return; }
+  if (dict.on) return; // in dictation the sentence only changes on purpose (see "seeked" below)
+  const i = indexAt(t);
+  if (i !== cur) {
+    setCurrent(i);
+    if (autoPause && cues[i]) pauseAt = cues[i].end;
+  }
+});
+
+// Dragging the progress bar during dictation moves to that sentence.
+video.addEventListener("seeked", () => {
+  if (ownSeek) { ownSeek = false; return; }
+  if (dict.on) setCurrent(indexAt(video.currentTime));
+});
+
+// ---------- "最近在看": remember where playback is (sidebar link resumes there)
+let lastProgressSave = 0;
+function saveProgress(beacon = false) {
+  if (!cues.length) return;
+  lastProgressSave = Date.now();
+  const body = JSON.stringify({ videoId: vid, time: video.currentTime || cues[Math.max(cur, 0)].start });
+  if (beacon && navigator.sendBeacon) navigator.sendBeacon("/api/recent", new Blob([body], { type: "application/json" }));
+  else fetch("/api/recent", { method: "POST", headers: { "content-type": "application/json" }, body }).catch(() => {});
+}
+video.addEventListener("timeupdate", () => { if (!video.paused && Date.now() - lastProgressSave > 15000) saveProgress(); });
+video.addEventListener("pause", () => saveProgress());
+window.addEventListener("pagehide", () => saveProgress(true));
+
+// ---------- popover / lookup
+const pop = $("#pop");
+function showPop(anchor, html) {
+  pop.innerHTML = html;
+  pop.classList.add("show");
+  const r = anchor.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let x = Math.min(Math.max(16, r.left + r.width / 2 - pw / 2), innerWidth - pw - 16);
+  let y = r.bottom + 8;
+  if (y + ph > innerHeight - 8) y = r.top - ph - 8;
+  pop.style.left = x + "px"; pop.style.top = Math.max(8, y) + "px";
+}
+function hidePop() { pop.classList.remove("show"); }
+
+async function onWordClick(target, cueIdx) {
+  const c = cues[cueIdx];
+  if (target.tagName === "MARK") {
+    const n = noteFor(c, target.dataset.key);
+    if (n) showPop(target, noteHtml(n, c).replace('class="note', 'style="border:0;padding:0" class="note'));
+    return;
+  }
+  const w = target.dataset.w;
+  const info = await api(`/api/lookup?w=${encodeURIComponent(w)}`);
+  const n = { type: "word", lookup: true, en: info.en || w, zh: info.zh || "（词典里没有找到）", phonetic: info.phonetic || "", note: "" };
+  showPop(target, noteHtml(n, c).replace('class="note', 'style="border:0;padding:0" class="note'));
+}
+
+document.addEventListener("click", async e => {
+  const sp = e.target.closest("[data-speak]");
+  if (sp) { e.stopPropagation(); speak(sp.dataset.speak); return; }
+  const sv = e.target.closest("[data-save]");
+  if (sv) { e.stopPropagation(); return toggleSave(sv); }
+  const word = e.target.closest(".w, mark");
+  if (word) {
+    e.stopPropagation();
+    const row = word.closest(".cue");
+    const ci = row ? +row.dataset.i : cur;
+    if (row && ci !== cur) seekCue(ci, false);
+    video.pause();
+    return onWordClick(word, ci);
+  }
+  if (!e.target.closest(".pop")) hidePop();
+  const source = e.target.closest("[data-focus-cue]");
+  if (source) {
+    video.pause();
+    seekCue(Number(source.dataset.focusCue), false);
+    $("#caption").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    return;
+  }
+  const row = e.target.closest(".cue");
+  if (row) dict.on ? dictPlay(+row.dataset.i) : seekCue(+row.dataset.i);
+});
+
+async function toggleSave(btn) {
+  const key = btn.dataset.save, c = cues[+btn.dataset.cue];
+  let n = noteFor(c, key);
+  if (!n) { // ad-hoc lookup card
+    const en = key.slice(2);
+    const info = await api(`/api/lookup?w=${encodeURIComponent(en)}`);
+    n = { type: "word", en: info.en || en, zh: info.zh || "", phonetic: info.phonetic || "", note: "" };
+  }
+  const k = n.en.toLowerCase();
+  if (saved.has(k)) {
+    await api(`/api/vocab/${encodeURIComponent(k)}`, { method: "DELETE" });
+    saved.delete(k); toast("已取消收藏");
+  } else {
+    await api("/api/vocab", { method: "POST", body: { ...n, key, sentence: c.text, sentenceZh: c.zh, videoId: vid, time: c.start } });
+    saved.add(k); toast("已收藏");
+  }
+  $$(`[data-save="${CSS.escape(key)}"]`).forEach(b => { const on = saved.has(k); b.classList.toggle("saved", on); b.textContent = on ? "★ 已收藏" : "☆ 收藏"; });
+}
+
+// ---------- dictation (听写)
+const dict = { on: false, checked: false, records: {}, revealed: new Set() };
+const DICT_PASS = 0.9; // below this a sentence goes on the "练错句" list
+const NUM_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven",
+  "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+const CONTRACTIONS = [[/^can't$/, "can not"], [/^cannot$/, "can not"], [/^won't$/, "will not"], [/^shan't$/, "shall not"],
+  [/^(\w+)n't$/, "$1 not"], [/^(\w+)'m$/, "$1 am"], [/^(\w+)'re$/, "$1 are"], [/^(\w+)'ve$/, "$1 have"],
+  [/^(\w+)'ll$/, "$1 will"], [/^(\w+)'d$/, "$1 would"], [/^(\w+)'s$/, "$1 is"]];
+
+function dictTokens(text) {
+  return text.replace(/[’‘`]/g, "'").match(/[A-Za-z0-9]+(?:'[A-Za-z]+)*/g) || [];
+}
+
+// British and American spellings compare equal (IELTS accepts both).
+function spelling(w) {
+  if (w.length <= 4) return w;
+  return w.replace(/our(s?)$/, "or$1").replace(/is(e|ed|es|ing|ation|ations)$/, "iz$1")
+    .replace(/ys(e|ed|es|ing)$/, "yz$1").replace(/tre(s?)$/, "ter$1");
+}
+
+function normalizeWord(word) {
+  let w = word.toLowerCase();
+  const n = NUM_WORDS.indexOf(w);
+  if (n >= 0) return [String(n)];
+  if (w === "ok") w = "okay";
+  for (const [re, full] of CONTRACTIONS) if (re.test(w)) return w.replace(re, full).split(" ").map(spelling);
+  return [spelling(w)];
+}
+
+function flatten(words) {
+  const flat = [];
+  words.forEach((word, owner) => normalizeWord(word).forEach(norm => flat.push({ norm, owner })));
+  return flat;
+}
+
+function editDistance(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = row;
+  }
+  return prev[b.length];
+}
+
+function lcsPairs(a, b) {
+  const n = a.length, m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const pairs = [];
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (a[i] === b[j]) { pairs.push([i, j]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) i++;
+    else j++;
+  }
+  return pairs;
+}
+
+// Compare what was typed with the cue text, word by word.
+function gradeDictation(answer, typed) {
+  const words = dictTokens(answer), typedWords = dictTokens(typed);
+  const a = flatten(words), b = flatten(typedWords);
+  const status = a.map(() => ({ s: "miss", typed: null }));
+  const extras = [];
+  let pi = -1, pj = -1;
+  for (const [ni, nj] of [...lcsPairs(a.map(x => x.norm), b.map(x => x.norm)), [a.length, b.length]]) {
+    const gapA = [], gapB = [];
+    for (let i = pi + 1; i < ni; i++) gapA.push(i);
+    for (let j = pj + 1; j < nj; j++) gapB.push(j);
+    gapA.forEach((i, k) => {
+      const j = gapB[k];
+      if (j === undefined) return;
+      const close = editDistance(a[i].norm, b[j].norm) <= Math.max(1, Math.floor(a[i].norm.length / 4));
+      status[i] = { s: close ? "spell" : "wrong", typed: typedWords[b[j].owner] };
+    });
+    gapB.slice(gapA.length).forEach(j => extras.push(typedWords[b[j].owner]));
+    if (ni < a.length) status[ni] = { s: "ok", typed: typedWords[b[nj].owner] };
+    pi = ni; pj = nj;
+  }
+  const ok = status.filter(x => x.s === "ok").length, spell = status.filter(x => x.s === "spell").length;
+  const score = a.length ? (ok + spell * 0.5) / (a.length + extras.length * 0.5) : 1;
+  const display = words.map((text, owner) => {
+    const parts = status.filter((_, i) => a[i].owner === owner);
+    const kinds = new Set(parts.map(p => p.s));
+    const s = kinds.size === 1 ? [...kinds][0] : [...kinds].every(k => k === "ok" || k === "spell") ? "spell" : "wrong";
+    const typedText = [...new Set(parts.map(p => p.typed).filter(Boolean))].join(" ");
+    return { text, s, typed: typedText };
+  });
+  return { score, words: display, extras: [...new Set(extras)] };
+}
+
+function renderGrade(result) {
+  const pct = Math.round(result.score * 100);
+  const verdict = pct === 100 ? "全对" : pct >= 90 ? "很好，看看小错" : pct >= 60 ? "对照红色部分，再听一遍" : "建议慢速重听几遍";
+  const words = result.words.map(w => w.s === "ok"
+    ? `<span class="dw ok">${esc(w.text)}</span>`
+    : `<span class="dw ${w.s}">${w.typed && w.s !== "miss" ? `<s>${esc(w.typed)}</s>` : ""}<span>${esc(w.text)}</span></span>`).join(" ");
+  $("#dictResult").innerHTML = `
+    <div class="dict-score ${pct >= DICT_PASS * 100 ? "good" : "bad"}"><b>${pct}%</b><span>${verdict}</span><span class="dict-next">Enter 下一句</span></div>
+    <div class="dict-words">${words}</div>
+    ${result.extras.length ? `<div class="dict-extra">多写了：${result.extras.map(esc).join("、")}</div>` : ""}
+    <div class="dict-legend"><span class="dw spell"><span>拼写</span></span><span class="dw wrong"><span>听错</span></span><span class="dw miss"><span>漏听</span></span></div>`;
+}
+
+function isWrong(i) { return dict.records[i] && dict.records[i].score < DICT_PASS; }
+
+function markRow(i) {
+  const row = $(`.cue[data-i="${i}"]`);
+  if (!row) return;
+  const r = dict.records[i];
+  row.classList.toggle("dict-done", Boolean(r) || dict.revealed.has(i));
+  const chip = row.querySelector(".dscore");
+  chip.textContent = r ? Math.round(r.score * 100) + "%" : "";
+  chip.className = "dscore" + (r ? (r.score >= DICT_PASS ? " good" : " bad") : "");
+}
+
+function dictStats() {
+  const recs = Object.values(dict.records);
+  if (!recs.length) { $("#dictProgress").textContent = `共 ${cues.length} 句`; return; }
+  const avg = recs.reduce((sum, r) => sum + r.score, 0) / recs.length;
+  const wrong = Object.keys(dict.records).filter(isWrong).length;
+  $("#dictProgress").textContent = `已听写 ${recs.length}/${cues.length} 句 · 平均 ${Math.round(avg * 100)}% · 待重练 ${wrong} 句`;
+}
+
+function dictReset() {
+  dict.checked = false;
+  player.classList.remove("revealed");
+  $("#dictInput").value = "";
+  const r = dict.records[cur];
+  $("#dictResult").innerHTML = r ? `<p class="dict-prev">上次 ${Math.round(r.score * 100)}%，已练 ${r.tries} 次</p>` : "";
+  if (document.activeElement !== $("#dictInput")) $("#dictInput").focus({ preventScroll: true });
+}
+
+function dictPlay(i = cur, rate = null) {
+  if (!cues.length) return;
+  seekCue(Math.max(0, i), false);
+  pauseAt = cues[cur].end;
+  video.playbackRate = rate || Number(readPreference("speed"));
+  video.play().catch(() => toast("按空格或 ↑ 开始播放这句"));
+  $("#dictInput").focus({ preventScroll: true });
+}
+
+function dictNext(step = 1) {
+  let i = cur + step;
+  if ($("#dictWrongOnly").checked) while (i >= 0 && i < cues.length && !isWrong(i)) i += step;
+  if (i < 0 || i >= cues.length) {
+    toast($("#dictWrongOnly").checked ? "这个方向没有错句了" : step > 0 ? "已经是最后一句" : "已经是第一句");
+    return;
+  }
+  dictPlay(i);
+}
+
+function reveal() {
+  dict.revealed.add(cur);
+  player.classList.add("revealed");
+  markRow(cur);
+}
+
+async function dictCheck() {
+  const c = cues[cur];
+  if (!c) return;
+  if (dict.checked) return dictNext(1);
+  const typed = $("#dictInput").value.trim();
+  if (!typed) { toast("先写下听到的内容，按 ↑ 可以重听"); return; }
+  const result = gradeDictation(c.text, typed);
+  dict.checked = true;
+  renderGrade(result);
+  reveal();
+  try {
+    dict.records[cur] = await api(`/api/dictation/${encodeURIComponent(vid)}`, { method: "POST", body: { i: cur, score: result.score, typed } });
+  } catch { toast("成绩没有保存成功"); }
+  markRow(cur);
+  dictStats();
+  refreshSidebar();
+}
+
+function setDictation(on) {
+  dict.on = on;
+  player.classList.toggle("dictating", on);
+  $("#dictBtn").classList.toggle("on", on);
+  $("#dictBtn").setAttribute("aria-pressed", on);
+  $("#dict").hidden = !on;
+  if (on) {
+    showFocus(false);
+    dictStats();
+    dictReset();
+    dictPlay(Math.max(cur, 0));
+  } else {
+    player.classList.remove("revealed");
+    video.playbackRate = Number(readPreference("speed"));
+    pauseAt = autoPause && cues[cur] ? cues[cur].end : null;
+  }
+}
+
+$("#dictBtn").onclick = () => setDictation(!dict.on);
+$("#dictForm").onsubmit = event => { event.preventDefault(); dictCheck(); };
+$("#dictInput").addEventListener("keydown", event => {
+  if (event.key === "ArrowUp") { event.preventDefault(); dictPlay(cur); }
+});
+$("#dictReplay").onclick = () => dictPlay(cur);
+$("#dictSlow").onclick = () => dictPlay(cur, 0.75);
+$("#dictHint").onclick = () => {
+  const c = cues[cur];
+  if (!c || dict.checked) return;
+  const hint = dictTokens(c.text).map(w => w[0] + "_".repeat(w.length - 1)).join(" ");
+  $("#dictResult").innerHTML = `<p class="dict-hint">${esc(hint)}</p>`;
+  $("#dictInput").focus();
+};
+$("#dictReveal").onclick = () => {
+  if (!cues[cur]) return;
+  dict.checked = true;
+  reveal();
+  $("#dictResult").innerHTML = `<p class="dict-prev">${esc(cues[cur].text)}</p><p class="dict-prev">这句没有记成绩。Enter 下一句</p>`;
+  $("#dictInput").focus();
+};
+$("#dictWrongOnly").onchange = event => {
+  if (!event.target.checked) return;
+  if (!Object.keys(dict.records).some(isWrong)) { event.target.checked = false; toast("还没有错句，先听写几句"); return; }
+  if (!isWrong(cur)) dictPlay(cues.findIndex((_, i) => isWrong(i)));
+};
+
+// ---------- 重新翻译: translate this video again with the API model, phrase by phrase
+async function retranslate() {
+  const btn = $("#retranslate");
+  let settings;
+  try { settings = await api("/api/settings"); } catch (e) { toast(e.message); return; }
+  if (settings.engine !== "api") {
+    if (confirm("重新翻译需要 API 模型，现在用的是本地翻译。要去设置里选择模型吗？")) location.href = "/settings/translation";
+    return;
+  }
+  if (!confirm(`用 ${settings.model} 重新翻译这个视频的 ${cues.length} 句字幕，并按单词、短语对照中文？
+会按服务商价格计费。`)) return;
+  btn.disabled = true;
+  try {
+    let job = await api(`/api/video/${encodeURIComponent(vid)}/retranslate`, { method: "POST" });
+    while (job.stage !== "done" && job.stage !== "error") {
+      btn.textContent = job.stage === "queued" ? "排队中…" : `翻译中 ${Math.round(job.percent)}%`;
+      await new Promise(r => setTimeout(r, 1000));
+      job = await api(`/api/jobs/${job.id}`);
+    }
+    if (job.stage === "error") throw new Error(job.error || "重新翻译失败");
+    data = await api(`/api/video/${encodeURIComponent(vid)}`);
+    cues = data.cues;
+    rerenderMarks();
+    toast("已重新翻译");
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "↻ 重新翻译";
+  }
+}
+$("#retranslate").onclick = retranslate;
+
+// ---------- controls
+function setAutoPause(enabled) {
+  autoPause = enabled;
+  pauseAt = autoPause && cues[cur] ? cues[cur].end : null;
+}
+
+function applyPlaybackPreferences() {
+  const rate = Number(readPreference("speed"));
+  video.defaultPlaybackRate = rate;
+  video.playbackRate = rate;
+  loop = readPreference("loop");
+  setAutoPause(readPreference("autoPause"));
+  player.classList.toggle("hide-zh", !readPreference("zh"));
+  player.classList.toggle("no-marks", !readPreference("marks"));
+  karaoke = readPreference("karaoke");
+  const gloss = readPreference("gloss");
+  if (gloss !== glossOn) { glossOn = gloss; if (cues[cur]) { const i = cur; cur = -1; setCurrent(i); } }
+}
+
+$("#showTranscript").onclick = () => showFocus(false);
+$("#showFocus").onclick = () => showFocus(true);
+$("#prev").onclick = () => dict.on ? dictNext(-1) : seekCue(cur - 1);
+$("#next").onclick = () => dict.on ? dictNext(1) : seekCue(cur + 1);
+$("#replay").onclick = () => dict.on ? dictPlay(cur) : seekCue(Math.max(cur, 0));
+$("#export").onchange = e => { if (e.target.value) location.href = `/api/export/${encodeURIComponent(vid)}.srt?mode=${e.target.value}`; e.target.value = ""; };
+
+function rerenderMarks() {
+  if (!cues.length) return;
+  renderList();
+  renderFocusList();
+  cues.forEach((_, i) => markRow(i));
+  const i = cur; cur = -1; setCurrent(i);
+}
+window.addEventListener("storage", event => {
+  if (event.key === null || event.key === "vocabLevel") rerenderMarks();
+});
+
+window.addEventListener("pageshow", event => {
+  if (event.persisted && player.isConnected) {
+    applyPlaybackPreferences();
+    rerenderMarks();
+    followCurrent();
+  }
+});
+
+document.addEventListener("keydown", e => {
+  if (e.defaultPrevented || e.target.closest?.("input, select, textarea") || e.metaKey || e.ctrlKey) return;
+  const k = e.key.toLowerCase();
+  if (k === " " && e.target.closest("button, a")) return;
+  if (k === " " && dict.on) { e.preventDefault(); video.paused ? dictPlay(cur) : video.pause(); }
+  else if (k === " ") { e.preventDefault(); video.paused ? (pauseAt = autoPause && cues[cur] ? cues[cur].end : null, video.play()) : video.pause(); }
+  else if (k === "arrowleft") { e.preventDefault(); dict.on ? dictNext(-1) : seekCue(cur - 1); }
+  else if (k === "arrowright") { e.preventDefault(); dict.on ? dictNext(1) : seekCue(cur + 1); }
+  else if (k === "arrowup") { e.preventDefault(); dict.on ? dictPlay(cur) : seekCue(Math.max(cur, 0)); }
+  else if (k === "d") { e.preventDefault(); setDictation(!dict.on); }
+  else if (k === "l") { loop = !loop; toast(loop ? "单句循环：开" : "单句循环：关"); }
+  else if (k === "p") { setAutoPause(!autoPause); toast(autoPause ? "逐句暂停：开" : "逐句暂停：关"); }
+  else if (k === "c") player.classList.toggle("hide-zh");
+  else if (k === "m") player.classList.toggle("no-marks");
+  else if (k === "g") { glossOn = !glossOn; const i = cur; cur = -1; setCurrent(i); toast(glossOn ? "逐词释义：开" : "逐词释义：关"); }
+  else if (k === "escape") hidePop();
+});
+
+(async () => {
+  try {
+    data = await api(`/api/video/${encodeURIComponent(vid)}`);
+  } catch { document.body.innerHTML = `<div class="wrap"><p>找不到这个视频。<a href="/listening">返回资料库</a></p></div>`; return; }
+  cues = data.cues;
+  document.title = `${data.title} · 播放器`;
+  $("#title").textContent = data.title;
+  const translator = { api: "API 翻译", local: "本地翻译", "api+local": "API 翻译（部分改用本地）" }[data.translator] || "";
+  $("#cueCount").textContent = [`${cues.length} 句字幕`, data.subtitleSource === "whisper" ? "本地识别" : "平台字幕", translator].filter(Boolean).join(" · ");
+  video.src = `/media/${encodeURIComponent(vid)}/${encodeURIComponent(data.video)}`;
+  const vocab = await api("/api/vocab").catch(() => []);
+  saved = new Set(vocab.map(v => v.en.toLowerCase()));
+  dict.records = await api(`/api/dictation/${encodeURIComponent(vid)}`).catch(() => ({}));
+  $("#dictSourceNote").hidden = data.subtitleSource !== "whisper";
+  renderList();
+  renderFocusList();
+  cues.forEach((_, i) => markRow(i));
+  const t = parseFloat(new URLSearchParams(location.search).get("t"));
+  if (!isNaN(t)) { video.addEventListener("loadedmetadata", () => { video.currentTime = t; }, { once: true }); setCurrent(indexAt(t)); }
+  else setCurrent(0);
+  applyPlaybackPreferences();
+  saveProgress();
+  const dictate = new URLSearchParams(location.search).get("dictate");
+  if (dictate === "wrong" && Object.keys(dict.records).some(isWrong)) {
+    $("#dictWrongOnly").checked = true;
+    if (!isWrong(cur)) setCurrent(cues.findIndex((_, i) => isWrong(i)));
+  }
+  if (dictate) setDictation(true);
+})();
+</script>
+</body>
+</html>

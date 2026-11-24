@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>视频精听</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap home-wrap">
+    <section class="import-panel" aria-labelledby="importTitle">
+      <header class="hero">
+        <h1 id="importTitle">视频精听</h1>
+        <p>粘贴视频链接，生成双语字幕、重点词句和听写练习。</p>
+      </header>
+      <form class="paste" id="form">
+        <div class="composer-input">
+          <span class="link-glyph" aria-hidden="true">↗</span>
+          <input id="url" type="url" aria-label="视频链接" placeholder="粘贴 YouTube、Bilibili 或 TED 视频链接" autocomplete="off">
+        </div>
+        <div class="composer-actions">
+          <a class="import-quality" href="/settings/download">下载上限 <b id="importQuality"></b></a>
+          <label class="import-translator" hidden>
+            <span>API</span>
+            <span class="select-wrap"><select class="btn" id="translator" aria-label="API 模型"></select></span>
+          </label>
+          <div class="composer-buttons">
+            <button type="button" class="btn ghost" id="pasteBtn">粘贴链接</button>
+            <button type="submit" class="btn primary" id="go"><span id="goLabel">开始导入</span><span aria-hidden="true" class="submit-arrow">→</span></button>
+          </div>
+        </div>
+      </form>
+      <p class="hint composer-hint">在输入框按 <kbd>⌘ V</kbd> 可自动开始。缺少英文字幕时会在本机转写。</p>
+      <div class="err" id="formErr" role="status"></div>
+    </section>
+
+    <div id="job"></div>
+
+    <section aria-labelledby="libraryTitle">
+      <div class="section-h"><h2 id="libraryTitle">视频资料库</h2><span class="muted" id="libCount"></span></div>
+      <div class="grid" id="lib"></div>
+    </section>
+  </main>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+const STEPS = ["读取视频信息", "下载视频", "获取英文字幕", "翻译字幕", "标注重点"];
+let importing = false;
+
+function setImporting(active) {
+  importing = active;
+  $$("#form input, #form button, #form select").forEach(control => { control.disabled = active; });
+  $("#goLabel").textContent = active ? "处理中…" : "开始导入";
+}
+
+async function loadLibrary() {
+  const items = await api("/api/library");
+  $("#libCount").textContent = items.length ? `${items.length} 个视频` : "";
+  $("#lib").innerHTML = items.length ? items.map(v => `
+    <article class="card">
+      <a class="card-link" href="/player/${encodeURIComponent(v.id)}">
+        <div class="thumb">${v.thumbnail ? `<img src="${esc(v.thumbnail)}" alt="" loading="lazy">` : ""}
+          <span class="duration">${fmtTime(v.duration)}</span>
+        </div>
+        <div class="body">
+          <div class="t">${esc(v.title)}</div>
+          <div class="meta">${v.cueCount} 句字幕 · ${v.phraseCount} 个重点短语</div>
+        </div>
+      </a>
+      <div class="card-foot">
+        <span class="source-chip" title="英文字幕来源 · 中文翻译方式">${v.subtitleSource === "whisper" ? "本机识别字幕" : "平台字幕"} · ${v.translator === "local" ? "本地翻译" : v.aligned ? "API 短语对照" : "API 翻译"}</span>
+        <button type="button" class="del" data-id="${esc(v.id)}" aria-label="删除 ${esc(v.title)}">删除</button>
+      </div>
+    </article>`).join("") : `<div class="empty">还没有视频。导入后，视频会出现在这里。</div>`;
+}
+
+$("#lib").addEventListener("click", async e => {
+  const btn = e.target.closest(".del");
+  if (!btn) return;
+  e.preventDefault();
+  if (!confirm("确定删除这个视频及其字幕吗？已收藏的词句会保留。")) return;
+  await api(`/api/video/${encodeURIComponent(btn.dataset.id)}`, { method: "DELETE" });
+  loadLibrary();
+});
+
+function renderJob(j) {
+  const logOpen = $("#job details")?.open;
+  const idx = j.stageIndex;
+  const steps = STEPS.map((s, i) => {
+    const done = j.stage === "done" || i < idx;
+    return `<li class="step${done ? " done" : i === idx ? " cur" : ""}"${i === idx ? ' aria-current="step"' : ""}><span class="step-icon" aria-hidden="true">${done ? "✓" : ""}</span>${s}</li>`;
+  }).join("");
+  const pct = j.stage === "done" ? 100 : j.stage === "error" ? 0 : Math.round(((Math.max(idx, 0) + (j.percent || 0) / 100) / STEPS.length) * 100);
+  const status = j.stage === "queued" ? "排队中 · 本机会依次处理任务"
+    : j.stage === "transcribe" ? "获取英文字幕 · 本地语音识别可能需要几分钟"
+    : j.stageLabel;
+  $("#job").innerHTML = `
+    <div class="job">
+      <div class="job-heading">
+        <div class="title">${esc(j.title || j.url)}</div>
+        <p class="job-status" role="status">${esc(status)}</p>
+      </div>
+      <div class="bar" role="progressbar" aria-label="导入进度" aria-valuenow="${pct}"><div style="width:${pct}%"></div></div>
+      <ol class="steps">${steps}</ol>
+      ${j.error ? `<div class="err" style="margin-top:10px">${esc(j.error)}</div>` : ""}
+      ${j.exists ? `<div class="hint">已在资料库中。<a href="#" id="redo">覆盖并重新处理</a></div>` : ""}
+      <details class="log" ${j.error || logOpen ? "open" : ""}><summary>处理日志</summary><pre>${esc(j.log.join("\n"))}</pre></details>
+    </div>`;
+  const redo = $("#redo");
+  if (redo) redo.onclick = e => { e.preventDefault(); start(j.url, true); };
+}
+
+async function poll(id) {
+  try {
+    const j = await api(`/api/jobs/${id}`);
+    $("#formErr").textContent = "";
+    renderJob(j);
+    if (j.stage === "done") {
+      setImporting(false);
+      loadLibrary();
+      const playerUrl = `/player/${encodeURIComponent(j.videoId)}`;
+      if (!j.exists) location.href = playerUrl;
+      else setTimeout(() => { if (!importing) location.href = playerUrl; }, 700);
+      return;
+    }
+    if (j.stage === "error") {
+      setImporting(false);
+      return;
+    }
+  } catch (e) {
+    if (e.status === 404) {
+      $("#job").replaceChildren();
+      $("#formErr").textContent = "这次处理记录已失效，可以重新开始。";
+      setImporting(false);
+      return;
+    }
+    $("#formErr").textContent = "暂时连不上本地服务，正在重试…";
+  }
+  setTimeout(() => poll(id), 800);
+}
+
+async function start(url, overwrite = false) {
+  if (importing) return;
+  $("#formErr").textContent = "";
+  url = (url || "").trim();
+  if (!/^https?:\/\//i.test(url)) { $("#formErr").textContent = "请粘贴以 http(s):// 开头的视频链接"; return; }
+  setImporting(true);
+  try {
+    const j = await api("/api/import", { method: "POST", body: { url, quality: readPreference("quality"), overwrite } });
+    renderJob(j);
+    poll(j.id);
+  } catch (e) {
+    setImporting(false);
+    $("#formErr").textContent = e.message;
+  }
+}
+
+$("#form").addEventListener("submit", e => { e.preventDefault(); start($("#url").value); });
+$("#url").addEventListener("paste", () => setTimeout(() => {
+  const v = $("#url").value.trim();
+  if (/^https?:\/\/\S+$/i.test(v)) start(v);
+}, 50));
+$("#pasteBtn").addEventListener("click", async () => {
+  try {
+    const t = (await navigator.clipboard.readText()).trim();
+    $("#url").value = t;
+    if (/^https?:\/\//i.test(t)) start(t); else $("#formErr").textContent = "剪贴板里不是链接";
+  } catch { $("#formErr").textContent = "浏览器不允许读取剪贴板，请直接在输入框按 ⌘V"; }
+});
+
+function showImportQuality() {
+  const quality = readPreference("quality");
+  $("#importQuality").textContent = preferenceOptions.quality.find(([value]) => value === quality)[1];
+}
+
+showImportQuality();
+window.addEventListener("pageshow", showImportQuality);
+window.addEventListener("storage", event => {
+  if (event.key === null || event.key === "quality") showImportQuality();
+});
+// ---------- translation model picker (saved into Settings, used by the next import)
+const MANAGE = "__manage";
+let translatorState = null;
+
+// Every model of every configured provider is listed, so switching e.g. DeepSeek Flash → Pro is one click.
+const modelCache = {};  // provider id → [{id, name}] fetched from the provider's model list
+try { Object.assign(modelCache, JSON.parse(sessionStorage.getItem("translatorModels") || "{}")); } catch { /* ignore */ }
+
+function translatorValue(settings) {
+  return settings.engine === "api" ? `${settings.provider}|${settings.model}` : "local";
+}
+
+function translatorLabel(provider, model, apiName = "") {
+  const { id, name, baseUrl } = provider;
+  const officialDeepSeek = id === "deepseek" && /^https:\/\/api\.deepseek\.com(?:\/v1)?\/?$/.test(baseUrl);
+  // DeepSeek documents these API IDs as aliases for V4.1 Flash.
+  if (officialDeepSeek && ["deepseek-flash", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"].includes(model)) {
+    return "DeepSeek V4.1 Flash";
+  }
+  if (apiName && apiName !== model) return apiName.replace(/[-_]+/g, " ");
+  return `${name.split(" · ")[0].replace(/ API$/, "")} · ${model}`;
+}
+
+function usableProviders(settings) {
+  return settings.providers.filter(p => p.baseUrl && p.model && (p.hasApiKey || p.id === "custom"));
+}
+
+function renderTranslator(settings) {
+  translatorState = settings;
+  const usable = usableProviders(settings);
+  const options = [new Option("本地翻译（离线）", "local")];
+  for (const p of usable) {
+    const current = p.id === settings.provider && settings.engine === "api" ? settings.model : p.model;
+    const models = [...(modelCache[p.id] || [])];
+    for (const id of [p.model, current]) if (id && !models.some(m => m.id === id)) models.unshift({ id, name: "" });
+    const group = usable.length > 1 ? document.createElement("optgroup") : null;
+    if (group) group.label = p.name.split(" · ")[0].replace(/ API$/, "");
+    for (const m of models.slice(0, 16)) {
+      const option = new Option(translatorLabel(p, m.id, m.name), `${p.id}|${m.id}`);
+      group ? group.append(option) : options.push(option);
+    }
+    if (group) options.push(group);
+  }
+  options.push(new Option(usable.length ? "添加或管理模型…" : "添加 API 模型…", MANAGE));
+  $("#translator").replaceChildren(...options);
+  $("#translator").value = translatorValue(settings);
+  $(".import-translator").hidden = false;
+}
+
+async function loadModels(settings) {
+  const missing = usableProviders(settings).filter(p => !modelCache[p.id]);
+  await Promise.all(missing.map(async p => {
+    try {
+      const { models } = await api("/api/settings/models", { method: "POST", body: { provider: p.id, baseUrl: p.baseUrl } });
+      modelCache[p.id] = models;
+    } catch { /* keep just the saved model */ }
+  }));
+  if (!missing.length) return;
+  try { sessionStorage.setItem("translatorModels", JSON.stringify(modelCache)); } catch { /* ignore */ }
+  if (!importing && document.activeElement !== $("#translator")) renderTranslator(translatorState);
+}
+
+async function loadTranslator() {
+  let settings;
+  try { settings = await api("/api/settings"); } catch { return; /* picker stays hidden */ }
+  renderTranslator(settings);
+  loadModels(settings);
+}
+
+$("#translator").addEventListener("change", async event => {
+  const choice = event.target.value;
+  if (choice === MANAGE) { location.href = "/settings/translation"; return; }
+  const [provider, model] = choice.split("|");
+  const body = choice === "local" ? { engine: "local" } : { engine: "api", provider, model };
+  const label = event.target.selectedOptions[0].text;
+  event.target.disabled = true;
+  try {
+    renderTranslator(await api("/api/settings", { method: "POST", body }));
+    toast(choice === "local" ? "已切换为本地翻译" : `已切换为 ${label}`);
+  } catch (error) {
+    event.target.value = translatorValue(translatorState);
+    $("#formErr").textContent = error.message;
+  } finally {
+    event.target.disabled = importing;
+  }
+});
+window.addEventListener("pageshow", event => { if (event.persisted) loadTranslator(); });
+loadTranslator();
+loadLibrary();
+</script>
+</body>
+</html>
