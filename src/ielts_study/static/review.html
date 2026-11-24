@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>单词复习</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap review-wrap">
+    <header class="hero page-heading">
+      <div>
+        <h1>单词复习</h1>
+        <p>按遗忘规律安排：记得越牢，下次出现得越晚。每天最多学 20 个新词。</p>
+      </div>
+      <div class="review-stats" id="stats" aria-live="polite"></div>
+    </header>
+
+    <section class="review-card" id="card" hidden aria-live="polite">
+      <div class="review-top">
+        <span class="badge" id="kind"></span>
+        <span class="review-source" id="source"></span>
+        <span class="review-progress" id="progress"></span>
+      </div>
+
+      <p class="review-prompt" id="prompt"></p>
+      <p class="review-sentence" id="sentence"></p>
+      <div class="review-tools">
+        <button type="button" class="btn" id="listen">🔊 听原句</button>
+        <button type="button" class="btn ghost" id="hintBtn">看中文提示</button>
+      </div>
+      <p class="review-hint" id="hint" hidden></p>
+
+      <form class="review-type" id="typeForm" autocomplete="off">
+        <input id="typed" type="text" placeholder="拼写空白处的英文（可跳过），回车查看答案" spellcheck="false" autocapitalize="none" aria-label="拼写空白处的英文">
+      </form>
+
+      <div class="review-answer" id="answer" hidden>
+        <div class="review-word">
+          <b id="word"></b><span class="ph" id="phonetic"></span>
+          <button type="button" class="iconbtn" id="speakWord" title="发音">🔊</button>
+          <span class="review-check" id="check"></span>
+        </div>
+        <div class="review-zh" id="meaning"></div>
+        <div class="review-note" id="note"></div>
+        <p class="review-sentence-zh" id="sentenceZh"></p>
+      </div>
+
+      <div class="review-actions">
+        <button type="button" class="btn primary review-show" id="showBtn">显示答案 <kbd>空格</kbd></button>
+        <div class="review-grades" id="grades" hidden>
+          <button type="button" class="grade again" data-grade="again"><b>忘了</b><small></small><kbd>1</kbd></button>
+          <button type="button" class="grade hard" data-grade="hard"><b>模糊</b><small></small><kbd>2</kbd></button>
+          <button type="button" class="grade good" data-grade="good"><b>记得</b><small></small><kbd>3</kbd></button>
+          <button type="button" class="grade easy" data-grade="easy"><b>很简单</b><small></small><kbd>4</kbd></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="review-done" id="done" hidden></section>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+let state = null, queue = [], card = null, revealed = false, total = 0, finished = 0;
+const player = new Audio();
+let clipEnd = null;
+player.addEventListener("timeupdate", () => { if (clipEnd !== null && player.currentTime >= clipEnd) { player.pause(); clipEnd = null; } });
+
+// Where the word sits in the sentence: saved ranges, or (for older saves) a best guess from the word itself.
+function findSpans(sentence, en) {
+  const tokens = [...sentence.matchAll(WORD_RE)];
+  const stem = w => w.toLowerCase().replaceAll("’", "'").slice(0, Math.max(3, w.length - 2));
+  const parts = en.split(/\s+/).filter(Boolean);
+  const out = [];
+  let from = 0;
+  for (const part of parts) {
+    const i = tokens.findIndex((t, j) => j >= from && t[0].toLowerCase().replaceAll("’", "'").startsWith(stem(part)));
+    if (i < 0) return [];
+    out.push([tokens[i].index, tokens[i].index + tokens[i][0].length]);
+    from = i + 1;
+  }
+  return out;
+}
+
+function sentenceHtml(sentence, spans, mode) {
+  let html = "", at = 0;
+  for (const [s, e] of [...spans].sort((a, b) => a[0] - b[0])) {
+    html += esc(sentence.slice(at, s));
+    const text = sentence.slice(s, e);
+    html += mode === "blank"
+      ? `<span class="cloze" style="min-width:${Math.max(3, text.length) * 0.62}em" aria-label="空白"></span>`
+      : `<mark class="cloze-answer">${esc(text)}</mark>`;
+    at = e;
+  }
+  return html + esc(sentence.slice(at));
+}
+
+function answerText(c) {
+  return c.spans.map(([s, e]) => c.sentence.slice(s, e)).join(" ");
+}
+
+function renderStats() {
+  const left = queue.length;
+  $("#stats").innerHTML = state.total
+    ? `<b>${left}</b><span>还要复习</span><b>${state.reviewedToday + finished}</b><span>今天已复习</span><b>${state.mature}</b><span>已记牢</span>`
+    : "";
+}
+
+function showCard() {
+  card = queue[0];
+  revealed = false;
+  renderStats();
+  if (!card) return showDone();
+  $("#card").hidden = false;
+  $("#done").hidden = true;
+  card.spans = card.spans && card.spans.length ? card.spans : (card.sentence ? findSpans(card.sentence, card.en) : []);
+  const cloze = card.sentence && card.spans.length;
+  $("#kind").textContent = card.isNew ? "新词" : "复习";
+  $("#kind").className = `badge ${card.isNew ? "word" : "phrase"}`;
+  $("#progress").textContent = `${finished + 1} / ${total}`;
+  $("#source").innerHTML = card.videoId
+    ? `<a href="/player/${encodeURIComponent(card.videoId)}?t=${card.time}">▶ 来自视频</a>`
+    : card.articleId ? `<a href="/reading/${encodeURIComponent(card.articleId)}#s${card.sentenceIndex || 0}">▤ 来自文章</a>` : "";
+  // With a sentence: fill the blank. Without one (or if the word can't be found in it): recall from the meaning.
+  $("#prompt").textContent = cloze ? `空白处是哪个${card.type === "phrase" ? "短语" : "词"}？` : "这个意思用英文怎么说？";
+  $("#sentence").innerHTML = cloze ? sentenceHtml(card.sentence, card.spans, "blank") : `<span class="review-meaning-prompt">${esc(card.zh || "（没有释义）")}</span>`;
+  $("#listen").hidden = !card.sentence;
+  $("#hintBtn").hidden = !(cloze && card.sentenceZh);
+  $("#hint").hidden = true;
+  $("#hint").textContent = card.sentenceZh || "";
+  $("#typed").value = "";
+  $("#typed").disabled = false;
+  $("#answer").hidden = true;
+  $("#grades").hidden = true;
+  $("#showBtn").hidden = false;
+  $$(".grade").forEach(b => { $("small", b).textContent = card.preview[b.dataset.grade]; b.disabled = false; });
+  $("#typed").focus({ preventScroll: true });
+}
+
+function reveal() {
+  if (!card || revealed) return;
+  revealed = true;
+  const typed = $("#typed").value.trim().toLowerCase().replaceAll("’", "'");
+  const cloze = card.sentence && card.spans.length;
+  if (cloze) $("#sentence").innerHTML = sentenceHtml(card.sentence, card.spans, "answer");
+  else $("#sentence").innerHTML = `<span class="review-meaning-prompt">${esc(card.zh || "")}</span>`;
+  $("#word").textContent = card.en;
+  $("#phonetic").textContent = card.phonetic ? `/${card.phonetic}/` : "";
+  $("#meaning").textContent = card.zh || "（没有释义）";
+  $("#note").textContent = card.note || "";
+  $("#sentenceZh").textContent = card.sentenceZh || "";
+  const right = [card.en.toLowerCase(), cloze ? answerText(card).toLowerCase().replaceAll("’", "'") : null].filter(Boolean);
+  $("#check").textContent = typed ? (right.includes(typed) ? "✓ 拼对了" : `✗ 你写的是 ${typed}`) : "";
+  $("#check").className = `review-check ${typed ? (right.includes(typed) ? "ok" : "bad") : ""}`;
+  $("#typed").disabled = true;
+  $("#answer").hidden = false;
+  $("#showBtn").hidden = true;
+  $("#grades").hidden = false;
+  speak(card.en);
+}
+
+async function grade(g) {
+  if (!card || !revealed) return;
+  $$(".grade").forEach(b => { b.disabled = true; });
+  try {
+    const res = await api("/api/review", { method: "POST", body: { en: card.en, grade: g } });
+    queue.shift();
+    finished += 1;
+    if (g === "again") {  // comes back at the end of this session
+      queue.push({ ...card, isNew: false, srs: res.srs, preview: card.preview });
+      total += 1;
+    }
+    refreshSidebar();
+    showCard();
+  } catch (e) {
+    toast(e.message);
+    $$(".grade").forEach(b => { b.disabled = false; });
+  }
+}
+
+function playSentence() {
+  if (!card) return;
+  if (card.clip) {
+    if (!player.src.endsWith(card.clip.src)) player.src = card.clip.src;
+    const start = () => { player.currentTime = card.clip.start; clipEnd = card.clip.end; player.play().catch(() => speak(card.sentence)); };
+    if (player.readyState >= 1) start(); else player.addEventListener("loadedmetadata", start, { once: true });
+  } else {
+    speak(card.sentence);
+  }
+}
+
+async function showDone() {
+  $("#card").hidden = true;
+  if (finished) {  // the queue was loaded before this session's answers: ask again for the next due time
+    try { state = { ...state, ...(await api("/api/review")) }; } catch { /* keep the old numbers */ }
+  }
+  const done = $("#done");
+  done.hidden = false;
+  if (!state.total) {
+    done.innerHTML = `<div class="empty">还没有收藏的词句。在视频或文章里点单词，再点「☆ 收藏」，它就会出现在这里。<br><a href="/listening">去视频精听</a> · <a href="/reading">去文章精读</a></div>`;
+    return;
+  }
+  const next = state.nextDue && new Date(Math.max(state.nextDue * 1000, Date.now()));
+  const nextText = next ? `下一个词 ${next.toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} 到期。` : "";
+  const more = state.newLeft - state.new;
+  done.innerHTML = `<div class="review-done-box">
+    <h2>${finished ? `今天复习了 ${finished} 次，完成了` : "现在没有要复习的词"}</h2>
+    <p>${nextText}${more > 0 ? ` 还有 ${more} 个新词明天继续。` : ""}</p>
+    <div class="review-done-links"><a class="btn" href="/vocab">查看收藏词句</a><a class="btn primary" href="/listening">去视频精听</a></div>
+  </div>`;
+}
+
+$("#showBtn").onclick = reveal;
+$("#typeForm").onsubmit = event => { event.preventDefault(); reveal(); };
+$("#grades").onclick = event => { const b = event.target.closest("[data-grade]"); if (b) grade(b.dataset.grade); };
+$("#listen").onclick = playSentence;
+$("#hintBtn").onclick = () => { $("#hint").hidden = !$("#hint").hidden; };
+$("#speakWord").onclick = () => card && speak(card.en);
+document.addEventListener("keydown", event => {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+  const typing = event.target.closest?.("input") && !event.target.disabled;
+  if (!revealed && event.key === " " && !typing) { event.preventDefault(); reveal(); return; }
+  if (revealed && ["1", "2", "3", "4"].includes(event.key)) { event.preventDefault(); grade(["again", "hard", "good", "easy"][+event.key - 1]); }
+});
+
+(async () => {
+  try { state = await api("/api/review"); } catch (e) { toast(e.message); return; }
+  queue = state.cards;
+  total = queue.length;
+  showCard();
+})();
+</script>
+</body>
+</html>

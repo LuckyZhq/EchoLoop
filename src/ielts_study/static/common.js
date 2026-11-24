@@ -67,7 +67,7 @@ const workspaceNav = $(".workspace-nav");
 // Sidebar: the brand opens the home page; study tools are grouped by skill.
 const NAV_GROUPS = [
   ["listen", "听力", [["/listening", "视频精听", "import"], ["/mistakes", "错句本", "mistakes"]]],
-  ["words", "单词", [["/vocab", "收藏词句", "bookmark"]]],
+  ["words", "单词", [["/review", "单词复习", "review"], ["/vocab", "收藏词句", "bookmark"]]],
   ["read", "阅读", [["/reading", "文章精读", "reading"]]],
 ];
 function storedFlag(key) { try { return localStorage.getItem(key) === "1"; } catch { return false; } }
@@ -82,6 +82,7 @@ if (workspaceNav) {
     <a class="workspace-link" href="${href}"${href === current ? ' aria-current="page"' : ""}>
       <span class="nav-icon nav-${icon}" aria-hidden="true"></span><span>${label}</span>
       ${icon === "mistakes" ? '<span class="nav-badge" id="mistakeBadge" hidden></span>' : ""}
+      ${icon === "review" ? '<span class="nav-badge" id="reviewBadge" hidden></span>' : ""}
     </a>`;
   const collapsed = storedFlag("recentCollapsed");
   workspaceNav.innerHTML = `
@@ -119,6 +120,10 @@ async function refreshSidebar() {
   badge.hidden = !info.mistakes;
   badge.textContent = info.mistakes > 99 ? "99+" : info.mistakes;
   badge.title = `${info.mistakes} 句待重练`;
+  const reviewBadge = $("#reviewBadge");
+  reviewBadge.hidden = !info.review;
+  reviewBadge.textContent = info.review > 99 ? "99+" : info.review;
+  reviewBadge.title = `${info.review} 个词待复习`;
   const playing = location.pathname.startsWith("/player/") ? decodeURIComponent(location.pathname.split("/").pop()) : null;
   $(".workspace-recent").hidden = !info.recent.length;
   $("#recentList").innerHTML = info.recent.map(v => {
@@ -282,14 +287,14 @@ async function loadSavedWords() {
 
 function saveKey(n) { return (n.type === "phrase" ? "p:" : "w:") + n.en; }
 
-function noteHtml(n, cueIndex, { bare = false } = {}) {
+function noteHtml(n, cueIndex, { bare = false, k = null } = {}) {
   const isSaved = savedWords.has(n.en.toLowerCase());
   return `<div class="note ${n.type}"${bare ? ' style="border:0;padding:0"' : ""}>
     <div class="h"><b>${esc(n.en)}</b>${n.phonetic ? `<span class="ph">/${esc(n.phonetic)}/</span>` : ""}
       <span class="badge ${n.type}">${n.type === "phrase" ? "重点短语" : n.lookup ? "查词" : "难词"}</span>
       <span class="act">
         <button class="iconbtn" data-speak="${esc(n.en)}" title="发音">🔊</button>
-        <button class="iconbtn ${isSaved ? "saved" : ""}" data-save="${esc(saveKey(n))}" data-cue="${cueIndex}">${isSaved ? "★ 已收藏" : "☆ 收藏"}</button>
+        <button class="iconbtn ${isSaved ? "saved" : ""}" data-save="${esc(saveKey(n))}" data-cue="${cueIndex}"${k === null ? "" : ` data-k="${k}"`}>${isSaved ? "★ 已收藏" : "☆ 收藏"}</button>
       </span></div>
     <div class="zh">${esc(n.zh || "（词典里没有找到）")}</div>
     ${n.note ? `<div class="tip">${esc(n.note)}</div>` : ""}
@@ -319,7 +324,16 @@ function hidePop() { $("#pop")?.classList.remove("show"); }
 // Card for a clicked word: a marked phrase/hard word uses the sentence's note, any other word the dictionary.
 async function showWordCard(target, cue) {
   const n = target.tagName === "MARK" ? cue.notes?.[target.dataset.key] : await lookupNote(target.dataset.w);
-  if (n) showPop(target, noteHtml(n, cue.i, { bare: true }));
+  if (n) showPop(target, noteHtml(n, cue.i, { bare: true, k: target.dataset.k ?? null }));
+}
+
+// Character ranges of the saved word/phrase in its sentence: the marked phrase (possibly split, as in
+// "pick it up"), or the clicked word (data-k counts words the same way as renderMarked).
+function savedSpans(cue, key, btn) {
+  const marked = (cue.marks || []).filter(m => m.key === key).map(m => [m.s, m.e]);
+  if (marked.length) return marked;
+  const match = btn.dataset.k === undefined ? null : [...cue.text.matchAll(WORD_RE)][+btn.dataset.k];
+  return match ? [[match.index, match.index + match[0].length]] : [];
 }
 
 // ☆ 收藏 / ★ 已收藏. `source` says where it came from: {videoId, time} or {articleId, sentenceIndex}.
@@ -331,7 +345,7 @@ async function toggleSaved(btn, cue, source) {
     await api(`/api/vocab/${encodeURIComponent(k)}`, { method: "DELETE" });
     savedWords.delete(k); toast("已取消收藏");
   } else {
-    await api("/api/vocab", { method: "POST", body: { ...n, key, sentence: cue.text, sentenceZh: cue.zh, ...source } });
+    await api("/api/vocab", { method: "POST", body: { ...n, key, sentence: cue.text, sentenceZh: cue.zh, spans: savedSpans(cue, key, btn), ...source } });
     savedWords.add(k); toast("已收藏");
   }
   $$(`[data-save="${CSS.escape(key)}"]`).forEach(b => { const on = savedWords.has(k); b.classList.toggle("saved", on); b.textContent = on ? "★ 已收藏" : "☆ 收藏"; });

@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import reading
+from . import reading, review
 from .settings import load_settings, save_settings, settings_from
 
 VOCAB_PATH = LIBRARY_DIR / "vocab.json"
@@ -124,7 +124,7 @@ def sidebar() -> dict:
         })
         if len(recent) == 3:
             break
-    return {"mistakes": len(list_mistakes()), "recent": recent}
+    return {"mistakes": len(list_mistakes()), "recent": recent, "review": review.due_count(load_vocab())}
 
 
 def code_fingerprint() -> str:
@@ -159,6 +159,16 @@ def restart_in_place() -> None:
     os.execv(sys.executable, [sys.executable, *args])  # the listening socket is not inherited
 
 
+def _spans(value, limit: int) -> list:
+    """Validated [[start, end], ...] character ranges inside the saved sentence."""
+    out = []
+    for pair in value if isinstance(value, list) else []:
+        if (isinstance(pair, list) and len(pair) == 2 and all(isinstance(x, int) for x in pair)
+                and 0 <= pair[0] < pair[1] <= limit):
+            out.append(pair)
+    return out[:6]
+
+
 def home_stats() -> dict:
     """Numbers for the home page: what is in each section and what was practised today."""
     today = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
@@ -177,6 +187,7 @@ def home_stats() -> dict:
         "words": sum(1 for v in vocab if v.get("type") != "phrase"), "phrases": sum(1 for v in vocab if v.get("type") == "phrase"),
         "savedToday": sum(1 for v in vocab if v.get("added", 0) >= today),
         "dictated": dictated, "dictatedToday": dictated_today, "mistakes": info["mistakes"], "recent": info["recent"],
+        "reviewDue": info["review"],
     }
 
 
@@ -311,6 +322,10 @@ def make_handler(app: App):
                 return self._json(reading.ensure_article_annotation(data, app.dic))
             if p.startswith("/player/"):
                 return self._file(STATIC_DIR / "player.html", "text/html; charset=utf-8")
+            if p == "/review":
+                return self._file(STATIC_DIR / "review.html", "text/html; charset=utf-8")
+            if p == "/api/review":
+                return self._json(review.queue(load_vocab(), LIBRARY_DIR))
             if p == "/mistakes":
                 return self._file(STATIC_DIR / "mistakes.html", "text/html; charset=utf-8")
             if p == "/api/mistakes":
@@ -490,6 +505,19 @@ def make_handler(app: App):
                     }
                     save_json(LIBRARY_DIR / vid / "dictation.json", records)
                 return self._json(records[str(i)])
+            if p == "/api/review":
+                en = str(body.get("en") or "").lower()
+                grade = body.get("grade")
+                if grade not in review.GRADES:
+                    return self._json({"error": "bad grade"}, 400)
+                with _vocab_lock:
+                    items = load_vocab()
+                    item = next((v for v in items if v.get("en", "").lower() == en), None)
+                    if not item:
+                        return self._json({"error": "not found"}, 404)
+                    item["srs"] = review.schedule(item.get("srs"), grade, time.time())
+                    save_vocab(items)
+                return self._json({"srs": item["srs"], "dueCount": review.due_count(items)})
             if p == "/api/vocab":
                 item = {
                     "key": str(body.get("key") or "")[:200],
@@ -505,11 +533,17 @@ def make_handler(app: App):
                     "sentenceIndex": int(body.get("sentenceIndex") or 0),
                     "time": float(body.get("time") or 0),
                     "added": int(time.time()),
+                    # where the word sits in the sentence, for the cloze card in 单词复习: [[start, end], ...]
+                    "spans": _spans(body.get("spans"), len(str(body.get("sentence") or "")[:500])),
                 }
                 if not item["en"]:
                     return self._json({"error": "empty"}, 400)
                 with _vocab_lock:
-                    items = [v for v in load_vocab() if v.get("en", "").lower() != item["en"].lower()]
+                    old = load_vocab()
+                    previous = next((v for v in old if v.get("en", "").lower() == item["en"].lower()), None)
+                    if previous and previous.get("srs"):
+                        item["srs"] = previous["srs"]  # saving it again keeps its review progress
+                    items = [v for v in old if v is not previous]
                     items.insert(0, item)
                     save_vocab(items)
                 return self._json({"ok": True, "count": len(items)})

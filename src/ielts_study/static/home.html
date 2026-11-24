@@ -61,12 +61,13 @@
           <h3>单词 <small>Vocabulary</small></h3>
           <p>每个收藏都带着你遇到它的那句话。</p>
           <ul>
+            <li>单词复习：原句挖空，按遗忘规律安排下次出现的时间</li>
             <li>点任意单词查离线词典 ECDICT</li>
             <li>重点短语来自精选口语表达和词典短语</li>
             <li>点「原句」跳回视频的那一秒或文章的那一句</li>
             <li>一键导出 CSV，可导入 Anki</li>
           </ul>
-          <div class="intro-links"><a class="btn primary" href="/vocab">收藏词句</a></div>
+          <div class="intro-links"><a class="btn primary" href="/review">单词复习</a><a class="btn" href="/vocab">收藏词句</a></div>
         </article>
         <article class="intro-module m-read">
           <h3>阅读 <small>Reading</small></h3>
@@ -225,6 +226,7 @@ setBand(LEVEL_RANK[myLevel] ? myLevel : "6");  // start from the learner's own l
 api("/api/home").then(s => {
   const last = s.recent[0];
   const parts = [`今天听写 ${s.dictatedToday} 句`, `收藏 ${s.savedToday} 个词句`];
+  if (s.reviewDue) parts.push(`<a href="/review">${s.reviewDue} 个词待复习</a>`);
   if (s.mistakes) parts.push(`<a href="/mistakes">${s.mistakes} 句待重练</a>`);
   if (last) parts.push(`继续上次：<a href="/player/${encodeURIComponent(last.id)}?t=${last.time}">${esc(last.title)}</a>`);
   $("#today").innerHTML = parts.join(" · ");

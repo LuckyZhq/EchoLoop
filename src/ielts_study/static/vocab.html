@@ -13,9 +13,12 @@
   <header class="hero page-heading">
     <div>
       <h1>收藏词句</h1>
-      <p>看视频时收藏的单词和短语。点「原句」回到它出现的位置。</p>
+      <p>在视频和文章里收藏的单词和短语。点「原句」回到它出现的位置。</p>
     </div>
-    <button class="btn" id="csv" title="导出为 CSV，可导入 Anki">⤓ 导出 CSV</button>
+    <div class="vocab-head-actions">
+      <a class="btn primary" href="/review">↻ 开始复习</a>
+      <button class="btn" id="csv" title="导出为 CSV，可导入 Anki">⤓ 导出 CSV</button>
+    </div>
   </header>
   <div class="section-h">
     <div class="tabs">
@@ -31,6 +34,16 @@
 <script src="/static/common.js"></script>
 <script>
 let items = [], filter = "all";
+// Review status from 单词复习: new, due now, or when it comes back.
+function srsLabel(srs) {
+  if (!srs) return "新词";
+  if (srs.due * 1000 <= Date.now()) return "待复习";
+  // count calendar days, not 24-hour periods: due at 12:00 tomorrow is 明天 even if that is 23 hours away
+  const midnight = d => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((midnight(new Date(srs.due * 1000)) - midnight(new Date())) / 86400000);
+  const when = days === 0 ? "今天稍后" : days === 1 ? "明天" : `${days} 天后`;
+  return `${srs.ivl >= 21 ? "已记牢 · " : ""}${when}复习`;
+}
 function render() {
   const shown = items.filter(v => filter === "all" || v.type === filter);
   $("#count").textContent = `${shown.length} 条`;
@@ -38,7 +51,8 @@ function render() {
     <div class="vitem">
       <div>
         <div class="h"><b>${esc(v.en)}</b>${v.phonetic ? `<span class="muted" style="color:var(--muted);font-size:13px">/${esc(v.phonetic)}/</span>` : ""}
-          <span class="badge ${v.type}">${v.type === "phrase" ? "短语" : "单词"}</span></div>
+          <span class="badge ${v.type}">${v.type === "phrase" ? "短语" : "单词"}</span>
+          <span class="vocab-srs">${srsLabel(v.srs)}</span></div>
         <div>${esc(v.zh)}</div>
         ${v.note ? `<div style="color:var(--muted);font-size:13px">${esc(v.note)}</div>` : ""}
       </div>
