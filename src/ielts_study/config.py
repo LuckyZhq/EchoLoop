@@ -7,7 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
-LIBRARY_DIR = ROOT / "library"
+# IELTS_LIBRARY points a second copy (e.g. a test server) at another folder, leaving the real library alone.
+LIBRARY_DIR = Path(os.environ["IELTS_LIBRARY"]) if os.environ.get("IELTS_LIBRARY") else ROOT / "library"
 ARTICLES_DIR = ROOT / "articles"  # pasted reading articles, kept apart from the video library
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -20,9 +21,12 @@ WHISPER_MODEL = os.environ.get("IELTS_WHISPER") or os.environ.get("WHATSUB_WHISP
 
 # Hard-word candidates saved at import time. The player chooses which to show from the
 # vocabulary level in Settings (IELTS 5.5–7.5+ or general), so these are deliberately generous.
-CANDIDATE_RANK = 2500   # IELTS-list words rarer than this are candidates (lowest level shows > 2500)
-GENERAL_RANK = 4000     # general level: any word rarer than this
-MAX_WORD_CANDIDATES_PER_CUE = 6
+MAX_WORD_CANDIDATES_PER_CUE = 10
+# Words more common than this are never marked (the, make, people…); everything rarer is kept as a
+# candidate with its frequency rank, and the player marks the ones between your current and target level.
+MIN_CANDIDATE_RANK = 400
+# 中考 (Chinese middle-school) words are taught early: treat them as at most this common.
+SCHOOL_WORD_RANK = 1500
 
 QUALITY_FORMATS = {
     str(height): f"bv*[height<={height}]+ba/b[height<={height}]"

@@ -95,8 +95,8 @@
           <h2 id="studyTitle">学习</h2>
           <p class="settings-lead">决定播放器里标出哪些难词。改了之后所有视频立即生效，不用重新导入。</p>
           <div class="settings-row">
-            <label class="settings-label" for="vocabLevel"><span>词汇水平（雅思）</span><small>选你现在大约的雅思分数。只标出雅思词表里比这个水平更难的词，常见词默认你已认识；「不限雅思」按词频标出所有生僻词</small></label>
-            <span class="select-wrap wide"><select class="btn" id="vocabLevel" data-preference="vocabLevel"></select></span>
+            <div class="settings-label"><span>现在的水平和目标</span><small id="levelSummary">只标出比你现在水平难、又不超出目标太多的词</small></div>
+            <a class="btn" href="/level">测试 / 调整</a>
           </div>
         </section>
       </template>
@@ -232,6 +232,18 @@ if (textSizeReset) textSizeReset.onclick = () => {
 function fmtBytes(n) {
   return n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${Math.round(n / 1e6)} MB` : `${Math.max(1, Math.round(n / 1e3))} KB`;
 }
+// ---------- 学习: summary of the level and target (edited on /level)
+if ($("#levelSummary")) {
+  const showLevel = () => {
+    const p = studyProfile, r = markRange();
+    $("#levelSummary").textContent = p.current === null && p.target === null
+      ? "还没有设置。做一次 5 分钟测试，或者直接选分数。"
+      : `现在 ${bandLabel(p.current)}${p.vocabSize ? `（约 ${p.vocabSize} 词）` : ""} → 目标 ${bandLabel(p.target)}。标出词频第 ${Math.round(r.lo)}–${Math.round(r.hi)} 位的词，每句最多 ${r.perCue} 个。`;
+  };
+  showLevel();
+  window.addEventListener("profilechange", showLevel);
+}
+
 const storageList = $("#storageList");
 if (storageList) {
   // an array, not an object: number-like keys would be reordered (480 before 720)

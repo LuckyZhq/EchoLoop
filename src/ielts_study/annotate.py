@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from .config import CANDIDATE_RANK, GENERAL_RANK, MAX_WORD_CANDIDATES_PER_CUE
+from .config import MAX_WORD_CANDIDATES_PER_CUE, MIN_CANDIDATE_RANK, SCHOOL_WORD_RANK
 from .dictionary import Dictionary
 from .gloss import word_glosses
 
@@ -19,7 +19,7 @@ _nlp = None
 CONTENT_POS = {"NOUN", "VERB", "ADJ", "ADV"}
 EXAM_TAGS = ("cet6", "ky", "toefl", "ielts", "gre")
 MAX_PHRASE_TOKENS = 6
-ANNOTATION_VERSION = 4  # bump when marks/notes change shape; old videos are re-annotated on open
+ANNOTATION_VERSION = 5  # bump when marks/notes change shape; old videos are re-annotated on open
 
 
 def nlp():
@@ -84,39 +84,59 @@ def _overlaps(a, ranges) -> bool:
     return any(a[0] < r[1] and r[0] < a[1] for r in ranges)
 
 
+def word_info(t, dic: Dictionary):
+    """Dictionary entry and effective frequency rank for a content word, or None for function words and names.
+
+    Returns (info, rank, ielts, exam). rank 0 means the word is not in the frequency lists (usually rare)."""
+    if not t.is_alpha or t.is_stop or len(t.text) < 3 or t.pos_ not in CONTENT_POS:
+        return None
+    if t.text[0].isupper() and t.i > 0 and t.pos_ != "ADJ":  # likely a name the tagger missed
+        return None
+    lemma = t.lemma_.lower()
+    if lemma != t.lower_:
+        # spaCy sometimes guesses wrong ("shining" → "shin"): trust it only if the dictionary agrees that
+        # the word is a form of that lemma, otherwise use the dictionary's own form table.
+        guess = dic.word(lemma)
+        forms = {part[2:] for part in (guess or {}).get("exchange", "").split("/") if len(part) > 2}
+        if not guess or t.lower_ not in forms:
+            lemma = dic.base_form(t.lower_)
+    info = dic.word(lemma, t.pos_) or dic.word(t.lower_, t.pos_)
+    base = info
+    if t.lower_ != lemma and (t.tag_ in ("VBN", "JJ") or (t.tag_ == "VBG" and t.pos_ == "ADJ")):
+        # "bored", "interested", "amazing": the adjective entry fits better than the verb's
+        # (but not for "-ing" verbs: "improving residents' lives" is improve, not 有启发的)
+        adjective = dic.word(t.lower_, "ADJ")
+        if adjective and adjective["zh"].startswith("a."):
+            info = adjective
+    if not info or not info["zh"]:
+        return None
+    rank = info["rank"]
+    tags = info["tag"].split()
+    if base and base is not info and base["rank"] and (not rank or base["rank"] < rank):
+        rank = base["rank"]  # "linked" is as easy as "link", even when the adjective entry gives the meaning
+    if t.pos_ == "ADV" and lemma.endswith("ly"):
+        # "honestly" is as hard as "honest": judge -ly adverbs by their stem
+        stem = dic.word(lemma[:-2]) or dic.word(lemma[:-3] + "y") or dic.word(lemma[:-2] + "e")
+        if stem and stem["rank"] > 0:
+            rank = min(rank, stem["rank"]) if rank else stem["rank"]
+    if "zk" in tags:  # 中考词汇 is taught early, whatever its corpus frequency
+        rank = min(rank, SCHOOL_WORD_RANK) if rank else SCHOOL_WORD_RANK
+    return info, rank, "ielts" in tags, any(tag in tags for tag in EXAM_TAGS)
+
+
 def _hard_words(doc, dic: Dictionary, taken):
+    """Every content word rarer than MIN_CANDIDATE_RANK, rarest first. Which ones get marked is decided
+    in the player from the learner's current and target level."""
     out = []
     for t in doc:
-        if not t.is_alpha or t.is_stop or len(t.text) < 3 or t.pos_ not in CONTENT_POS:
+        found = word_info(t, dic)
+        if not found:
             continue
-        if t.text[0].isupper() and t.i > 0:  # likely a name the tagger missed
-            continue
+        info, rank, ielts, exam = found
         r = (t.idx, t.idx + len(t.text))
         if _overlaps(r, taken):
             continue
-        lemma = t.lemma_.lower()
-        info = dic.word(lemma, t.pos_) or dic.word(t.lower_, t.pos_)
-        if t.lower_ != lemma and t.tag_ in ("VBN", "VBG", "JJ"):
-            # "bored", "interested", "amazing": the adjective entry fits better than the verb's
-            adjective = dic.word(t.lower_, "ADJ")
-            if adjective and adjective["zh"].startswith("a."):
-                info = adjective
-        if not info or not info["zh"]:
-            continue
-        rank = info["rank"]
-        tags = info["tag"].split()
-        if "zk" in tags:  # 中考词汇 counts as known regardless of corpus frequency
-            continue
-        if t.pos_ == "ADV" and lemma.endswith("ly"):
-            # "honestly" is as hard as "honest": judge -ly adverbs by their stem
-            stem = dic.word(lemma[:-2]) or dic.word(lemma[:-3] + "y") or dic.word(lemma[:-2] + "e")
-            if stem and stem["rank"] > 0:
-                rank = min(rank, stem["rank"]) if rank else stem["rank"]
-        exam = any(tag in tags for tag in EXAM_TAGS)
-        ielts = "ielts" in tags
-        # Keep anything that some vocabulary level could want: IELTS words above the lowest level,
-        # plus rare / exam words for the general (non-IELTS) level.
-        if (ielts and (rank > CANDIDATE_RANK or rank == 0)) or rank > GENERAL_RANK or (rank == 0 and exam):
+        if rank > MIN_CANDIDATE_RANK or (rank == 0 and exam):
             out.append((rank or 10**6, r, info, rank, ielts, exam))
     out.sort(key=lambda x: -x[0])
     return out

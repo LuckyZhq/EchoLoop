@@ -566,9 +566,8 @@ function rerenderMarks() {
   cues.forEach((_, i) => markRow(i));
   const i = cur; cur = -1; setCurrent(i);
 }
-window.addEventListener("storage", event => {
-  if (event.key === null || event.key === "vocabLevel") rerenderMarks();
-});
+// level, target or 我认识 changed (here or in another tab): mark again
+window.addEventListener("profilechange", () => { if (cues.length) rerenderMarks(); });
 
 window.addEventListener("pageshow", event => {
   if (event.persisted && player.isConnected) {

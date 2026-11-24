@@ -17,7 +17,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import reading, review
+from . import placement, reading, review
 from .settings import load_settings, save_settings, settings_from
 
 VOCAB_PATH = LIBRARY_DIR / "vocab.json"
@@ -322,6 +322,15 @@ def make_handler(app: App):
                 return self._json(reading.ensure_article_annotation(data, app.dic))
             if p.startswith("/player/"):
                 return self._file(STATIC_DIR / "player.html", "text/html; charset=utf-8")
+            if p == "/level":
+                return self._file(STATIC_DIR / "level.html", "text/html; charset=utf-8")
+            if p == "/api/profile":
+                return self._json(placement.public_profile(load_vocab()))
+            if p == "/api/placement":
+                return self._json({"passages": [
+                    {"title": x["title"], "level": x["level"], "text": x["text"],
+                     "words": [{"id": w["id"], "s": w["s"], "e": w["e"], "en": w["en"]} for w in x["words"]]}
+                    for x in placement.passages(app.dic)]})
             if p == "/review":
                 return self._file(STATIC_DIR / "review.html", "text/html; charset=utf-8")
             if p == "/api/review":
@@ -505,6 +514,20 @@ def make_handler(app: App):
                     }
                     save_json(LIBRARY_DIR / vid / "dictation.json", records)
                 return self._json(records[str(i)])
+            if p == "/api/placement/check":
+                unknown = {str(i) for i in body.get("unknown") or []}
+                return self._json({"questions": placement.spot_check(app.dic, unknown)})
+            if p == "/api/placement/result":
+                ids = lambda key: {str(i) for i in body.get(key) or []}  # noqa: E731
+                result = placement.score_test(app.dic, ids("unknown"), ids("wrong"), ids("checked"))
+                placement.record_test(result)
+                return self._json({**result, "profile": placement.public_profile(load_vocab())})
+            if p == "/api/profile":
+                placement.update_profile(body)
+                return self._json(placement.public_profile(load_vocab()))
+            if p == "/api/known":
+                placement.set_known(str(body.get("en") or ""), bool(body.get("known", True)))
+                return self._json(placement.public_profile(load_vocab()))
             if p == "/api/review":
                 en = str(body.get("en") or "").lower()
                 grade = body.get("grade")

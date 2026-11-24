@@ -132,7 +132,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "m" || e.key === "M") { marksOn = !marksOn; render(); }
   if (e.key === "Escape") hidePop();
 });
-window.addEventListener("storage", event => { if (event.key === null || event.key === "vocabLevel") render(); });
+window.addEventListener("profilechange", () => { if (cues.length) { render(); showMeta(); } });
 
 (async () => {
   try { data = await api(`/api/reading/${encodeURIComponent(aid)}`); }

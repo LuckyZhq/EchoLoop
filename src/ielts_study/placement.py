@@ -1,0 +1,228 @@
+"""水平测试 and the learner profile (current level, target, words marked 我认识).
+
+The test: three short passages from easy to hard. The learner clicks every word they don't know; a short
+spot-check then asks the meaning of a few harder words they did *not* click, because people tend to skip
+words they only half know. Each word has a frequency rank, so the answers show how far up the frequency
+list the learner's vocabulary reaches. That estimate is mapped to a rough IELTS band (BAND_VOCAB).
+
+BAND_VOCAB is an approximation for guidance, not an official conversion: it is in line with published
+estimates of the vocabulary size typical at each band, and vocabulary is only one part of the exam.
+"""
+from __future__ import annotations
+
+import json
+import random
+import threading
+import time
+from functools import lru_cache
+from pathlib import Path
+
+from .config import LIBRARY_DIR
+
+PASSAGES_FILE = Path(__file__).with_name("placement_passages.json")
+PROFILE_PATH = LIBRARY_DIR / "profile.json"
+_lock = threading.Lock()
+
+# Typical vocabulary (most frequent N words known) at each band — an estimate, see the module docstring.
+BAND_VOCAB = {0: 0, 1: 300, 2: 800, 2.5: 1100, 3: 1500, 3.5: 1800, 4: 2200, 4.5: 2600, 5: 3000, 5.5: 3500,
+              6: 4000, 6.5: 5000, 7: 6000, 7.5: 7000, 8: 8500, 8.5: 9500, 9: 11000}
+BANDS = sorted(BAND_VOCAB)
+# Frequency bands the estimate is computed over (rank ranges).
+EDGES = [0, 1000, 2000, 3000, 5000, 8000, 12000]
+UNRANKED = 9000  # words missing from the frequency lists are rare
+MAX_CHECKS = 8
+
+
+# ------------------------------------------------------------------ passages
+@lru_cache(maxsize=1)
+def _passages_raw() -> list[dict]:
+    return json.loads(PASSAGES_FILE.read_text(encoding="utf-8"))
+
+
+def build_passages(dic) -> list[dict]:
+    """Passages with every scored (content) word: id, character range, dictionary form, rank, meaning."""
+    from .annotate import nlp, word_info
+    from .dictionary import clean_translation
+
+    out = []
+    for pi, p in enumerate(_passages_raw()):
+        words = []
+        for t in nlp()(p["text"]):
+            found = word_info(t, dic)
+            if not found:
+                continue
+            info, rank, _, _ = found
+            zh = clean_translation(info["zh"], None, max_senses=2, max_lines=1) or info["zh"].split("\n")[0]
+            words.append({"id": f"{pi}:{len(words)}", "s": t.idx, "e": t.idx + len(t.text), "en": info["en"],
+                          "rank": rank or UNRANKED, "zh": zh[:40], "phonetic": info.get("phonetic", "")})
+        out.append({"title": p["title"], "level": p["level"], "text": p["text"], "words": words})
+    return out
+
+
+_cache: dict = {}
+
+
+def passages(dic) -> list[dict]:
+    if "p" not in _cache:
+        _cache["p"] = build_passages(dic)
+    return _cache["p"]
+
+
+def _all_words(dic) -> dict:
+    return {w["id"]: w for p in passages(dic) for w in p["words"]}
+
+
+# ------------------------------------------------------------------ spot-check
+def spot_check(dic, unknown: set[str], seed: int | None = None) -> list[dict]:
+    """Ask the meaning of a few harder words the learner did not click (spread over the frequency bands)."""
+    rng = random.Random(seed)
+    words = _all_words(dic)
+    candidates = [w for w in words.values() if w["id"] not in unknown and w["rank"] > 600]
+    by_band: dict[int, list] = {}
+    for w in candidates:
+        by_band.setdefault(_band_index(w["rank"]), []).append(w)
+    picked: list[dict] = []
+    seen_en: set[str] = set()
+    while len(picked) < MAX_CHECKS and any(by_band.values()):
+        for band in sorted(by_band, reverse=True):  # hardest bands first, one word each round
+            pool = [w for w in by_band[band] if w["en"] not in seen_en]
+            by_band[band] = pool
+            if pool and len(picked) < MAX_CHECKS:
+                w = rng.choice(pool)
+                picked.append(w)
+                seen_en.add(w["en"])
+    meanings = list({w["zh"] for w in words.values() if w["zh"]})
+    questions = []
+    for w in picked:
+        wrong = rng.sample([m for m in meanings if m != w["zh"]], 3)
+        options = wrong + [w["zh"]]
+        rng.shuffle(options)
+        questions.append({"id": w["id"], "en": w["en"], "options": options, "answer": options.index(w["zh"])})
+    return questions
+
+
+# ------------------------------------------------------------------ estimate
+def _band_index(rank: int) -> int:
+    for i in range(len(EDGES) - 1):
+        if rank <= EDGES[i + 1]:
+            return i
+    return len(EDGES) - 2
+
+
+def estimate(ranks_known: list[tuple[int, bool]], checks: list[tuple[int, bool]] = ()) -> dict:
+    """Vocabulary size from (rank, known) for every scored word, corrected by spot-check results.
+
+    Per frequency band: the share of words known. Spot-check failures show that unclicked words were not
+    all really known: every claimed word at least as rare as the easiest failed word is discounted by the
+    failure rate of the checks in that range. Honest answers (no failures) are taken as they are."""
+    n = len(EDGES) - 1
+    failed_ranks = [rank for rank, ok in checks if not ok]
+    doubt_from = min(failed_ranks) if failed_ranks else None
+    # failure rate among checks at least as hard as the easiest failure (easier checks say nothing here)
+    hard_checks = [ok for rank, ok in checks if doubt_from is not None and rank >= doubt_from]
+    fail_rate = hard_checks.count(False) / len(hard_checks) if hard_checks else 0.0
+    total, claimed = [0] * n, [0.0] * n
+    for rank, ok in ranks_known:
+        b = _band_index(rank)
+        total[b] += 1
+        if ok:
+            claimed[b] += 1 - fail_rate if doubt_from is not None and rank >= doubt_from else 1
+    ratios: list[float | None] = [claimed[b] / total[b] if total[b] >= 2 else None for b in range(n)]
+    # Bands with too few words: take the neighbours' average (or the band below, at the top end).
+    for b in range(n):
+        if ratios[b] is None:
+            lower = next((ratios[i] for i in range(b - 1, -1, -1) if ratios[i] is not None), None)
+            upper = next((ratios[i] for i in range(b + 1, n) if ratios[i] is not None), None)
+            ratios[b] = (lower + upper) / 2 if lower is not None and upper is not None else (lower or upper or 0.0)
+    size = sum((EDGES[b + 1] - EDGES[b]) * ratios[b] for b in range(n))
+    size = int(round(size / 50) * 50)
+    return {"vocabSize": size, "band": band_for(size),
+            "bands": [{"from": EDGES[b], "to": EDGES[b + 1], "known": round(ratios[b], 2)} for b in range(n)]}
+
+
+def band_for(vocab: int) -> float:
+    """Highest band whose typical vocabulary the learner reaches."""
+    return max(b for b in BANDS if BAND_VOCAB[b] <= max(0, vocab))
+
+
+def score_test(dic, unknown: set[str], wrong: set[str], checked: set[str]) -> dict:
+    words = _all_words(dic)
+    ranks_known = [(w["rank"], w["id"] not in unknown) for w in words.values()]
+    checks = [(words[i]["rank"], i not in wrong) for i in checked if i in words]
+    result = estimate(ranks_known, checks)
+    result["unknownWords"] = sorted({(words[i]["en"], words[i]["zh"], words[i]["phonetic"])
+                                     for i in unknown | wrong if i in words}, key=lambda x: x[0])
+    return result
+
+
+# ------------------------------------------------------------------ profile
+def load_profile() -> dict:
+    try:
+        p = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        p = {}
+    p.setdefault("current", None)
+    p.setdefault("target", None)
+    p.setdefault("vocabSize", None)
+    p.setdefault("tests", [])
+    p.setdefault("known", [])
+    return p
+
+
+def save_profile(p: dict) -> None:
+    LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = PROFILE_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(p, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(PROFILE_PATH)
+
+
+def _band_value(v):
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return v if v in BAND_VOCAB else None
+
+
+def update_profile(changes: dict) -> dict:
+    with _lock:
+        p = load_profile()
+        for key in ("current", "target"):
+            if key in changes:
+                p[key] = _band_value(changes[key])
+        if "vocabSize" in changes and changes["vocabSize"] is None:
+            p["vocabSize"] = None  # choosing a level by hand replaces the tested vocabulary
+        save_profile(p)
+        return p
+
+
+def record_test(result: dict) -> dict:
+    with _lock:
+        p = load_profile()
+        p["vocabSize"] = result["vocabSize"]
+        p["current"] = result["band"]
+        if p["target"] is None or p["target"] <= p["current"]:
+            p["target"] = min(9, p["current"] + 1.5)
+        p["tests"].append({"at": int(time.time()), "vocabSize": result["vocabSize"], "band": result["band"]})
+        p["tests"] = p["tests"][-50:]
+        save_profile(p)
+        return p
+
+
+def set_known(en: str, known: bool) -> dict:
+    en = en.strip().lower()[:100]
+    with _lock:
+        p = load_profile()
+        words = [w for w in p["known"] if w != en]
+        if known and en:
+            words.append(en)
+        p["known"] = words[-5000:]
+        save_profile(p)
+        return p
+
+
+def public_profile(vocab: list[dict]) -> dict:
+    """Profile for the pages: words to stop marking = 我认识 + words already well remembered in 单词复习."""
+    p = load_profile()
+    mature = sorted({v["en"].lower() for v in vocab if v.get("srs", {}).get("ivl", 0) >= 21})
+    return {**p, "mature": mature, "bandVocab": {str(k): v for k, v in BAND_VOCAB.items()}}

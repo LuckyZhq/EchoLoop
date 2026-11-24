@@ -85,17 +85,18 @@
 
     <section class="intro-block intro-levels" aria-labelledby="levelsTitle">
       <div>
-        <p class="intro-eyebrow">词汇分级</p>
-        <h2 id="levelsTitle">选你的目标分数，<br>只标你还不会的词。</h2>
-        <p class="intro-muted">难词只从雅思词表里挑，再按词频排名过滤：目标越高，标出来的词越少、越难。换分数不用重新导入，所有视频和文章立刻更新。</p>
-        <div class="intro-bands" role="group" aria-label="目标分数">
-          <button type="button" class="intro-band" data-band="5.5">5.5<small>排名 &gt; 2500</small></button>
-          <button type="button" class="intro-band" data-band="6">6<small>排名 &gt; 3500</small></button>
-          <button type="button" class="intro-band" data-band="6.5">6.5<small>排名 &gt; 4500</small></button>
-          <button type="button" class="intro-band" data-band="7">7<small>排名 &gt; 6000</small></button>
-          <button type="button" class="intro-band" data-band="7.5">7.5<small>排名 &gt; 8000</small></button>
+        <p class="intro-eyebrow">水平与目标</p>
+        <h2 id="levelsTitle">先测出你在哪，<br>只标你下一步该学的词。</h2>
+        <p class="intro-muted">读 3 篇短文、点出不认识的词，5 分钟估出词汇量。之后只标比你现在难、又不超出目标太多的词：基础阶段标常用词，高分阶段标学术词。点词卡上的「✓ 认识」，这个词就不再出现。</p>
+        <div class="intro-bands" role="group" aria-label="现在的水平（示例目标为再高 1.5 分）">
+          <button type="button" class="intro-band" data-band="3">3<small>→ 4.5</small></button>
+          <button type="button" class="intro-band" data-band="4">4<small>→ 5.5</small></button>
+          <button type="button" class="intro-band" data-band="5">5<small>→ 6.5</small></button>
+          <button type="button" class="intro-band" data-band="6">6<small>→ 7.5</small></button>
+          <button type="button" class="intro-band" data-band="7">7<small>→ 8.5</small></button>
         </div>
-        <p class="intro-muted intro-small">词频排名取自 ECDICT。播放器里每句最多标 2 个，优先标最难的。<a href="/settings/study">在设置里改目标分数</a></p>
+        <p class="intro-muted intro-small" id="demoRange"></p>
+        <p class="intro-muted intro-small"><a href="/level" id="levelLink">做 5 分钟水平测试</a></p>
       </div>
       <div class="intro-panel">
         <p class="intro-label">示例句</p>
@@ -199,7 +200,7 @@ function play(on) {
 $("#play").onclick = () => play(!timer);
 play(!matchMedia("(prefers-reduced-motion: reduce)").matches);
 
-// ---------- band levels: real ECDICT ranks, same rule as the player (IELTS word rarer than the band's threshold)
+// ---------- levels: real ECDICT ranks, marked with the player's own rule (markRange)
 const WORDS = {
   exacerbated: ["exacerbate", "使恶化，加剧", 7171],
   congestion: ["congestion", "拥挤，堵塞", 8954],
@@ -207,20 +208,25 @@ const WORDS = {
   commute: ["commute", "通勤", 6867],
   mitigate: ["mitigate", "缓和，减轻", 8991],
   pollution: ["pollution", "污染", 2147],
+  infrastructure: ["infrastructure", "基础设施", 3613],
 };
-$("#sample").innerHTML = "Rapid urbanisation has exacerbated traffic congestion, so cities must foster greener ways to commute and mitigate pollution."
+$("#sample").innerHTML = "Rapid urbanisation has exacerbated traffic congestion, so cities must foster greener ways to commute, upgrade infrastructure and mitigate pollution."
   .replace(/[A-Za-z]+/g, w => WORDS[w] ? `<span class="k" data-w="${w}">${w}</span>` : w);
 function setBand(band) {
-  const limit = LEVEL_RANK[band];
+  const current = parseFloat(band);
+  const target = Math.min(9, current + 1.5);
+  const range = markRange({ current, target, vocabSize: null });
+  const on = rank => rank > range.lo && rank <= range.hi;
   $$(".intro-band").forEach(b => b.setAttribute("aria-pressed", b.dataset.band === band));
-  $$("#sample .k").forEach(k => k.classList.toggle("on", WORDS[k.dataset.w][2] > limit));
-  $("#ranks").innerHTML = Object.values(WORDS).sort((a, b) => b[2] - a[2]).map(([en, zh, rank]) => `
-    <tr class="${rank > limit ? "" : "off"}"><td>${en}</td><td>${zh}</td><td class="num">${rank.toLocaleString("en-US")}</td>
-    <td class="num"><span class="state">${rank > limit ? "标出" : "不标"}</span></td></tr>`).join("");
+  $$("#sample .k").forEach(k => k.classList.toggle("on", on(WORDS[k.dataset.w][2])));
+  $("#demoRange").textContent = `现在 ${current} 分、目标 ${target} 分：标出词频第 ${Math.round(range.lo)}–${Math.round(range.hi)} 位的词。`;
+  $("#ranks").innerHTML = Object.values(WORDS).sort((a, b) => a[2] - b[2]).map(([en, zh, rank]) => `
+    <tr class="${on(rank) ? "" : "off"}"><td>${en}</td><td>${zh}</td><td class="num">${rank.toLocaleString("en-US")}</td>
+    <td class="num"><span class="state">${on(rank) ? "标出" : rank <= range.lo ? "已会" : "太难"}</span></td></tr>`).join("");
 }
 $$(".intro-band").forEach(b => b.addEventListener("click", () => setBand(b.dataset.band)));
-const myLevel = readPreference("vocabLevel");
-setBand(LEVEL_RANK[myLevel] ? myLevel : "6");  // start from the learner's own level
+setBand(String(Math.min(7, Math.max(3, Math.round(studyProfile.current ?? 5)))));  // near the learner's own level
+if ((studyProfile.tests || []).length) $("#levelLink").textContent = "查看我的水平和目标";
 
 // ---------- a one-line "today" note and a resume link, when there is history
 api("/api/home").then(s => {

@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>水平测试</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap level-wrap">
+    <header class="hero">
+      <h1>水平与目标</h1>
+      <p>先估一下你现在认识多少词，再定目标分数。之后视频和文章里只标出你下一步该学的词。</p>
+    </header>
+
+    <!-- 1. intro -->
+    <section class="level-panel" id="intro" hidden>
+      <h2>5 分钟词汇测试</h2>
+      <ol class="level-steps">
+        <li><b>读 3 篇短文</b>：从简单到难。遇到<strong>不认识或拿不准</strong>的词就点一下，标成红色。</li>
+        <li><b>抽查几个词</b>：挑几个你没点的词问意思，免得高估。</li>
+        <li><b>看结果</b>：估算词汇量和对应的雅思分数，再选你的目标。</li>
+      </ol>
+      <p class="level-note">不用查词典，也别猜。按第一感觉标就行，越真实，标出来的词越合适。</p>
+      <div class="level-actions">
+        <button type="button" class="btn primary" id="startTest">开始测试</button>
+        <button type="button" class="btn ghost" id="skipTest">跳过，直接选分数</button>
+      </div>
+    </section>
+
+    <!-- 2. passages -->
+    <section class="level-panel" id="passage" hidden>
+      <div class="level-progress"><span id="passageStep"></span><span id="passageLevel" class="badge"></span><span class="level-count" id="clickCount"></span></div>
+      <h2 id="passageTitle"></h2>
+      <p class="level-hint">点击不认识的词（再点一次取消）。</p>
+      <div class="level-text" id="passageText"></div>
+      <div class="level-actions">
+        <button type="button" class="btn ghost" id="allUnknown">这篇大部分都不认识</button>
+        <button type="button" class="btn primary" id="nextPassage">下一篇 →</button>
+      </div>
+    </section>
+
+    <!-- 3. spot-check -->
+    <section class="level-panel" id="check" hidden>
+      <h2>抽查几个你没点的词</h2>
+      <p class="level-hint">选出意思。不确定就选「不认识」，不影响什么，只是让结果更准。</p>
+      <form id="checkForm" class="level-checks"></form>
+      <div class="level-actions">
+        <button type="button" class="btn primary" id="submitCheck">看结果</button>
+      </div>
+    </section>
+
+    <!-- 4. result / profile -->
+    <section class="level-panel" id="result" hidden>
+      <div class="level-result-top" id="resultTop"></div>
+      <div class="level-bars" id="bars"></div>
+      <p class="level-note" id="resultNote"></p>
+
+      <div class="level-goal">
+        <label class="level-field"><span>现在的水平</span><span class="select-wrap"><select class="btn" id="currentBand"></select></span></label>
+        <span class="level-arrow" aria-hidden="true">→</span>
+        <label class="level-field"><span>目标分数</span><span class="select-wrap"><select class="btn" id="targetBand"></select></span></label>
+      </div>
+      <p class="level-range" id="rangeText"></p>
+
+      <div class="level-unknown" id="unknownBlock" hidden>
+        <div class="level-sub"><h3>这次标出的生词</h3><button type="button" class="btn" id="saveUnknown">全部加入收藏词句</button></div>
+        <div class="level-chips" id="unknownWords"></div>
+      </div>
+
+      <div class="level-known" id="knownBlock" hidden>
+        <div class="level-sub"><h3>标为「认识」的词</h3><span class="level-hint">这些词不会再被标出。点 × 恢复。</span></div>
+        <div class="level-chips" id="knownWords"></div>
+      </div>
+
+      <div class="level-actions">
+        <button type="button" class="btn" id="retest">重新测试</button>
+        <a class="btn primary" href="/listening">去视频精听</a>
+      </div>
+      <div class="level-history" id="history"></div>
+    </section>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+const BAND_OPTIONS = ["0", "1", "2", "2.5", "3", "3.5", "4", "4.5", "5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9"];
+let passages = [], step = 0, unknown = new Set(), questions = [], lastResult = null;
+
+function show(id) { ["intro", "passage", "check", "result"].forEach(s => { $("#" + s).hidden = s !== id; }); scrollTo({ top: 0 }); }
+
+// ---------- passages: click the words you don't know
+function renderPassage() {
+  const p = passages[step];
+  $("#passageStep").textContent = `第 ${step + 1} / ${passages.length} 篇`;
+  $("#passageLevel").textContent = p.level;
+  $("#passageTitle").textContent = p.title;
+  let html = "", at = 0;
+  p.words.forEach((w, i) => {
+    // keep punctuation right after a word on the same line as it ("crowded," never breaks before the comma)
+    const nextStart = p.words[i + 1]?.s ?? p.text.length;
+    const tail = p.text.slice(w.e, nextStart).match(/^[^\s]*/)[0];
+    html += esc(p.text.slice(at, w.s)) + `<span class="lw-keep"><button type="button" class="lw${unknown.has(w.id) ? " unknown" : ""}" data-id="${w.id}" aria-pressed="${unknown.has(w.id)}">${esc(p.text.slice(w.s, w.e))}</button>${esc(tail)}</span>`;
+    at = w.e + tail.length;
+  });
+  $("#passageText").innerHTML = html + esc(p.text.slice(at));
+  $("#nextPassage").textContent = step === passages.length - 1 ? "下一步：抽查 →" : "下一篇 →";
+  countClicks();
+}
+function countClicks() {
+  const n = passages[step].words.filter(w => unknown.has(w.id)).length;
+  $("#clickCount").textContent = n ? `已标 ${n} 个不认识` : "";
+}
+$("#passageText").addEventListener("click", event => {
+  const b = event.target.closest(".lw");
+  if (!b) return;
+  const on = !unknown.has(b.dataset.id);
+  on ? unknown.add(b.dataset.id) : unknown.delete(b.dataset.id);
+  b.classList.toggle("unknown", on);
+  b.setAttribute("aria-pressed", on);
+  countClicks();
+});
+$("#allUnknown").onclick = () => { passages[step].words.forEach(w => unknown.add(w.id)); next(); };
+$("#nextPassage").onclick = next;
+async function next() {
+  if (step < passages.length - 1) { step += 1; renderPassage(); scrollTo({ top: 0 }); return; }
+  const { questions: qs } = await api("/api/placement/check", { method: "POST", body: { unknown: [...unknown] } });
+  questions = qs;
+  if (!questions.length) return finish();
+  $("#checkForm").innerHTML = questions.map((q, i) => `
+    <fieldset class="level-q">
+      <legend><b>${esc(q.en)}</b> <button type="button" class="iconbtn" data-speak="${esc(q.en)}" title="发音">🔊</button></legend>
+      ${[...q.options, "不认识"].map((o, j) => `<label><input type="radio" name="q${i}" value="${j < q.options.length ? j : -1}"> ${esc(o)}</label>`).join("")}
+    </fieldset>`).join("");
+  show("check");
+}
+document.addEventListener("click", e => { const s = e.target.closest("[data-speak]"); if (s) speak(s.dataset.speak); });
+
+// ---------- spot-check → result
+$("#submitCheck").onclick = finish;
+async function finish() {
+  const wrong = [], checked = [];
+  questions.forEach((q, i) => {
+    checked.push(q.id);
+    const picked = $(`input[name="q${i}"]:checked`);
+    if (!picked || +picked.value !== q.answer) wrong.push(q.id);  // unanswered or 不认识 counts as unknown
+  });
+  $("#submitCheck").disabled = true;
+  try {
+    lastResult = await api("/api/placement/result", { method: "POST", body: { unknown: [...unknown], wrong, checked } });
+    setProfile(lastResult.profile);
+    renderResult();
+    show("result");
+  } catch (e) { toast(e.message); }
+  $("#submitCheck").disabled = false;
+}
+
+// ---------- result and goal
+function bandOptions(select, value) {
+  select.replaceChildren(new Option("未设置", ""), ...BAND_OPTIONS.map(b => new Option(`${b} 分（约 ${bandVocab(b)} 词）`, b)));
+  select.value = value === null || value === undefined ? "" : String(value);
+}
+function renderResult() {
+  const p = studyProfile;
+  const r = lastResult;
+  const tested = p.vocabSize !== null && p.vocabSize !== undefined;
+  $("#resultTop").innerHTML = tested
+    ? `<div><span class="level-label">估算词汇量</span><b class="level-big">${p.vocabSize}</b><span class="level-unit">词</span></div>
+       <div><span class="level-label">词汇大约相当于</span><b class="level-big">${p.current}</b><span class="level-unit">分</span></div>`
+    : `<div><span class="level-label">还没有测试</span><b class="level-big">—</b></div>`;
+  $("#bars").innerHTML = r ? r.bands.map(b => `<div class="level-bar"><span>${b.from / 1000}–${b.to / 1000}k</span>
+    <i><em style="width:${Math.round(b.known * 100)}%"></em></i><b>${Math.round(b.known * 100)}%</b></div>`).join("") : "";
+  $("#bars").hidden = !r;
+  $("#resultNote").textContent = tested
+    ? "按词频从常用到生僻排列，看各段你认识多少。分数只按词汇量粗略换算，不是官方标准；听力、阅读、写作、口语还要另外练。"
+    : "可以直接选分数，或者先做测试再来调整。";
+  bandOptions($("#currentBand"), p.current);
+  bandOptions($("#targetBand"), p.target);
+  renderRange();
+  const words = r ? r.unknownWords : [];
+  $("#unknownBlock").hidden = !words.length;
+  $("#unknownWords").innerHTML = words.map(([en, zh]) => `<span class="level-chip" title="${esc(zh)}">${esc(en)}</span>`).join("");
+  const known = p.known || [];
+  $("#knownBlock").hidden = !known.length;
+  $("#knownWords").innerHTML = known.map(en => `<span class="level-chip">${esc(en)}<button type="button" data-unknow="${esc(en)}" aria-label="恢复标出 ${esc(en)}">×</button></span>`).join("");
+  $("#history").innerHTML = (p.tests || []).length ? `<h3>测试记录</h3>` + [...p.tests].reverse().slice(0, 8).map(t =>
+    `<div><span>${new Date(t.at * 1000).toLocaleDateString("zh-CN")}</span><span>约 ${t.vocabSize} 词</span><span>${t.band} 分</span></div>`).join("") : "";
+}
+function renderRange() {
+  const r = markRange();
+  $("#rangeText").innerHTML = studyProfile.current === null && studyProfile.target === null ? "" :
+    `视频和文章里会标出<b>词频第 ${Math.round(r.lo)}–${Math.round(r.hi)} 位</b>之间的词，每句最多 ${r.perCue} 个；比这更常用的默认你认识，更生僻的暂时不标。`;
+}
+async function saveGoal(changes) {
+  try { setProfile(await api("/api/profile", { method: "POST", body: changes })); renderResult(); toast("已保存"); }
+  catch (e) { toast(e.message); }
+}
+// Choosing the current level by hand replaces the tested vocabulary (the range then follows the band).
+$("#currentBand").onchange = e => saveGoal({ current: e.target.value === "" ? null : e.target.value, vocabSize: null });
+$("#targetBand").onchange = e => saveGoal({ target: e.target.value === "" ? null : e.target.value });
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-unknow]");
+  if (!b) return;
+  setProfile(await api("/api/known", { method: "POST", body: { en: b.dataset.unknow, known: false } }));
+  renderResult();
+});
+
+// The clicked words, with the sentence they were in, so 单词复习 can make cloze cards from them.
+$("#saveUnknown").onclick = async () => {
+  const btn = $("#saveUnknown");
+  btn.disabled = true;
+  const byEn = new Map(lastResult.unknownWords.map(([en, zh, phonetic]) => [en, { zh, phonetic }]));
+  let saved = 0;
+  for (const p of passages) {
+    for (const w of p.words) {
+      if (!unknown.has(w.id) || !byEn.has(w.en)) continue;
+      const start = Math.max(p.text.lastIndexOf(". ", w.s) + 2, 0);
+      const endDot = p.text.indexOf(". ", w.e);
+      const sentence = p.text.slice(start === 1 ? 0 : start, endDot < 0 ? undefined : endDot + 1);
+      const offset = (start === 1 ? 0 : start);
+      const info = byEn.get(w.en);
+      byEn.delete(w.en);  // once per word
+      await api("/api/vocab", { method: "POST", body: { type: "word", en: w.en, zh: info.zh, phonetic: info.phonetic,
+        sentence, spans: [[w.s - offset, w.e - offset]], key: "w:" + w.en } });
+      saved += 1;
+    }
+  }
+  toast(`已加入 ${saved} 个词，去「单词复习」开始记`);
+  btn.textContent = "已加入收藏词句";
+  refreshSidebar();
+};
+
+$("#startTest").onclick = $("#retest").onclick = async () => {
+  if (!passages.length) passages = (await api("/api/placement")).passages;
+  step = 0; unknown = new Set(); questions = []; lastResult = null;
+  renderPassage();
+  show("passage");
+};
+$("#skipTest").onclick = () => { renderResult(); show("result"); };
+
+(async () => {
+  await syncProfile();
+  if ((studyProfile.tests || []).length || studyProfile.current !== null) { renderResult(); show("result"); }
+  else show("intro");
+})();
+</script>
+</body>
+</html>

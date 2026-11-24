@@ -67,7 +67,7 @@ const workspaceNav = $(".workspace-nav");
 // Sidebar: the brand opens the home page; study tools are grouped by skill.
 const NAV_GROUPS = [
   ["listen", "听力", [["/listening", "视频精听", "import"], ["/mistakes", "错句本", "mistakes"]]],
-  ["words", "单词", [["/review", "单词复习", "review"], ["/vocab", "收藏词句", "bookmark"]]],
+  ["words", "单词", [["/review", "单词复习", "review"], ["/vocab", "收藏词句", "bookmark"], ["/level", "水平与目标", "level"]]],
   ["read", "阅读", [["/reading", "文章精读", "reading"]]],
 ];
 function storedFlag(key) { try { return localStorage.getItem(key) === "1"; } catch { return false; } }
@@ -253,24 +253,77 @@ function renderInterlinear(text, marks = [], gloss = [], seg = []) {
 
 // ---- Vocabulary level: which saved hard-word candidates to highlight.
 // IELTS levels show IELTS-list words rarer than the level's frequency rank (more common = assumed known).
-const LEVEL_RANK = { "5.5": 2500, "6": 3500, "6.5": 4500, "7": 6000, "7.5": 8000 };
-const GENERAL_RANK = 4000;
-const MAX_WORDS_PER_CUE = 2;
+// ---- Learner profile: current level, target level and words to stop marking.
+// Cached in the browser so pages can mark words immediately; refreshed from the server on every page.
+const DEFAULT_BAND_VOCAB = { "0": 0, "1": 300, "2": 800, "2.5": 1100, "3": 1500, "3.5": 1800, "4": 2200, "4.5": 2600,
+  "5": 3000, "5.5": 3500, "6": 4000, "6.5": 5000, "7": 6000, "7.5": 7000, "8": 8500, "8.5": 9500, "9": 11000 };
 
-function wordVisible(note, level) {
-  if (!note || note.rank === undefined) return true; // older data without ranks
-  if (level === "general") return note.rank > GENERAL_RANK || (note.rank === 0 && note.exam);
-  return note.ielts && (note.rank === 0 || note.rank > LEVEL_RANK[level]);
+function readProfileCache() {
+  try { const cached = JSON.parse(localStorage.getItem("profileCache") || "null"); if (cached) return cached; } catch { /* none */ }
+  const old = parseFloat(readPreference("vocabLevel"));  // the earlier single "词汇水平" setting
+  return { current: isNaN(old) ? null : old, target: null, vocabSize: null, known: [], mature: [], tests: [] };
+}
+let studyProfile = readProfileCache();
+let knownCache = null;
+
+function setProfile(profile) {
+  studyProfile = profile;
+  knownCache = null;
+  try { localStorage.setItem("profileCache", JSON.stringify(profile)); } catch { /* private mode */ }
+  window.dispatchEvent(new Event("profilechange"));
+}
+async function syncProfile() {
+  try {
+    const profile = await api("/api/profile");
+    if (JSON.stringify(profile) !== JSON.stringify(studyProfile)) setProfile(profile);
+  } catch { /* keep the cached one */ }
+}
+syncProfile();
+window.addEventListener("storage", event => {
+  if (event.key !== "profileCache") return;
+  studyProfile = readProfileCache();
+  knownCache = null;
+  window.dispatchEvent(new Event("profilechange"));
+});
+
+function bandVocab(band) {
+  const table = studyProfile.bandVocab || DEFAULT_BAND_VOCAB;
+  return band === null || band === undefined ? null : table[String(band)] ?? null;
+}
+function bandLabel(band) { return band === null || band === undefined ? "未设置" : `${band} 分`; }
+
+// Words worth marking lie between what you already know and a little beyond your target:
+// lo = your vocabulary (tested, or typical for your current band), hi = typical for the target band + 20%.
+function markRange(profile = studyProfile) {
+  const current = profile.current ?? 5.5;
+  const target = profile.target ?? Math.min(9, current + 1.5);
+  const lo = profile.vocabSize ?? bandVocab(current) ?? 3500;
+  const hi = Math.max((bandVocab(target) ?? lo) * 1.2, lo + 1500);
+  return { lo, hi, perCue: current < 5 ? 3 : 2, current, target };
 }
 
-// Phrase marks always show; word marks are filtered by level, rarest first, at most 2 per cue.
-function visibleMarks(cue, level = readPreference("vocabLevel")) {
+function knownWords() {
+  return knownCache ||= new Set([...(studyProfile.known || []), ...(studyProfile.mature || [])]);
+}
+
+function wordVisible(note, range = markRange()) {
+  if (!note) return false;
+  if (note.rank === undefined) return true;  // very old data without ranks
+  if (knownWords().has(note.en.toLowerCase())) return false;
+  const rank = note.rank || (note.exam || note.ielts ? 9000 : 0);  // not in the frequency lists: rare
+  return rank > range.lo && rank <= range.hi;
+}
+
+// Phrase marks always show; word marks are the ones in your range, exam words first, then the more
+// common ones (the most useful to learn next), a few per sentence.
+function visibleMarks(cue, range = markRange()) {
   const marks = cue.marks || [];
-  const rarity = key => cue.notes?.[key]?.rank || 1e9;
+  const note = key => cue.notes?.[key] || {};
+  const order = key => (note(key).ielts || note(key).exam ? 0 : 1e6) + (note(key).rank || 9000);
   const words = [...new Set(marks.filter(m => m.type === "word").map(m => m.key))]
-    .filter(key => wordVisible(cue.notes?.[key], level))
-    .sort((a, b) => rarity(b) - rarity(a))
-    .slice(0, MAX_WORDS_PER_CUE);
+    .filter(key => wordVisible(cue.notes?.[key], range))
+    .sort((a, b) => order(a) - order(b))
+    .slice(0, range.perCue);
   const keep = new Set(words);
   return marks.filter(m => m.type !== "word" || keep.has(m.key));
 }
@@ -294,6 +347,7 @@ function noteHtml(n, cueIndex, { bare = false, k = null } = {}) {
       <span class="badge ${n.type}">${n.type === "phrase" ? "重点短语" : n.lookup ? "查词" : "难词"}</span>
       <span class="act">
         <button class="iconbtn" data-speak="${esc(n.en)}" title="发音">🔊</button>
+        ${n.type === "word" && !n.lookup ? `<button class="iconbtn" data-known="${esc(n.en)}" title="以后不再标出这个词">✓ 认识</button>` : ""}
         <button class="iconbtn ${isSaved ? "saved" : ""}" data-save="${esc(saveKey(n))}" data-cue="${cueIndex}"${k === null ? "" : ` data-k="${k}"`}>${isSaved ? "★ 已收藏" : "☆ 收藏"}</button>
       </span></div>
     <div class="zh">${esc(n.zh || "（词典里没有找到）")}</div>
@@ -335,6 +389,21 @@ function savedSpans(cue, key, btn) {
   const match = btn.dataset.k === undefined ? null : [...cue.text.matchAll(WORD_RE)][+btn.dataset.k];
   return match ? [[match.index, match.index + match[0].length]] : [];
 }
+
+// ✓ 认识: stop marking this word everywhere. Capture phase, so the page's own click handlers don't run.
+document.addEventListener("click", async event => {
+  const btn = event.target.closest?.("[data-known]");
+  if (!btn) return;
+  event.stopPropagation();
+  event.preventDefault();
+  try {
+    setProfile(await api("/api/known", { method: "POST", body: { en: btn.dataset.known, known: true } }));
+    hidePop();
+    toast(`以后不再标出 ${btn.dataset.known}`);
+  } catch (error) {
+    toast(error.message);
+  }
+}, true);
 
 // ☆ 收藏 / ★ 已收藏. `source` says where it came from: {videoId, time} or {articleId, sentenceIndex}.
 async function toggleSaved(btn, cue, source) {
