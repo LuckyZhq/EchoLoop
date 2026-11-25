@@ -360,25 +360,58 @@ ALIGNED_INSTRUCTIONS = (
 
 
 def _completion(lines: list[str], settings: TranslationSettings, instructions: str = PLAIN_INSTRUCTIONS) -> str:
-    return chat(json.dumps(lines, ensure_ascii=False), settings, instructions)
+    # Translation, meanings, examples and the interface tables need no reasoning: thinking off (see NO_THINKING).
+    return chat(json.dumps(lines, ensure_ascii=False), settings, instructions, think=False)
 
 
-def chat(source: str, settings: TranslationSettings, instructions: str, timeout: float = 90) -> str:
-    """One system + user exchange with the configured API; returns the reply text."""
+# How to switch reasoning off, per provider. Hybrid models such as deepseek-flash think before every answer by default,
+# and those hidden tokens are billed as output: a batch of 10 subtitle lines cost 4,495 output tokens with thinking
+# (3,746 of them reasoning) against about 750 without. A provider that rejects the field gets the request again
+# without it.
+NO_THINKING = {
+    "deepseek": {"thinking": {"type": "disabled"}},
+    "glm": {"thinking": {"type": "disabled"}},
+    "doubao": {"thinking": {"type": "disabled"}},
+    "qwen": {"enable_thinking": False},
+}
+
+
+def _no_thinking(settings: TranslationSettings) -> dict:
+    provider = settings.provider
+    if provider == "custom" and "deepseek.com" in (settings.base_url or ""):
+        provider = "deepseek"
+    return NO_THINKING.get(provider, {})
+
+
+def chat(source: str, settings: TranslationSettings, instructions: str, timeout: float = 90, think: bool = True) -> str:
+    """One system + user exchange with the configured API; returns the reply text.
+
+    think=False asks a reasoning model to answer directly (much cheaper); writing and speaking feedback keep it on."""
     messages = [{"role": "system", "content": instructions}, {"role": "user", "content": source}]
+    extra = {} if think else _no_thinking(settings)
     if settings.provider == "grok":
         url = settings.base_url + "/responses"
         payload = {"model": settings.model, "instructions": instructions, "input": source}
+        extra = {}
     else:
         url = settings.base_url + "/chat/completions"
-        payload = {"model": settings.model, "messages": messages, "stream": False}
+        payload = {"model": settings.model, "messages": messages, "stream": False, **extra}
     headers = {"Accept": "application/json", "Content-Type": "application/json"}
     if settings.api_key:
         headers["Authorization"] = f"Bearer {settings.api_key}"
     request = Request(url, data=json.dumps(payload).encode(), headers=headers)
     try:
-        with build_opener(NoRedirect()).open(request, timeout=timeout) as response:
-            result = json.loads(response.read(1_048_576))
+        try:
+            with build_opener(NoRedirect()).open(request, timeout=timeout) as response:
+                result = json.loads(response.read(1_048_576))
+        except HTTPError as error:
+            if not (extra and error.code in (400, 422)):
+                raise
+            # this model or endpoint doesn't take the thinking switch: ask again without it
+            payload = {k: v for k, v in payload.items() if k not in extra}
+            request = Request(url, data=json.dumps(payload).encode(), headers=headers)
+            with build_opener(NoRedirect()).open(request, timeout=timeout) as response:
+                result = json.loads(response.read(1_048_576))
     except HTTPError as error:
         hints = {
             401: "请检查 API Key。",
