@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
-from . import languages
+from . import languages, usage
 from .settings import TranslationSettings
 
 # ------------------------------------------------------------------ offline translation (Argos models)
@@ -297,12 +297,17 @@ def list_models(settings: TranslationSettings) -> list[dict[str, str]]:
 
 
 class TranslationError(RuntimeError):
-    """An API translation failure. `retryable` is False for configuration problems (bad key, URL or model)."""
+    """An API translation failure. `retryable` is False for configuration problems (bad key, URL or model).
 
-    def __init__(self, message: str, retryable: bool = True, retry_after: float | None = None):
+    `billed` marks a failure the provider has probably charged for: the model answered but the answer was unusable,
+    or the request timed out after the model had started working. Such a batch is not sent again: a retry would
+    be paid for a second time."""
+
+    def __init__(self, message: str, retryable: bool = True, retry_after: float | None = None, billed: bool = False):
         super().__init__(message)
         self.retryable = retryable
         self.retry_after = retry_after
+        self.billed = billed
 
 
 def plain_instructions(lang: str = "zh-CN") -> str:
@@ -359,9 +364,10 @@ ALIGNED_INSTRUCTIONS = (
 )
 
 
-def _completion(lines: list[str], settings: TranslationSettings, instructions: str = PLAIN_INSTRUCTIONS) -> str:
+def _completion(lines: list[str], settings: TranslationSettings, instructions: str = PLAIN_INSTRUCTIONS,
+                purpose: str = "subtitles") -> str:
     # Translation, meanings, examples and the interface tables need no reasoning: thinking off (see NO_THINKING).
-    return chat(json.dumps(lines, ensure_ascii=False), settings, instructions, think=False)
+    return chat(json.dumps(lines, ensure_ascii=False), settings, instructions, think=False, purpose=purpose)
 
 
 # How to switch reasoning off, per provider. Hybrid models such as deepseek-flash think before every answer by default,
@@ -383,10 +389,12 @@ def _no_thinking(settings: TranslationSettings) -> dict:
     return NO_THINKING.get(provider, {})
 
 
-def chat(source: str, settings: TranslationSettings, instructions: str, timeout: float = 90, think: bool = True) -> str:
+def chat(source: str, settings: TranslationSettings, instructions: str, timeout: float = 90, think: bool = True,
+         purpose: str = "other") -> str:
     """One system + user exchange with the configured API; returns the reply text.
 
-    think=False asks a reasoning model to answer directly (much cheaper); writing and speaking feedback keep it on."""
+    think=False asks a reasoning model to answer directly (much cheaper); writing and speaking feedback keep it on.
+    Every answered request is counted in usage.py under `purpose`."""
     messages = [{"role": "system", "content": instructions}, {"role": "user", "content": source}]
     extra = {} if think else _no_thinking(settings)
     if settings.provider == "grok":
@@ -428,10 +436,14 @@ def chat(source: str, settings: TranslationSettings, instructions: str, timeout:
         # 408/409/429 and 5xx are worth retrying; other 4xx mean the settings are wrong.
         retryable = error.code in (408, 409, 429) or error.code >= 500
         raise TranslationError(f"翻译 API 返回 HTTP {error.code}。{hint}", retryable, retry_after) from None
-    except (OSError, URLError):
-        raise TranslationError("连接翻译 API 失败或超时，请检查地址和网络。") from None
+    except (OSError, URLError) as error:
+        if isinstance(error, TimeoutError) or isinstance(getattr(error, "reason", None), TimeoutError):
+            usage.record_timeout(settings, purpose)
+            raise TranslationError("翻译 API 太久没有回应，这次请求可能已经计费。", billed=True) from None
+        raise TranslationError("连接翻译 API 失败，请检查地址和网络。") from None
     except ValueError:
-        raise TranslationError("翻译 API 返回的内容不是有效的 JSON。") from None
+        raise TranslationError("翻译 API 返回的内容不是有效的 JSON。", billed=True) from None
+    usage.record(settings, purpose, result.get("usage") if isinstance(result, dict) else None)
 
     try:
         if settings.provider == "grok":
@@ -439,7 +451,7 @@ def chat(source: str, settings: TranslationSettings, instructions: str, timeout:
                            if item.get("type") == "output_text")
         return result["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError, AttributeError):
-        raise TranslationError("模型没有返回可读取的译文，请检查接口或换一个模型。") from None
+        raise TranslationError("模型没有返回可读取的译文，请检查接口或换一个模型。", billed=True) from None
 
 
 def _json_reply(content: str):
@@ -449,7 +461,7 @@ def _json_reply(content: str):
     try:
         return json.loads(content)
     except ValueError:
-        raise TranslationError("模型没有返回可读取的译文，请检查接口或换一个模型。") from None
+        raise TranslationError("模型没有返回可读取的译文，请检查接口或换一个模型。", billed=True) from None
 
 
 WORD_RE = re.compile(r"[A-Za-z][A-Za-z'’-]*")  # same as the player's WORD_RE
@@ -486,14 +498,14 @@ def translate_batch_aligned(lines: list[str], settings: TranslationSettings, lan
     """Sentence translation + phrase chunks per line. A malformed chunk list only loses the chunks."""
     items = _json_reply(_completion(lines, settings, aligned_instructions(lang)))
     if not isinstance(items, list) or len(items) != len(lines):
-        raise TranslationError("模型返回的译文条数或格式不匹配，请重试或换一个模型。")
+        raise TranslationError("模型返回的译文条数或格式不匹配，请重试或换一个模型。", billed=True)
     out = []
     for item in items:
         if isinstance(item, str):
             item = {"t": item}
         text = (item.get("t") or item.get("zh")) if isinstance(item, dict) else None  # "zh": older prompt
         if not isinstance(text, str) or not text.strip():
-            raise TranslationError("模型返回的译文条数或格式不匹配，请重试或换一个模型。")
+            raise TranslationError("模型返回的译文条数或格式不匹配，请重试或换一个模型。", billed=True)
         out.append((_tidy(text, lang), item.get("chunks") or []))
     return out
 
@@ -502,12 +514,13 @@ def translate_batch(lines: list[str], settings: TranslationSettings) -> list[str
     translations = _json_reply(_completion(lines, settings))
     if (not isinstance(translations, list) or len(translations) != len(lines)
             or any(not isinstance(text, str) or not text.strip() for text in translations)):
-        raise TranslationError("模型返回的译文条数或格式不匹配，请重试或换一个模型。")
+        raise TranslationError("模型返回的译文条数或格式不匹配，请重试或换一个模型。", billed=True)
     return [_tidy(text) for text in translations]
 
 
 API_BATCH = 10  # aligned replies are longer; smaller batches keep each request quick
 API_PARALLEL = 4  # requests in flight at once
+MAX_BILLED_FAILURES = 2  # paid-for but unusable batches before the rest of the video goes to local translation
 RETRY_DELAYS = (2, 6)  # seconds before the 2nd and 3rd attempt
 _sleep = time.sleep    # swapped out in tests
 
@@ -517,7 +530,7 @@ def _translate_batch_with_retry(lines: list[str], settings: TranslationSettings,
         try:
             return translate_batch_aligned(lines, settings, lang)
         except TranslationError as error:
-            if not error.retryable or delay is None:
+            if not error.retryable or error.billed or delay is None:  # billed: a resend would be paid again
                 raise
             wait = min(max(delay, error.retry_after or 0), 30)
             log(f"⚠ {error}  {wait:g} 秒后重试（第 {attempt + 1} 次）")
@@ -563,16 +576,25 @@ def translate_cues(cues: list[dict], progress=None, *, settings: TranslationSett
     done_lines = 0
     progress_lock = threading.Lock()
     stop = threading.Event()  # set on a configuration error: no point sending the remaining batches
+    stop_reason = ""
+    billed_failures = 0
 
     def run(batch: list[dict]):
-        nonlocal done_lines
+        nonlocal done_lines, stop_reason, billed_failures
         if stop.is_set():
             return None
         try:
             result = _translate_batch_with_retry([cue["text"] for cue in batch], settings, log, lang)
         except TranslationError as error:
-            if not error.retryable:
-                stop.set()
+            with progress_lock:
+                if not error.retryable:
+                    stop_reason = stop_reason or f"{error} "
+                    stop.set()
+                elif error.billed:
+                    billed_failures += 1
+                    if billed_failures >= MAX_BILLED_FAILURES and not stop.is_set():
+                        stop_reason = f"{billed_failures} 批请求已经计费却没有用上，为免继续扣费，"
+                        stop.set()
             return error
         with progress_lock:
             done_lines += len(batch)
@@ -595,12 +617,14 @@ def translate_cues(cues: list[dict], progress=None, *, settings: TranslationSett
                 cue.pop("zhLow", None)
             api_batches += 1
             continue
-        if isinstance(result, TranslationError) and result.retryable:
+        if isinstance(result, TranslationError) and result.billed:
+            log(f"⚠ {result}")  # its own line, so the interface can translate both
+            log(f"第 {start + 1}–{start + len(batch)} 句改用本地翻译：这批已经计费，为免重复付费不再重发。")
+        elif isinstance(result, TranslationError) and result.retryable:
             log(f"⚠ {result} 第 {start + 1}–{start + len(batch)} 句改用本地翻译。")
         elif not warned_config:
             warned_config = True
-            reason = f"{result} " if isinstance(result, TranslationError) else ""
-            log(f"⚠ {reason}其余字幕改用本地翻译。")
+            log(f"⚠ {stop_reason}其余字幕改用本地翻译。")
         local_batches += 1
         _translate_local(batch, progress, start, total, lang, log)
     if not local_batches:
@@ -630,9 +654,9 @@ def translate_meanings(items: list[dict], settings: TranslationSettings, lang: s
     for i in range(0, len(items), MEANING_BATCH):
         batch = items[i:i + MEANING_BATCH]
         try:
-            reply = _json_reply(_completion(batch, settings, meaning_instructions(lang)))
+            reply = _json_reply(_completion(batch, settings, meaning_instructions(lang), purpose="meanings"))
             if not isinstance(reply, list) or len(reply) != len(batch):
-                raise TranslationError("模型返回的译文条数或格式不匹配，请重试或换一个模型。")
+                raise TranslationError("模型返回的译文条数或格式不匹配，请重试或换一个模型。", billed=True)
             out.extend(_tidy(str(x), lang)[:80] if isinstance(x, str) else "" for x in reply)
         except TranslationError as error:
             log(f"⚠ {error}")

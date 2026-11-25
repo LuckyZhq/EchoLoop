@@ -37,6 +37,15 @@ def instructions(lang: str) -> str:
     )
 
 
+def _echoed(item):
+    """The translation inside an echoed item: {"zh": …, "en": <translation>} or {"zh": …, "th": <translation>}."""
+    if not isinstance(item, dict):
+        return item
+    if isinstance(item.get("en"), str):
+        return item["en"]
+    return next((v for k, v in item.items() if k != "zh" and isinstance(v, str)), None)
+
+
 def _split_edges(text: str) -> tuple[str, str, str]:
     m = re.match(r"^(\s*)(.*?)(\s*)$", text, re.S)
     return m.group(1), m.group(2), m.group(3)
@@ -74,12 +83,14 @@ def generate(lang: str, settings, log=print, only_missing: bool = True) -> dict:
             shapes.append((n_prefix, lead, trail))
         for attempt in range(2):
             try:
-                reply = _json_reply(_completion(items, settings, instructions(lang)))
+                reply = _json_reply(_completion(items, settings, instructions(lang), purpose="interface"))
+                if isinstance(reply, list):  # without reasoning a model may echo {"zh", "en"} back, translated
+                    reply = [_echoed(x) for x in reply]
                 if isinstance(reply, list) and len(reply) == len(items) and all(isinstance(x, str) for x in reply):
                     break
-                raise TranslationError("返回的条数不对")
+                raise TranslationError("返回的条数不对", billed=True)
             except TranslationError as error:
-                if attempt:
+                if attempt or error.billed:  # billed: a resend would be paid again
                     log(f"⚠ 一批 {len(items)} 条没有翻成：{error}")
                     return
         with lock:

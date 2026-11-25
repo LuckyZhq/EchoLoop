@@ -58,7 +58,7 @@ def test_essay_marking_and_history(tmp_path, monkeypatch):
     monkeypatch.setattr(writing, "WRITING_DIR", tmp_path)
     sent = {}
 
-    def chat(source, settings, instructions, timeout=90):
+    def chat(source, settings, instructions, timeout=90, **options):
         sent.update(json.loads(source), instructions=instructions)
         return json.dumps({"overall": 6, "criteria": [{"name": n, "band": 6, "comment": "c"} for n in writing.CRITERIA["task1"]],
                            "corrections": [{"original": "rised", "better": "rose", "why": "irregular verb"}],

@@ -94,7 +94,7 @@ def mark(kind: str, prompt: str, essay: str, settings, lang: str, chart: dict | 
     payload = {"task": prompt[:2000], "response": essay[:MAX_CHARS], "words": word_count(essay)}
     if chart:
         payload["data"] = chart_text(chart)
-    reply = _json_reply(chat(json.dumps(payload, ensure_ascii=False), settings, instructions(kind, lang), timeout=240))
+    reply = _json_reply(chat(json.dumps(payload, ensure_ascii=False), settings, instructions(kind, lang), timeout=240, purpose="writing"))
     if not isinstance(reply, dict) or not isinstance(reply.get("criteria"), list):
         raise TranslationError("模型没有返回评分，请重试或换一个模型。")
     criteria = [{"name": str(c.get("name", ""))[:80], "band": _band(c.get("band")), "comment": str(c.get("comment", ""))[:1500]}

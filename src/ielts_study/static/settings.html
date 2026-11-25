@@ -14,7 +14,7 @@
     <div class="settings-layout">
       <nav class="settings-index" aria-label="设置分类">
         <a href="/settings/study"><b>学习</b><small>水平、目标和每天学多少</small></a>
-        <a href="/settings/services"><b>模型与服务</b><small>服务商、密钥、识别和朗读</small></a>
+        <a href="/settings/services"><b>模型与服务</b><small>服务商、密钥、识别、朗读和用量</small></a>
         <a href="/settings/playback"><b>播放</b><small>倍速、字幕和高亮</small></a>
         <a href="/settings/appearance"><b>外观与语言</b><small>母语、主题、字幕字号</small></a>
         <a href="/settings/data"><b>数据</b><small>下载、存储、备份、手机访问</small></a>
@@ -128,6 +128,12 @@
               <span class="select-wrap"><select class="btn" id="voiceAccent" data-preference="voice"></select></span>
             </span>
           </div>
+        </section>
+        <section class="settings-section" id="apiUsage" aria-labelledby="usageTitle">
+          <h3 id="usageTitle">API 用量</h3>
+          <p class="settings-lead">每次调用 API 都记在这台电脑上。DeepSeek 按官方价格估算费用（工作日白天的高峰时段全价，其余时段半价），其他服务商只统计 token。实际扣费以服务商账单为准。</p>
+          <div class="usage-grid" id="usageGrid">正在统计…</div>
+          <div id="usagePurposes"></div>
         </section>
       </section>
       <section class="settings-group" hidden id="playback" aria-labelledby="playbackGroup">
@@ -443,6 +449,24 @@ if ($("#levelSummary")) {
     const q = g.quota;
     $("#quotaSummary").textContent = `「${g.stage.name}」阶段${g.stageMode === "manual" ? "（手动）" : ""} · 每天 ${q.newWords} 个新词 · 精听 ${q.listenMin} 分钟 · 听写 ${q.dictation} 句 · 精读 ${q.readMin} 分钟`;
   }).catch(() => {});
+}
+
+const usageGrid = $("#usageGrid");
+if (usageGrid) {
+  const PURPOSES = { subtitles: "字幕翻译", meanings: "单词释义", examples: "单词本例句", article: "分级文章",
+    writing: "作文批改", speaking: "口语评分", interface: "界面翻译", other: "其他" };
+  const tokens = n => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n);
+  const cost = r => r.cost >= 0.01 ? `约 ¥${r.cost.toFixed(2)}` : r.cost > 0 ? "不到 ¥0.01" : r.requests ? "只统计 token" : "¥0.00";
+  const cell = (label, r) => `<div class="usage-cell"><span>${label}</span><b>${cost(r)}</b>
+    <small>${r.requests} 次请求 · 输入 ${tokens(r.input)} · 输出 ${tokens(r.output)} token${r.timeouts ? ` · ${r.timeouts} 次超时` : ""}</small></div>`;
+  api("/api/usage").then(u => {
+    usageGrid.innerHTML = cell("今天", u.today) + cell("本月", u.month) + cell("全部", u.all);
+    const rows = Object.entries(u.byPurpose).sort((a, b) => b[1].cost - a[1].cost || b[1].output - a[1].output);
+    $("#usagePurposes").innerHTML = rows.length ? `<h4 class="usage-head">本月按用途</h4><div class="storage-list">${rows.map(([key, r]) => `
+      <div class="usage-row"><span>${PURPOSES[key] || PURPOSES.other}</span>
+        <span class="storage-meta">${r.requests} 次请求 · 输出 ${tokens(r.output)} token${r.reasoning ? ` · 其中思考 ${tokens(r.reasoning)}` : ""}</span>
+        <b>${cost(r)}</b></div>`).join("")}</div>` : "";
+  }).catch(error => { usageGrid.textContent = error.message; });
 }
 
 const storageList = $("#storageList");

@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from . import usage
 from .config import LIBRARY_DIR
 from .settings import load_settings
 
@@ -122,10 +123,12 @@ class Pipeline:
                 self._set(job, "translate")
                 engine = "API" if settings.engine == "api" else "本地"
                 log(f"使用{engine}翻译 {len(cues)} 句字幕…")
+                spent = usage.snapshot()
                 data["translator"] = translate_cues(cues, lambda p: setattr(job, "percent", p), settings=settings,
                                                     log=log, lang=lang)
                 data["translatorModel"] = settings.model if data["translator"] in ("api", "api+local") else ""
                 meanings.fill_notes(cues, lang, settings, log)
+                log(usage.describe(usage.since(spent)))
                 data["lang"] = lang
                 tmp = f.with_suffix(".tmp")
                 tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
@@ -206,12 +209,14 @@ class Pipeline:
                 engine = "API" if settings.engine == "api" else "本地"
                 log(f"使用{engine}翻译 {len(cues)} 句字幕…")
                 lang = learner_language()
+                spent = usage.snapshot()
                 translator = translate_cues(cues, lambda p: setattr(job, "percent", p), settings=settings, log=log,
                                             lang=lang)
 
                 self._set(job, "annotate")
                 annotate_cues(cues, self.dic, progress=lambda p: setattr(job, "percent", p), lang=lang)
                 meanings.fill_notes(cues, lang, settings, log)
+                log(usage.describe(usage.since(spent)))
 
                 for i, c in enumerate(cues):
                     c["i"] = i

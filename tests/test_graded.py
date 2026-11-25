@@ -55,7 +55,7 @@ def test_write_passage(monkeypatch):
 
     sent = {}
 
-    def fake(lines, settings, instructions):
+    def fake(lines, settings, instructions, purpose=None):
         sent["lines"], sent["instructions"] = lines, instructions
         return json.dumps({"title": "Plastic in the Sea", "text": "Word " * 300})
 
@@ -63,6 +63,6 @@ def test_write_passage(monkeypatch):
     title, text, topic = graded.write_passage("ielts65", "海洋塑料", SimpleNamespace())
     assert title == "Plastic in the Sea" and topic == "海洋塑料" and sent["lines"] == ["Topic: 海洋塑料"]
     assert "band 6.5" in sent["instructions"] and "do not copy" in sent["instructions"]
-    monkeypatch.setattr(translate, "_completion", lambda *a: json.dumps({"title": "t", "text": "too short"}))
+    monkeypatch.setattr(translate, "_completion", lambda *a, **k: json.dumps({"title": "t", "text": "too short"}))
     with pytest.raises(translate.TranslationError):
         graded.write_passage("cet4", "", SimpleNamespace())

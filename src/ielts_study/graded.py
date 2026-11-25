@@ -103,7 +103,7 @@ def write_passage(level_id: str, topic: str, settings) -> tuple[str, str, str]:
 
     level = next(lv for lv in LEVELS if lv["id"] == level_id)
     topic = (topic or "").strip()[:80] or random.choice(TOPICS)
-    reply = _json_reply(_completion([f"Topic: {topic}"], settings, instructions(level)))
+    reply = _json_reply(_completion([f"Topic: {topic}"], settings, instructions(level), purpose="article"))
     if not isinstance(reply, dict):
         raise TranslationError("模型没有返回文章，请重试或换一个模型。")
     title, text = str(reply.get("title") or "").strip()[:120], str(reply.get("text") or "").strip()

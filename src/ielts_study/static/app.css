@@ -463,6 +463,15 @@ mark.word { padding: 0 2px; border-radius: 3px; background: var(--word-bg); colo
 .storage-total b { font-size: 26px; font-weight: 680; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .storage-total span { color: var(--muted); font-size: 13px; }
 .storage-list { display: grid; margin-bottom: 14px; border-top: 1px solid var(--border); }
+.usage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.usage-cell { display: grid; gap: 3px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface-2); }
+.usage-cell span { color: var(--muted); font-size: 12.5px; }
+.usage-cell b { font-size: 22px; font-weight: 680; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.usage-cell small { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.usage-head { margin: 0 0 8px; font-size: 13px; font-weight: 650; color: var(--muted); }
+.usage-row { display: grid; grid-template-columns: minmax(5em, auto) minmax(0, 1fr) auto; align-items: baseline; gap: 4px 14px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.usage-row b { font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .usage-row { grid-template-columns: 1fr auto; } .usage-row .storage-meta { grid-column: 1 / -1; grid-row: 2; } }
 .storage-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; padding: 13px 0; border-bottom: 1px solid var(--border); }
 .storage-info { display: grid; gap: 2px; min-width: 0; }
 .storage-title { overflow: hidden; color: var(--text); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }

@@ -90,7 +90,7 @@ def test_api_examples_are_cached(dic, monkeypatch):
 
     calls = []
 
-    def fake(items, settings, instructions):
+    def fake(items, settings, instructions, purpose=None):
         calls.append(items)
         return json.dumps([{"s": f"We need a {w} way to live.", "t": "译文"} for w in items])
 

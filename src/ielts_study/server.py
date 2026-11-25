@@ -20,7 +20,7 @@ from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlpars
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import asr, backup, goals, graded, i18n, keep, languages, placement, plan, reading, review, network, speaking, tts, wordbook, words, writing
+from . import asr, backup, goals, graded, i18n, keep, languages, placement, plan, reading, review, network, speaking, tts, usage, wordbook, words, writing
 from .settings import load_settings, save_settings, settings_from
 
 _vocab_lock = words._lock  # held while a deleted video's sentences are kept for its words
@@ -248,7 +248,7 @@ def dictated_counts() -> tuple[int, int]:
 
 
 # Only this computer may change these (a phone in LAN mode can study, not read API keys or stop the server).
-LOCAL_ONLY = ("/api/settings", "/api/asr", "/api/network", "/api/backup", "/api/shutdown", "/api/restart")
+LOCAL_ONLY = ("/api/settings", "/api/usage", "/api/asr", "/api/network", "/api/backup", "/api/shutdown", "/api/restart")
 
 # API responses whose Chinese is content (subtitles, meanings, saved words): shown in the translation
 # language. Everything else is interface text and follows the interface language.
@@ -618,6 +618,8 @@ def make_handler(app: App):
                 return self._file(STATIC_DIR / "goals.html", "text/html; charset=utf-8")
             if p == "/api/goals":
                 return self._json(goals.today())
+            if p == "/api/usage":
+                return self._json(usage.summary())
             if p == "/api/profile":
                 return self._json(placement.public_profile(load_vocab()))
             if p == "/api/placement":

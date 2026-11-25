@@ -13,6 +13,7 @@ import time
 import traceback
 import uuid
 
+from . import usage
 from .config import ARTICLES_DIR
 
 MAX_CHARS = 40_000
@@ -116,11 +117,13 @@ def run_article_job(pipeline, job, text: str, title: str, extra: dict | None = N
             pipeline._set(job, "translate")
             log(f"使用{'API' if settings.engine == 'api' else '本地'}翻译 {len(cues)} 句…")
             lang = learner_language()
+            spent = usage.snapshot()
             translator = translate_cues(cues, lambda p: setattr(job, "percent", p), settings=settings, log=log,
                                         lang=lang)
             pipeline._set(job, "annotate")
             annotate_cues(cues, pipeline.dic, progress=lambda p: setattr(job, "percent", p), lang=lang)
             meanings.fill_notes(cues, lang, settings, log)
+            log(usage.describe(usage.since(spent)))
             save_article({
                 "id": job.video_id, "title": job.title, "created": int(time.time()), "translator": translator,
                 "translatorModel": settings.model if translator != "local" else "",
@@ -169,10 +172,13 @@ def run_retranslate_job(pipeline, job) -> None:
                 data["annotation"] = ANNOTATION_VERSION
             pipeline._set(job, "translate")
             job.log.append(f"使用{'API' if settings.engine == 'api' else '本地'}翻译 {len(data['cues'])} 句…")
+            spent = usage.snapshot()
             data["translator"] = translate_cues(data["cues"], lambda p: setattr(job, "percent", p),
                                                 settings=settings, log=job.log.append, lang=lang)
             data["translatorModel"] = settings.model if data["translator"] in ("api", "api+local") else ""
             meanings.fill_notes(data["cues"], lang, settings, job.log.append)
+            if spent_line := usage.describe(usage.since(spent)):
+                job.log.append(spent_line)
             data["lang"] = lang
             save_article(data)
             pipeline._set(job, "done", 1.0)

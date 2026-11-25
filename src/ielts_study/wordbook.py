@@ -247,7 +247,7 @@ def api_examples(items: list[str], lang: str, settings, log=lambda m: None) -> d
         for i in range(0, len(missing), EXAMPLE_BATCH):
             batch = missing[i:i + EXAMPLE_BATCH]
             try:
-                reply = _json_reply(_completion(batch, settings, example_instructions(lang)))
+                reply = _json_reply(_completion(batch, settings, example_instructions(lang), purpose="examples"))
             except TranslationError as error:
                 log(f"⚠ {error}")
                 continue

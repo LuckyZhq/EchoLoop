@@ -106,7 +106,7 @@ def test_ui_table_generator_keeps_edges_and_only_fills_gaps(tmp_path, monkeypatc
     i18n.table.cache_clear()
     sent = []
 
-    def fake(items, settings, instructions):
+    def fake(items, settings, instructions, purpose=None):
         sent.extend(items)
         return json.dumps([f"FR<{i['en']}>" for i in items])
 
@@ -126,3 +126,19 @@ def test_arabic_pages_are_right_to_left(monkeypatch):
     monkeypatch.setattr(i18n, "table", lambda lang: {})
     out = i18n.page(server.STATIC_DIR / "home.html", "ar").decode()
     assert '<html lang="ar" dir="rtl">' in out
+
+
+def test_ui_table_generator_accepts_echoed_objects(tmp_path, monkeypatch):
+    # without reasoning, a model may answer [{"zh": ..., "en": <translation>}] instead of plain strings
+    from ielts_study import ui_translate
+    from ielts_study.settings import TranslationSettings
+
+    monkeypatch.setattr(i18n, "UI_DIR", tmp_path)
+    (tmp_path / "en.json").write_text(json.dumps({"单词复习": "Word review"}, ensure_ascii=False), encoding="utf-8")
+    i18n.table.cache_clear()
+    monkeypatch.setattr(ui_translate, "_completion",
+                        lambda items, settings, instructions, purpose=None: json.dumps(
+                            [{"zh": i["zh"], "en": "Révision"} for i in items], ensure_ascii=False))
+    api = TranslationSettings(engine="api", base_url="https://x/v1", model="m", api_key="k", provider="custom")
+    assert ui_translate.generate("fr", api, log=lambda m: None)["单词复习"] == "Révision"
+    i18n.table.cache_clear()

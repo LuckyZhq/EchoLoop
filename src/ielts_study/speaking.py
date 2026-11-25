@@ -216,7 +216,7 @@ def feedback(part: int, question: str, transcript: str, stats: dict, settings, l
 
     source = json.dumps({"part": part, "question": question[:600], "transcript": transcript[:6000],
                          "delivery": stats}, ensure_ascii=False)
-    reply = _json_reply(chat(source, settings, feedback_instructions(lang), timeout=180))
+    reply = _json_reply(chat(source, settings, feedback_instructions(lang), timeout=180, purpose="speaking"))
     if not isinstance(reply, dict) or not isinstance(reply.get("criteria"), list):
         raise TranslationError("模型没有返回评分，请重试或换一个模型。")
     return clean_feedback(reply)
