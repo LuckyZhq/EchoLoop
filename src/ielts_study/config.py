@@ -6,6 +6,15 @@ import platform
 import sys
 from pathlib import Path
 
+# Messages are printed in Chinese and other languages. On Windows, output going to a pipe or log file uses the
+# legacy code page (cp1252 …), which cannot encode them and would crash the first print: write UTF-8 instead.
+for _stream in (sys.stdout, sys.stderr):
+    if _stream and (getattr(_stream, "encoding", "") or "").lower().replace("-", "") != "utf8":
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
 # IELTS_LIBRARY points a second copy (e.g. a test server) at another folder, leaving the real library alone.
