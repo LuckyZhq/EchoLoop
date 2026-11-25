@@ -5,39 +5,218 @@ Simplified). The cue field is still called "zh" for historical reasons: it holds
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import time
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
+from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from . import languages
 from .settings import TranslationSettings
 
-_translators: dict = {}
-_argos_lock = threading.Lock()
+# ------------------------------------------------------------------ offline translation (Argos models)
+# The Argos package supplies the model and its tokenizer; we run the model with CTranslate2 directly. Argos's own
+# translate() splits every line into sentences with stanza first, which loads torch (~0.5 GB) and is ~4x slower,
+# and our cues are already sentences.
+
+_models: dict = {}  # argos code -> (ctranslate2.Translator, tokenizer, target prefix)
+_model_lock = threading.Lock()
+LOCAL_BATCH = 32
+# Average log-probability per token (length_penalty=1). Lines below this are usually nonsense ("Okay." -> 摆,
+# a request turned into classical Chinese): they get one retry with a cleaned-up source, then a "may be wrong" mark.
+LOW_SCORE = -1.42
+DECODING = dict(beam_size=4, length_penalty=1.0, no_repeat_ngram_size=4, replace_unknowns=True, return_scores=True,
+                max_batch_size=LOCAL_BATCH)
 
 
-def _get(lang: str = "zh-CN"):
+def _installed_package(code: str):
+    import argostranslate.package as argos
+
+    return next((p for p in argos.get_installed_packages() if p.from_code == "en" and p.to_code == code), None)
+
+
+def _install(code: str, lang: str, log) -> None:
+    """Download and install the en→code package the first time a language is used, saying so in the job log."""
+    import argostranslate.package as argos
+    from argostranslate import settings as argos_settings
+
+    name = languages.native_name(lang)
+    no_network = "离线翻译模型下载失败，请检查网络后重试，或在设置里改用 API 翻译。"
+    argos.update_package_index()  # keeps the old index when offline
+    if not Path(argos_settings.local_package_index).exists():
+        raise RuntimeError(no_network)
+    candidates = [p for p in argos.get_available_packages() if p.from_code == "en" and p.to_code == code and p.links]
+    if not candidates:
+        raise RuntimeError(f"离线翻译暂不支持{name}，请在设置里选择 API 翻译模型。")
+    part = Path(argos_settings.downloads_dir) / f"translate-en_{code}.argosmodel.part"
+    try:
+        with urlopen(candidates[0].links[0], timeout=60) as response, open(part, "wb") as out:
+            size = int(response.headers.get("Content-Length") or 0)
+            log(f"第一次使用离线翻译，正在下载模型（约 {size / 1e6:.0f} MB），只需下载一次…" if size else
+                "第一次使用离线翻译，正在下载模型，只需下载一次…")
+            got, step = 0, 0.25
+            while chunk := response.read(1 << 20):
+                out.write(chunk)
+                got += len(chunk)
+                if size and got / size >= step:
+                    log(f"离线翻译模型已下载 {min(got / size, 1):.0%}")
+                    step += 0.25
+        with zipfile.ZipFile(part) as archive:
+            archive.extractall(argos_settings.package_data_dir)
+    except (OSError, zipfile.BadZipFile) as error:
+        raise RuntimeError(no_network) from error
+    finally:
+        part.unlink(missing_ok=True)
+    log("离线翻译模型安装好了")
+
+
+def _model(lang: str = "zh-CN", log=lambda msg: None):
     """The offline English→lang model, downloaded the first time a language is used."""
     code = languages.LANGUAGES[lang]["argos"]
     if code is None:
         raise RuntimeError("这种语言没有离线翻译模型，请在设置里选择 API 翻译模型。")
-    with _argos_lock:
-        if code not in _translators:
-            import argostranslate.package as pkg
-            import argostranslate.translate as tr
+    with _model_lock:
+        if code not in _models:
+            import ctranslate2
 
-            installed = {lang_.code for lang_ in tr.get_installed_languages()}
-            if not {"en", code} <= installed:
-                pkg.update_package_index()
-                cand = [p for p in pkg.get_available_packages() if p.from_code == "en" and p.to_code == code]
-                if not cand:
+            package = _installed_package(code)
+            if package is None:
+                _install(code, lang, log)
+                package = _installed_package(code)
+                if package is None:
                     raise RuntimeError(f"离线翻译暂不支持{languages.native_name(lang)}，请在设置里选择 API 翻译模型。")
-                pkg.install_from_path(cand[0].download())
-            _translators[code] = tr.get_translation_from_codes("en", code)
-        return _translators[code]
+            translator = ctranslate2.Translator(str(package.package_path / "model"), device="cpu",
+                                                intra_threads=min(8, os.cpu_count() or 4))
+            _models[code] = (translator, package.tokenizer, package.target_prefix or "")
+        return _models[code]
+
+
+def _run_model(model, sources: list[str]) -> list[tuple[str, float]]:
+    """Translate a batch: (raw translation, average log-probability per token)."""
+    translator, tokenizer, prefix = model
+    tokens = [tokenizer.encode(text) for text in sources]
+    results = translator.translate_batch(tokens, target_prefix=[[prefix]] * len(tokens) if prefix else None, **DECODING)
+    out = []
+    for result in results:
+        text = tokenizer.decode(result.hypotheses[0])
+        if prefix and text.startswith(prefix):
+            text = text[len(prefix):]
+        out.append((text.strip(), result.scores[0]))
+    return out
+
+
+@lru_cache(maxsize=1)
+def _zh_fixes() -> dict:
+    data = json.loads((Path(__file__).with_name("local_translation_zh.json")).read_text(encoding="utf-8"))
+    return {
+        "short": data["short"],
+        "source": [(re.compile(pattern, re.I), repl) for pattern, repl in data["source"]],
+        "target": [(re.compile(rule["when"], re.I), rule["replace"]) for rule in data["target"]],
+    }
+
+
+def _short_key(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s']", " ", text.replace("’", "'").lower())).strip()
+
+
+END_MARKS = {".": "。", "?": "？", "!": "！", ",": "，", "…": "……"}
+
+
+def _short_reply(text: str) -> str | None:
+    """'Okay.' -> '好的。': a fixed translation for the short replies the model gets wrong."""
+    zh = _zh_fixes()["short"].get(_short_key(text))
+    if zh is None:
+        return None
+    end = text.rstrip()[-1:]
+    return zh + END_MARKS.get(end, "")
+
+
+CONTRACTIONS = [
+    (r"\bcan't\b", "cannot"), (r"\bwon't\b", "will not"), (r"\b(\w+)n't\b", r"\1 not"),
+    (r"\blet's\b", "let us"), (r"\bI'm\b", "I am"), (r"\b(\w+)'re\b", r"\1 are"), (r"\b(\w+)'ve\b", r"\1 have"),
+    (r"\b(\w+)'ll\b", r"\1 will"), (r"\b(I|you|he|she|we|they|it|that|there|who)'d\b", r"\1 would"),
+    (r"\b(it|that|there|here|what|who|he|she|where|how)'s\b", r"\1 is"),
+]
+FILLERS = re.compile(r"\b(?:um+|uh+|erm?|hmm+)\b[,.]?\s*", re.I)
+
+
+def _plain_source(text: str) -> str:
+    """A cleaner phrasing for a retry: no contractions or fillers, 'i' -> 'I', a capital first letter.
+    The model reads "I'd like you to…" as classical Chinese but translates "I would like you to…" fine."""
+    text = FILLERS.sub("", text.replace("’", "'")).strip() or text
+    for pattern, repl in CONTRACTIONS:
+        text = re.sub(pattern, repl, text, flags=re.I)
+    text = re.sub(r"\bi\b", "I", text)
+    return text[:1].upper() + text[1:]
+
+
+MARKUP = re.compile(r"\{\\[^}]*\}|</?[A-Za-z][^>]*>")  # subtitle styling the model learned from its training data
+
+
+def _finish(raw: str, source: str, lang: str) -> str:
+    text = MARKUP.sub("", raw)
+    if languages.is_chinese(lang):
+        # The model learned from subtitles that separate clauses with a space ("下午好 我叫罗斯"): make it a comma,
+        # or _tidy would run the clauses together.
+        text = re.sub(r"(?<=[一-鿿])\s+(?=[一-鿿])", "，", text.strip())
+    text = _tidy(text, lang)
+    if languages.is_chinese(lang):
+        for when, pairs in _zh_fixes()["target"]:
+            if when.search(source):
+                for wrong, right in pairs:
+                    text = text.replace(wrong, right)
+    return text
+
+
+def translate_local(texts: list[str], lang: str = "zh-CN", progress=None, log=lambda msg: None) -> list[tuple[str, bool]]:
+    """Translate lines offline: (translation, low) per line, where low marks a translation that is probably wrong.
+
+    Identical lines are translated once. Chinese gets fixed replies for short lines, IELTS terms rephrased before
+    translating ("band score" -> "score") and known mistranslations corrected after ("乐队分数" never reaches
+    the learner)."""
+    chinese = languages.is_chinese(lang)
+    unique = list(dict.fromkeys(t.strip() for t in texts if t.strip()))
+    done: dict[str, tuple[str, bool]] = {}
+    todo = []
+    for text in unique:
+        reply = _short_reply(text) if chinese else None
+        if reply is not None:
+            done[text] = (reply, False)
+        else:
+            todo.append(text)
+    if todo:
+        model = _model(lang, log)
+
+        def prepared(text: str) -> str:
+            if chinese:
+                for pattern, repl in _zh_fixes()["source"]:
+                    text = pattern.sub(repl, text)
+            return text
+
+        first: dict[str, tuple[str, float]] = {}
+        for start in range(0, len(todo), LOCAL_BATCH):
+            chunk = todo[start:start + LOCAL_BATCH]
+            try:
+                first.update(zip(chunk, _run_model(model, [prepared(t) for t in chunk])))
+            except Exception:  # one bad line should not lose the batch: go line by line
+                for text in chunk:
+                    try:
+                        first[text] = _run_model(model, [prepared(text)])[0]
+                    except Exception:
+                        first[text] = ("", 0.0)
+            if progress:
+                progress(min(start + LOCAL_BATCH, len(todo)) / len(todo))
+        retry = [t for t in todo if first[t][1] < LOW_SCORE and _plain_source(prepared(t)) != prepared(t)]
+        second = dict(zip(retry, _run_model(model, [_plain_source(prepared(t)) for t in retry]))) if retry else {}
+        for text in todo:
+            raw, score = max(first[text], second.get(text, ("", float("-inf"))), key=lambda r: r[1])
+            done[text] = (_finish(raw, text, lang), bool(raw) and score < LOW_SCORE)
+    return [done.get(t.strip(), ("", False)) for t in texts]
 
 
 def _tidy(zh: str, lang: str = "zh-CN") -> str:
@@ -45,7 +224,11 @@ def _tidy(zh: str, lang: str = "zh-CN") -> str:
         return re.sub(r"\s+", " ", zh).strip()
     zh = zh.strip()
     zh = zh.replace(",", "，").replace("?", "？").replace("!", "！").replace(":", "：").replace(";", "；")
-    zh = re.sub(r"\s*，\s*", "，", zh)
+    zh = re.sub(r"\s*(?:\.{3,}|…+)(?:\s*(?:\.{3,}|…+))*\s*", "……", zh)  # "... ... ......" -> one ellipsis
+    zh = re.sub(r"(?<=[一-鿿，？！”）])\s*\.(?!\d)", "。", zh)  # a half-width full stop after Chinese
+    if re.search(r"[一-鿿]", zh):
+        zh = re.sub(r"(?<![.][A-Za-z])(?<=[0-9A-Za-z%])\.$", "。", zh)  # "编号43271." "问了ChatGPT." (not "U.S.")
+    zh = re.sub(r"\s*([，。？！：；])\s*", r"\1", zh)
     zh = re.sub(r"(?<=[一-鿿])\s+(?=[一-鿿])", "", zh)
     return zh
 
@@ -310,24 +493,17 @@ def _translate_batch_with_retry(lines: list[str], settings: TranslationSettings,
 
 
 def _translate_local(cues: list[dict], progress=None, done: int = 0, total: int | None = None,
-                     lang: str = "zh-CN") -> None:
-    t = _get(lang)
-    cache: dict[str, str] = {}
+                     lang: str = "zh-CN", log=lambda msg: None) -> None:
     total = total or max(1, len(cues))
-    for i, c in enumerate(cues):
-        src = c["text"].strip()
+    report = (lambda p: progress((done + p * len(cues)) / total)) if progress else None
+    results = translate_local([c["text"] for c in cues], lang, report, log)
+    for c, (text, low) in zip(cues, results):
         c.pop("seg", None)  # phrase chunks only come from the API
-        if not src:
-            c["zh"] = ""
-            continue
-        if src not in cache:
-            try:
-                cache[src] = _tidy(t.translate(src), lang)
-            except Exception:  # keep going even if one line fails
-                cache[src] = ""
-        c["zh"] = cache[src]
-        if progress and i % 5 == 0:
-            progress((done + i) / total)
+        c["zh"] = text
+        if low:
+            c["zhLow"] = True  # the player marks it: probably a wrong translation
+        else:
+            c.pop("zhLow", None)
 
 
 def translate_cues(cues: list[dict], progress=None, *, settings: TranslationSettings | None = None,
@@ -343,9 +519,10 @@ def translate_cues(cues: list[dict], progress=None, *, settings: TranslationSett
         for c in cues:
             c["zh"] = ""
             c.pop("seg", None)
+            c.pop("zhLow", None)
         return "none"
     if not (settings and settings.engine == "api"):
-        _translate_local(cues, progress, lang=lang)
+        _translate_local(cues, progress, lang=lang, log=log)
         return "local"
 
     total = max(1, len(cues))
@@ -382,6 +559,7 @@ def translate_cues(cues: list[dict], progress=None, *, settings: TranslationSett
             for cue, (translation, chunks) in zip(batch, result, strict=True):
                 cue["zh"] = translation
                 cue["seg"] = align_chunks(cue["text"], chunks, lang)
+                cue.pop("zhLow", None)
             api_batches += 1
             continue
         if isinstance(result, TranslationError) and result.retryable:
@@ -391,7 +569,7 @@ def translate_cues(cues: list[dict], progress=None, *, settings: TranslationSett
             reason = f"{result} " if isinstance(result, TranslationError) else ""
             log(f"⚠ {reason}其余字幕改用本地翻译。")
         local_batches += 1
-        _translate_local(batch, progress, start, total, lang)
+        _translate_local(batch, progress, start, total, lang, log)
     if not local_batches:
         return "api"
     return "api+local" if api_batches else "local"

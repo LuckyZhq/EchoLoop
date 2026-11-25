@@ -259,6 +259,9 @@ function interlinearFor(c, translator) {
 // hover text naming where each line under the English comes from
 const SOURCE_PHRASE = "短语对照：模型翻译";
 const SOURCE_DICT = "单词释义：词典直译";
+// a line the offline model was unsure about (translate.py LOW_SCORE): a small "?" and this hover text
+const ZH_LOW = "离线翻译可能不准，以英文为准";
+function zhLowAttrs(c) { return c.zhLow ? ` data-low title="${esc(ZH_LOW)}"` : ""; }
 
 function renderInterlinear(text, marks = [], gloss = [], seg = []) {
   gloss = gloss || []; seg = seg || [];

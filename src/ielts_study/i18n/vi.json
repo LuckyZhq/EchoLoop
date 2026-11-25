@@ -1317,5 +1317,12 @@
  "项": "nhiệm vụ đã hoàn thành",
  "今天的计划都完成了": "Bạn đã hoàn thành toàn bộ kế hoạch hôm nay",
  "定一个目标分数": "Đặt mục tiêu điểm số",
- "按你的学习习惯调整。所有设置都只保存在这台电脑上。": "Hãy điều chỉnh theo thói quen học tập của bạn. Mọi cài đặt chỉ được lưu trên máy tính này."
+ "按你的学习习惯调整。所有设置都只保存在这台电脑上。": "Hãy điều chỉnh theo thói quen học tập của bạn. Mọi cài đặt chỉ được lưu trên máy tính này.",
+ "离线翻译可能不准，以英文为准": "Bản dịch ngoại tuyến có thể không chính xác: hãy tin vào bản tiếng Anh",
+ "离线翻译模型已下载": "Đã tải xuống mô hình dịch ngoại tuyến:",
+ "离线翻译模型安装好了": "Đã cài đặt mô hình dịch ngoại tuyến",
+ "第一次使用离线翻译，正在下载模型（约": "Lần đầu sử dụng dịch ngoại tuyến: đang tải xuống mô hình (khoảng",
+ "MB），只需下载一次…": "MB), chỉ cần tải xuống một lần…",
+ "第一次使用离线翻译，正在下载模型，只需下载一次…": "Lần đầu sử dụng dịch ngoại tuyến: đang tải xuống mô hình, chỉ cần tải xuống một lần…",
+ "离线翻译模型下载失败，请检查网络后重试，或在设置里改用 API 翻译。": "Không thể tải xuống mô hình dịch ngoại tuyến. Hãy kiểm tra mạng của bạn và thử lại, hoặc chuyển sang dịch bằng API trong Cài đặt."
 }

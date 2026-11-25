@@ -90,7 +90,7 @@ function renderList() {
   $("#list").innerHTML = cues.map(c => `
     <div class="cue" data-i="${c.i}">
       <div class="tm">${fmtTime(c.start)}<span class="dscore"></span>${sentenceButton(c.text, c.i)}</div>
-      <div><div class="en">${renderMarked(c.text, visibleMarks(c))}</div><div class="zh">${esc(c.zh)}</div></div>
+      <div><div class="en">${renderMarked(c.text, visibleMarks(c))}</div><div class="zh"${zhLowAttrs(c)}>${esc(c.zh)}</div></div>
     </div>`).join("");
 }
 
@@ -133,7 +133,7 @@ function setCurrent(i) {
   cur = i;
   $$(".cue.active").forEach(el => el.classList.remove("active"));
   const c = cues[i];
-  if (!c) { $("#capEn").innerHTML = ""; $("#capZh").textContent = ""; $("#notes").innerHTML = ""; return; }
+  if (!c) { $("#capEn").innerHTML = ""; $("#capZh").textContent = ""; $("#capZh").removeAttribute("data-low"); $("#notes").innerHTML = ""; return; }
   $(`.cue[data-i="${i}"]`)?.classList.add("active");
   followCurrent();
   const caption = $("#capEn");
@@ -143,6 +143,8 @@ function setCurrent(i) {
   // one Chinese line only: when each phrase shows its Chinese, the whole-sentence translation is left out
   $("#capZh").textContent = layered ? "" : c.zh || "";
   $("#capZh").hidden = layered;
+  $("#capZh").toggleAttribute("data-low", !layered && !!c.zhLow);
+  $("#capZh").title = !layered && c.zhLow ? ZH_LOW : "";
   renderNotes();
   spokenK = -1;
   updateSpoken();

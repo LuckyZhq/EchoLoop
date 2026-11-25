@@ -1,0 +1,43 @@
+{
+  "_comment": "Offline (Argos) English→Chinese fixes. short: whole-line replies the model gets wrong ('Okay.' -> 摆), matched after lower-casing and dropping punctuation. source: [regex, replacement] applied to the English before translating (case-insensitive), so the model sees a phrasing it translates well. target: when the English matches 'when', replace each wrong Chinese rendering with the right one.",
+  "short": {
+    "okay": "好的", "ok": "好的", "okay okay": "好的，好的", "all right": "好吧", "alright": "好吧",
+    "yes": "是的", "yeah": "是的", "yep": "嗯", "yup": "嗯", "no": "不", "nope": "不", "yes yes": "是的，是的",
+    "interesting": "有意思", "very interesting": "很有意思", "that's interesting": "很有意思",
+    "oh my god": "天哪", "oh my gosh": "天哪", "my god": "天哪", "oh god": "天哪",
+    "thank you": "谢谢", "thanks": "谢谢", "thank you so much": "非常感谢", "thank you very much": "非常感谢",
+    "thanks a lot": "非常感谢", "thank you thank you": "谢谢，谢谢",
+    "um": "嗯", "uh": "呃", "er": "呃", "erm": "呃", "hmm": "嗯", "mm": "嗯", "mhm": "嗯", "uh huh": "嗯哼",
+    "right": "对", "sure": "当然", "of course": "当然", "great": "太好了", "good": "好", "very good": "很好",
+    "exactly": "没错", "really": "真的", "i see": "我明白了", "i know": "我知道", "i don't know": "我不知道",
+    "me too": "我也是", "me neither": "我也不", "wow": "哇", "oh": "哦", "ah": "啊", "well": "嗯", "so": "所以",
+    "hello": "你好", "hi": "嗨", "hey": "嘿", "bye": "再见", "goodbye": "再见", "sorry": "抱歉",
+    "absolutely": "当然", "definitely": "肯定", "indeed": "确实", "perfect": "完美", "nice": "不错",
+    "cool": "酷", "awesome": "太棒了", "amazing": "太棒了", "no problem": "没问题", "you're welcome": "不客气",
+    "good morning": "早上好", "good afternoon": "下午好", "good evening": "晚上好",
+    "let's go": "我们开始吧", "let's begin": "我们开始吧", "let's start": "我们开始吧", "let's get started": "我们开始吧",
+    "that's right": "没错", "that's it": "就是这样", "that's true": "确实", "true": "确实", "correct": "正确",
+    "not really": "不太是", "go ahead": "请说", "fine": "好", "agreed": "同意", "why": "为什么", "what": "什么",
+    "how": "怎么", "really good": "非常好", "pretty good": "挺好的", "not bad": "还不错", "got it": "明白了",
+    "i agree": "我同意", "welcome": "欢迎", "welcome back": "欢迎回来", "excuse me": "打扰一下"
+  },
+  "source": [
+    ["\\bspeaking (?:test|exam)\\b", "oral exam"],
+    ["\\bband scores?\\b", "score"],
+    ["\\boverall band\\b", "overall score"],
+    ["\\bband (\\d(?:\\.\\d)?)\\b", "score \\1"],
+    ["\\bchat ?gpt\\b", "ChatGPT"]
+  ],
+  "target": [
+    {"when": "\\bielts\\b", "replace": [["IELTS", "雅思"], ["ielts", "雅思"]]},
+    {"when": "\\b(?:speaking|oral) (?:test|exam)\\b", "replace": [["口试", "口语考试"], ["演讲考试", "口语考试"], ["演讲测试", "口语考试"], ["发言测试", "口语考试"]]},
+    {"when": "\\blistening\\b", "replace": [["监听", "听力"]]},
+    {"when": "\\bduolingo\\b", "replace": [["Duolingo", "多邻国"], ["杜奥林戈语", "多邻国"], ["杜奥林戈", "多邻国"]]},
+    {"when": "\\blexical resource\\b", "replace": [["语言资源", "词汇资源"]]},
+    {"when": "\\bfluency and coherence\\b", "replace": [["流利性和一致性", "流利度和连贯性"]]},
+    {"when": "\\bgrammatical range and accuracy\\b", "replace": [["语法范围与准确度", "语法多样性和准确性"], ["语法范围和准确性", "语法多样性和准确性"]]},
+    {"when": "\\bgeneral training\\b", "replace": [["一般培训", "培训类"]]},
+    {"when": "\\bacademic (?:test|module|exam)\\b", "replace": [["学术测试", "学术类考试"]]},
+    {"when": "\\bcue card\\b", "replace": [["提示卡", "题卡"]]}
+  ]
+}

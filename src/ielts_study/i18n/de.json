@@ -1317,5 +1317,12 @@
  "项": "Aufgaben erledigt",
  "今天的计划都完成了": "Der Plan für heute ist geschafft",
  "定一个目标分数": "Zielpunktzahl festlegen",
- "按你的学习习惯调整。所有设置都只保存在这台电脑上。": "Passen Sie alles an Ihre Lerngewohnheiten an. Alle Einstellungen werden nur auf diesem Computer gespeichert."
+ "按你的学习习惯调整。所有设置都只保存在这台电脑上。": "Passen Sie alles an Ihre Lerngewohnheiten an. Alle Einstellungen werden nur auf diesem Computer gespeichert.",
+ "离线翻译可能不准，以英文为准": "Die Offline-Übersetzung kann ungenau sein: Maßgeblich ist das Englische",
+ "离线翻译模型已下载": "Offline-Übersetzungsmodell heruntergeladen:",
+ "离线翻译模型安装好了": "Offline-Übersetzungsmodell installiert",
+ "第一次使用离线翻译，正在下载模型（约": "Erste Verwendung der Offline-Übersetzung: Modell wird heruntergeladen (etwa",
+ "MB），只需下载一次…": "MB), nur einmal nötig…",
+ "第一次使用离线翻译，正在下载模型，只需下载一次…": "Erste Verwendung der Offline-Übersetzung: Modell wird heruntergeladen, nur einmal nötig…",
+ "离线翻译模型下载失败，请检查网络后重试，或在设置里改用 API 翻译。": "Das Offline-Übersetzungsmodell konnte nicht heruntergeladen werden. Prüfen Sie Ihre Netzwerkverbindung und versuchen Sie es erneut, oder wechseln Sie in den Einstellungen zur API-Übersetzung."
 }
