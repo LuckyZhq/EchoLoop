@@ -240,7 +240,8 @@ class Dictionary:
                 self._phrase_defs[word] = definition
         self.curated: dict[str, dict] = {}
         for e in json.loads(CURATED_PATH.read_text(encoding="utf-8")):
-            self.curated[e["en"].lower()] = e
+            for form in (e["en"], *e.get("variants", [])):
+                self.curated[form.lower()] = e
 
     def _row(self, w: str):
         with self._lock:
@@ -281,7 +282,7 @@ class Dictionary:
         if key in self.curated:
             e = self.curated[key]
             return {"en": e["en"], "zh": e["zh"], "note": e.get("note", ""), "source": "curated",
-                    "def": english_definition(self._phrase_defs.get(key))}
+                    "def": english_definition(self._phrase_defs.get(e["en"].lower())) or e.get("def", "")}
         if key in TOO_EASY:
             return None
         tr = self._phrases.get(key)

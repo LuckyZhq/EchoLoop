@@ -1,7 +1,7 @@
 """Rule-based key-phrase and hard-word detection (no LLM).
 
 For each subtitle cue we mark:
-  * at most one learner-worthy phrase (curated list first, then ECDICT phrases),
+  * up to two learner-worthy phrases (only curated entries can fill the second slot),
     including separated phrasal verbs such as "pick it up";
   * up to N candidate hard words, each carrying its frequency rank and IELTS flag.
     The player picks which candidates to show from the learner's vocabulary level,
@@ -20,7 +20,8 @@ _nlp = None
 CONTENT_POS = {"NOUN", "VERB", "ADJ", "ADV"}
 EXAM_TAGS = ("cet6", "ky", "toefl", "ielts", "gre")
 MAX_PHRASE_TOKENS = 6
-ANNOTATION_VERSION = 5  # bump when marks/notes change shape; old videos are re-annotated on open
+MAX_PHRASES_PER_CUE = 2
+ANNOTATION_VERSION = 7
 
 
 def nlp():
@@ -36,6 +37,16 @@ def _word_ok(tok) -> bool:
     return tok.is_alpha or tok.text in ("'s",)
 
 
+def _attribute_to(verb):
+    """A prepositional 'to' attached to the verb or its direct object."""
+    objects = [t for t in verb.children if t.dep_ == "dobj"]
+    for head in (verb, *objects):
+        for t in head.children:
+            if t.dep_ == "prep" and t.lower_ == "to" and t.i > verb.i + 1:
+                return t
+    return None
+
+
 def _phrase_candidates(doc, dic: Dictionary):
     toks = list(doc)
     seen = set()
@@ -46,30 +57,37 @@ def _phrase_candidates(doc, dic: Dictionary):
                 continue
             lower = [t.lower_ for t in span]
             lemma = [t.lemma_.lower() for t in span]
-            keys = {
+            keys = (
                 " ".join([lemma[0]] + lower[1:]),
                 " ".join(lower),
                 " ".join(lemma),
                 # "on my own" / "your time" style entries: normalise possessives
                 " ".join(["my" if w in ("your", "his", "her", "our", "their") else w for w in lower]),
                 " ".join([lemma[0]] + ["your" if w in ("my", "his", "her", "our", "their") else w for w in lower[1:]]),
-            }
-            for k in keys:
-                if k in seen:
-                    continue
+            )
+            for k in dict.fromkeys(keys):
                 e = dic.phrase(k)
                 if e and (e["source"] == "curated" or n <= 4):
-                    seen.add(k)
-                    ranges = [(span[0].idx, span[-1].idx + len(span[-1].text))]
+                    ranges = ((span[0].idx, span[-1].idx + len(span[-1].text)),)
+                    identity = (e["en"].lower(), ranges)
+                    if identity in seen:
+                        continue
+                    seen.add(identity)
                     yield _score(e, n, span[0].pos_ == "VERB"), ranges, e
     # Separated phrasal verbs: "pick it up", "figure the problem out".
     for t in doc:
-        if t.dep_ == "prt" and t.head.pos_ == "VERB" and 0 < t.i - t.head.i <= 4:
-            k = f"{t.head.lemma_.lower()} {t.lower_}"
-            e = dic.phrase(k)
-            if e and k not in seen:
-                ranges = [(t.head.idx, t.head.idx + len(t.head.text)), (t.idx, t.idx + len(t.text))]
-                yield _score(e, 2, True) + 3, ranges, e
+        if t.dep_ == "prt" and t.head.pos_ == "VERB" and 1 < t.i - t.head.i <= 4:
+            verb, particle = t.head, t
+        elif t.pos_ == "VERB" and t.lemma_ == "attribute" and not any(c.dep_ == "auxpass" for c in t.children):
+            verb, particle = t, _attribute_to(t)
+            if particle is None:
+                continue
+        else:
+            continue
+        e = dic.phrase(f"{verb.lemma_.lower()} {particle.lower_}")
+        if e:
+            ranges = ((verb.idx, verb.idx + len(verb)), (particle.idx, particle.idx + len(particle)))
+            yield _score(e, 2, True) + 3, ranges, e
 
 
 def _score(entry: dict, n_tokens: int, verb_start: bool) -> float:
@@ -155,16 +173,22 @@ def annotate_cues(cues: list[dict], dic: Dictionary, progress=None, lang: str = 
     for idx, (cue, doc) in enumerate(zip(cues, nlp().pipe(texts, batch_size=64))):
         marks, notes = [], {}
         old = cue.get("notes") or {}
-        best = max(_phrase_candidates(doc, dic), key=lambda x: x[0], default=None)
         taken = []
-        if best:
-            _, ranges, e = best
+        selected = 0
+        for _, ranges, e in sorted(_phrase_candidates(doc, dic), key=lambda x: -x[0]):
+            if selected and e["source"] != "curated":
+                break
+            if any(_overlaps(r, taken) for r in ranges):
+                continue
             key = "p:" + e["en"]
             notes[key] = {"type": "phrase", "en": e["en"], "zh": e["zh"] if chinese else e.get("def", ""),
                           "note": e["note"] if chinese else "", "def": e.get("def", "")}
             for s, en in ranges:
                 marks.append({"s": s, "e": en, "type": "phrase", "key": key})
             taken.extend(ranges)
+            selected += 1
+            if selected == MAX_PHRASES_PER_CUE:
+                break
         for _, r, info, rank, ielts, exam in _hard_words(doc, dic, taken, chinese)[:MAX_WORD_CANDIDATES_PER_CUE]:
             key = "w:" + info["en"]
             notes[key] = {
