@@ -1117,8 +1117,9 @@ mark.cloze-answer { padding: 0 3px; border-radius: 5px; background: var(--word-b
 .save-sent { display: inline-flex; align-items: center; justify-content: center; margin-inline-start: 4px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--muted); font-size: 11px; line-height: 1.5; cursor: pointer; }
 .save-sent .ico-star { width: 13px; height: 13px; }
 .save-sent:hover, .save-sent.saved { color: var(--accent); border-color: var(--accent); }
-.cue .tm .save-sent { display: flex; align-items: center; justify-content: center; width: 13px; height: 13px; margin: 4px auto 0; padding: 0; border: none; background: none; }
-.cue .tm .save-sent .ico-star { width: 13px; height: 13px; }
+.cue .tm .save-sent { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: 2px auto 0; padding: 0; border: none; background: none; }
+.cue .tm .save-sent .ico-star { width: 18px; height: 18px; }
+.cue .tm .save-sent:hover, .cue .tm .save-sent.saved { color: #af7b00; }
 
 /* ---------- 我的目标: four blocks (level, target, stage, daily amounts) */
 
