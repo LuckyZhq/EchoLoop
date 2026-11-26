@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from ielts_study import config, wordbook
+from echoloop import config, wordbook
 
 
 @pytest.fixture
@@ -86,7 +86,7 @@ def test_cards_use_your_own_sentences(dic):
 
 
 def test_api_examples_are_cached(dic, monkeypatch):
-    from ielts_study import translate
+    from echoloop import translate
 
     calls = []
 

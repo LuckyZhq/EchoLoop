@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from ielts_study import speaking, writing
+from echoloop import speaking, writing
 
 
 def test_question_banks_are_complete():
@@ -64,7 +64,7 @@ def test_essay_marking_and_history(tmp_path, monkeypatch):
                            "corrections": [{"original": "rised", "better": "rose", "why": "irregular verb"}],
                            "rewrite": "Better."})
 
-    monkeypatch.setattr("ielts_study.translate.chat", chat)
+    monkeypatch.setattr("echoloop.translate.chat", chat)
     kind, task = writing.find_task("t1-energy")
     result = writing.mark(kind, task["prompt"], "Coal rised. " * 30, None, "zh-CN", task["chart"])
     assert "Renewables: 2000 = 5" in sent["data"] and "Task Achievement" in sent["instructions"]

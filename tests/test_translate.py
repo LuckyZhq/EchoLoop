@@ -1,5 +1,5 @@
 """Phrase alignment: the API's [english, chinese] chunks are mapped back onto the subtitle text."""
-from ielts_study.translate import align_chunks
+from echoloop.translate import align_chunks
 
 
 def spans(text, segs):

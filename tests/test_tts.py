@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from ielts_study import tts
+from echoloop import tts
 
 BLOB = bytes(range(256)) * 4000  # ~1 MB
 

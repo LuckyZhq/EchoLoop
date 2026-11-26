@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from ielts_study import i18n, server
+from echoloop import i18n, server
 
 
 def test_traditional_uses_taiwan_wording():
@@ -95,8 +95,8 @@ def test_other_languages_fall_back_to_english(monkeypatch):
 
 
 def test_ui_table_generator_keeps_edges_and_only_fills_gaps(tmp_path, monkeypatch):
-    from ielts_study import ui_translate
-    from ielts_study.settings import TranslationSettings
+    from echoloop import ui_translate
+    from echoloop.settings import TranslationSettings
 
     monkeypatch.setattr(i18n, "UI_DIR", tmp_path)
     (tmp_path / "en.json").write_text(json.dumps({
@@ -130,8 +130,8 @@ def test_arabic_pages_are_right_to_left(monkeypatch):
 
 def test_ui_table_generator_accepts_echoed_objects(tmp_path, monkeypatch):
     # without reasoning, a model may answer [{"zh": ..., "en": <translation>}] instead of plain strings
-    from ielts_study import ui_translate
-    from ielts_study.settings import TranslationSettings
+    from echoloop import ui_translate
+    from echoloop.settings import TranslationSettings
 
     monkeypatch.setattr(i18n, "UI_DIR", tmp_path)
     (tmp_path / "en.json").write_text(json.dumps({"单词复习": "Word review"}, ensure_ascii=False), encoding="utf-8")

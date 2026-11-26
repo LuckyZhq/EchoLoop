@@ -8,7 +8,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from ielts_study import server
+from echoloop import server
 
 
 @pytest.fixture(scope="module")

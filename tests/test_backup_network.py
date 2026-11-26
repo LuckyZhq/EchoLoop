@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from ielts_study import backup, network, server
+from echoloop import backup, network, server
 
 
 @pytest.fixture
@@ -54,23 +54,40 @@ def test_restore_rejects_foreign_and_unsafe_zips(roots, tmp_path):
     with pytest.raises(ValueError):
         backup.restore(tmp_path / "x.zip")
     with zipfile.ZipFile(tmp_path / "y.zip", "w") as z:
-        z.writestr("manifest.json", json.dumps({"app": "ielts-study"}))
+        z.writestr("manifest.json", json.dumps({"app": "echoloop"}))
         z.writestr("library/../../evil.txt", "x")
     with pytest.raises(ValueError):
         backup.restore(tmp_path / "y.zip")
     assert not (tmp_path / "evil.txt").exists()
 
 
+def test_restore_accepts_legacy_ielts_study_backup(roots, tmp_path):
+    lib, _ = roots
+    backup.write_zip(tmp_path / "b.zip")
+    legacy = tmp_path / "legacy.zip"
+    with zipfile.ZipFile(tmp_path / "b.zip") as src, zipfile.ZipFile(legacy, "w") as dst:
+        for info in src.infolist():
+            if info.filename == "manifest.json":
+                m = json.loads(src.read(info))
+                m["app"] = "ielts-study"
+                dst.writestr("manifest.json", json.dumps(m))
+            else:
+                dst.writestr(info, src.read(info))
+    (lib / "vocab.json").write_text("[]")
+    out = backup.restore(legacy)
+    assert out["restored"] == 1 and json.loads((lib / "vocab.json").read_text()) == [{"en": "notice"}]
+
+
 def test_folder_backups_keep_the_newest(roots, tmp_path, monkeypatch):
     folder = tmp_path / "cloud"
     folder.mkdir()
     backup.set_folder(str(folder), keep=2)
-    names = iter(f"IELTS-Study-backup-20260101-00000{i}.zip" for i in range(5))
+    names = iter(f"EchoLoop-backup-20260101-00000{i}.zip" for i in range(5))
     monkeypatch.setattr(backup, "file_name", lambda: next(names))
     for _ in range(3):
         backup.backup_now()
-    assert sorted(p.name for p in folder.iterdir()) == ["IELTS-Study-backup-20260101-000001.zip",
-                                                         "IELTS-Study-backup-20260101-000002.zip"]
+    assert sorted(p.name for p in folder.iterdir()) == ["EchoLoop-backup-20260101-000001.zip",
+                                                         "EchoLoop-backup-20260101-000002.zip"]
     with pytest.raises(ValueError):
         backup.set_folder(str(tmp_path / "missing"))
     with pytest.raises(ValueError):
@@ -111,7 +128,7 @@ def test_phone_needs_the_key(lan_server):
     host = {"Host": f"192.168.1.84:{port}"}
     assert call(base + "/api/sidebar", headers=host)[0] == 403
     assert call(base + f"/vocab?key=wrong", headers=host)[0] == 403
-    with_cookie = {**host, "Cookie": f"ielts_key={token}"}
+    with_cookie = {**host, "Cookie": f"echoloop_key={token}"}
     assert call(base + "/api/settings", headers=with_cookie)[0] == 403  # API keys stay on the computer
     status, _, _ = call(base + "/api/shutdown", "POST", {**with_cookie, "Origin": f"http://192.168.1.84:{port}"}, b"{}")
     assert status == 403
@@ -136,4 +153,4 @@ def test_key_link_sets_the_cookie(lan_server):
     except HTTPError as error:
         assert error.code == 303
         assert error.headers["Location"] == "/player/x?t=12"
-        assert f"ielts_key={token}" in error.headers["Set-Cookie"] and "HttpOnly" in error.headers["Set-Cookie"]
+        assert f"echoloop_key={token}" in error.headers["Set-Cookie"] and "HttpOnly" in error.headers["Set-Cookie"]

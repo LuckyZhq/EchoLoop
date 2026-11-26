@@ -1,5 +1,5 @@
 """Reading: pasted articles are split into paragraphs and sentences."""
-from ielts_study.reading import ARTICLE_ID, new_id, split_sentences
+from echoloop.reading import ARTICLE_ID, new_id, split_sentences
 
 
 def test_paragraphs_and_sentences():
@@ -22,9 +22,9 @@ def test_article_ids_are_safe_path_names():
 
 
 def test_old_articles_are_reannotated_and_saved(tmp_path, monkeypatch):
-    from ielts_study import reading
-    from ielts_study.annotate import ANNOTATION_VERSION
-    from ielts_study.dictionary import Dictionary
+    from echoloop import reading
+    from echoloop.annotate import ANNOTATION_VERSION
+    from echoloop.dictionary import Dictionary
 
     monkeypatch.setattr(reading, "ARTICLES_DIR", tmp_path)
     old = {"id": "a000000000001", "title": "t", "annotation": 1,

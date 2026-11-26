@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from ielts_study import graded, reading
+from echoloop import graded, reading
 
 
 def test_builtin_passages():
@@ -51,7 +51,7 @@ def test_opening_an_opened_passage_returns_its_article(monkeypatch):
 
 
 def test_write_passage(monkeypatch):
-    from ielts_study import translate
+    from echoloop import translate
 
     sent = {}
 

@@ -1,7 +1,7 @@
 """单词复习 scheduling (simplified SM-2) and the daily queue."""
 import pytest
 
-from ielts_study.review import AGAIN_DELAY, DAY, NEW_PER_DAY, due_count, previews, queue, schedule
+from echoloop.review import AGAIN_DELAY, DAY, NEW_PER_DAY, due_count, previews, queue, schedule
 
 NOW = 1_800_000_000.0
 

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>句子收藏</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap vocab-wrap">
+  <header class="hero page-heading">
+    <div>
+      <h1>单词</h1>
+      <nav class="tabs word-tabs" id="wordTabs" aria-label="单词"></nav>
+      <p>想背下来、写作和口语里能用的整句。在播放器的逐句原文或文章里点句子旁边的星标收藏。句子不进复习，单词才进。</p>
+    </div>
+  </header>
+  <div class="section-h"><span class="muted" id="count"></span></div>
+  <div class="vlist" id="list"></div>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+let items = [];
+const clipAudio = new Audio();
+let clipEnd = null;
+clipAudio.addEventListener("timeupdate", () => { if (clipEnd !== null && clipAudio.currentTime >= clipEnd) { clipAudio.pause(); clipEnd = null; } });
+function playClip(s) {
+  if (!s.media) return speak(s.text, 0.95);
+  const go = () => { clipAudio.currentTime = s.time; clipEnd = s.end; clipAudio.play().catch(() => {}); };
+  if (!clipAudio.src.endsWith(s.media)) { clipAudio.src = s.media; clipAudio.addEventListener("loadedmetadata", go, { once: true }); clipAudio.load(); }
+  else go();
+}
+function render() {
+  $("#count").textContent = items.length ? `${items.length} 句` : "";
+  $("#list").innerHTML = items.length ? items.map(s => `
+    <div class="vitem">
+      <div>
+        <div class="saved-sentence">${esc(s.text)}</div>
+        ${s.zh ? `<div class="muted">${esc(s.zh)}</div>` : ""}
+        ${s.title ? `<div class="source-tags">${esc(s.title)}</div>` : ""}
+      </div>
+      <div class="ops">
+        <button class="iconbtn" data-play="${esc(s.id)}" title="${s.media ? "播放原声" : "朗读"}">${s.media ? "🎧 原声" : "🔊"}</button>
+        ${s.media ? `<a class="iconbtn" href="/player/${encodeURIComponent(s.videoId)}?t=${s.time}">▶ 原句</a>` : ""}
+        ${s.articleId ? `<a class="iconbtn" href="/reading/${encodeURIComponent(s.articleId)}#s${s.sentenceIndex || 0}">▤ 原文</a>` : ""}
+        <button class="iconbtn" data-del="${esc(s.id)}">删除</button>
+      </div>
+    </div>`).join("") : `<div class="empty">还没有收藏的句子。在播放器右侧的逐句原文里，或文章里每句后面，点星标收藏。</div>`;
+}
+document.addEventListener("click", async e => {
+  const pl = e.target.closest("[data-play]");
+  if (pl) playClip(items.find(s => s.id === pl.dataset.play));
+  const d = e.target.closest("[data-del]");
+  if (d) { await api(`/api/sentences/${encodeURIComponent(d.dataset.del)}`, { method: "DELETE" }); items = items.filter(s => s.id !== d.dataset.del); render(); }
+});
+api("/api/sentences").then(v => { items = v; render(); });
+</script>
+</body>
+</html>

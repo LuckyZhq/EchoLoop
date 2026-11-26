@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from ielts_study import translate
+from echoloop import translate
 
 
 class FakeModel:

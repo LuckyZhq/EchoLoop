@@ -4,8 +4,8 @@ import subprocess
 
 import pytest
 
-from ielts_study import config, keep, review
-from ielts_study.storage import ffmpeg_exe
+from echoloop import config, keep, review
+from echoloop.storage import ffmpeg_exe
 
 
 @pytest.fixture

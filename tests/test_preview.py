@@ -1,8 +1,8 @@
 """Members-only videos download as a short preview: the real length is recorded and the full one kept."""
 import subprocess
 
-from ielts_study import media, pipeline
-from ielts_study.storage import ffmpeg_exe
+from echoloop import media, pipeline
+from echoloop.storage import ffmpeg_exe
 
 
 def make_video(path, seconds):

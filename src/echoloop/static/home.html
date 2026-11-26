@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EchoLoop</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="lang-home">
+    <!-- 首页：铺满整个页面，选择母语居中。字幕、短语和单词释义翻译成这种语言，界面也跟着换。 -->
+    <section class="lang-card" aria-labelledby="pickTitle">
+      <div class="lang-brand"><span class="lang-logo" aria-hidden="true"><b>ECHO</b><i></i></span>EchoLoop</div>
+      <h1 id="pickTitle">选择你的母语</h1>
+      <p class="lang-english">Choose your native language</p>
+
+      <div class="lang-field">
+        <button type="button" class="lang-select" id="langButton" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="pickTitle langValue">
+          <span class="lang-value" id="langValue"><b id="langName">…</b><span id="langEnglish"></span></span>
+          <span class="lang-chevron" aria-hidden="true"></span>
+        </button>
+        <div class="lang-pop" id="langPop" hidden>
+          <div class="lang-search">
+            <span class="lang-search-icon" aria-hidden="true"></span>
+            <input id="langSearch" type="text" placeholder="搜索语言" autocomplete="off" spellcheck="false"
+                   role="combobox" aria-expanded="true" aria-controls="langList" aria-autocomplete="list" aria-label="搜索语言">
+          </div>
+          <ul class="lang-list" id="langList" role="listbox" aria-label="母语"></ul>
+          <p class="lang-empty" id="langEmpty" hidden>没有找到这种语言</p>
+        </div>
+      </div>
+      <p class="lang-note" id="langNote"></p>
+
+      <div class="lang-actions">
+        <a class="btn lang-go" href="/goals">先测一下水平</a>
+        <a class="btn primary lang-go" href="/listening">开始学习 <span aria-hidden="true">→</span></a>
+      </div>
+      <p class="lang-links"><a href="/settings/appearance">更多语言设置</a></p>
+    </section>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+// Labels for the list: the language in its own writing, and its English name.
+const NAME = { en: "English", "zh-TW": "繁體中文" };
+const ENGLISH = { en: "English definitions only", "zh-TW": "Traditional Chinese · Taiwan" };
+let lang, options = [], active = -1;
+
+function label(code) {
+  return { code, name: NAME[code] || lang.nativeOptions[code],
+           english: ENGLISH[code] || (lang.englishNames[code] || "").replace(/\s*\(.*\)$/, "") };
+}
+
+function showCurrent() {
+  const l = label(lang.native);
+  $("#langName").textContent = l.name;
+  $("#langEnglish").textContent = l.english;
+  $("#langNote").textContent = storedLang(lang.native) === "zh-CN"
+    ? "离线词典、逐词释义和短语对照都可以用。"
+    : lang.native === "en"
+      ? "不翻译字幕，只显示英文释义。"
+      : "接上 API（设置 → API）就能看到母语的短语对照和单词释义；没有 API 时显示英文释义。";
+}
+
+function renderList() {
+  const q = $("#langSearch").value.trim().toLowerCase();
+  options = Object.keys(lang.nativeOptions).map(label)
+    .filter(l => !q || [l.code, l.name, l.english].some(x => x.toLowerCase().includes(q)));
+  if (active >= options.length) active = options.length - 1;
+  $("#langList").innerHTML = options.map((l, i) => `
+    <li role="option" id="opt-${l.code}" data-code="${l.code}" aria-selected="${l.code === lang.native}"
+        class="${i === active ? "active" : ""}">
+      <span class="lang-opt-name" ${(lang.rtl || []).includes(l.code) ? 'dir="rtl"' : ""}>${esc(l.name)}</span>
+      <span class="lang-opt-english">${esc(l.english)}</span>
+      <span class="lang-opt-check" aria-hidden="true"></span>
+    </li>`).join("");
+  $("#langEmpty").hidden = options.length > 0;
+  $("#langSearch").setAttribute("aria-activedescendant", options[active] ? `opt-${options[active].code}` : "");
+  $("#langList .active")?.scrollIntoView({ block: "nearest" });
+}
+
+function open(on) {
+  $("#langPop").hidden = !on;
+  $("#langButton").setAttribute("aria-expanded", on);
+  if (on) {
+    $("#langSearch").value = "";
+    active = Object.keys(lang.nativeOptions).indexOf(lang.native);
+    renderList();
+    $("#langSearch").focus();
+  }
+}
+
+async function choose(code) {
+  open(false);
+  if (code === lang.native) return;
+  $("#langButton").disabled = true;
+  try {
+    // the interface follows the native language; the page is served in the new language after a reload
+    await api("/api/language", { method: "POST", body: { native: code, ui: code } });
+    location.reload();
+  } catch (error) {
+    toast(error.message);
+    $("#langButton").disabled = false;
+  }
+}
+
+$("#langButton").onclick = () => open($("#langPop").hidden);
+$("#langSearch").addEventListener("input", () => { active = 0; renderList(); });
+$("#langSearch").addEventListener("keydown", event => {
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    active = (active + (event.key === "ArrowDown" ? 1 : -1) + options.length) % Math.max(1, options.length);
+    renderList();
+  } else if (event.key === "Enter" && options[active]) {
+    event.preventDefault();
+    choose(options[active].code);
+  } else if (event.key === "Escape") {
+    open(false);
+    $("#langButton").focus();
+  }
+});
+$("#langList").addEventListener("click", event => {
+  const li = event.target.closest("li[data-code]");
+  if (li) choose(li.dataset.code);
+});
+$("#langList").addEventListener("mousemove", event => {
+  const li = event.target.closest("li[data-code]");
+  const i = li ? options.findIndex(o => o.code === li.dataset.code) : -1;
+  if (i >= 0 && i !== active) { active = i; $$("#langList li").forEach((el, j) => el.classList.toggle("active", j === i)); }
+});
+document.addEventListener("click", event => { if (!event.target.closest(".lang-field")) open(false); });
+
+loadLanguage().then(l => { lang = l; showCurrent(); });
+</script>
+</body>
+</html>

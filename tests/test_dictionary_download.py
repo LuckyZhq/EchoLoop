@@ -3,7 +3,7 @@ import hashlib
 
 import pytest
 
-from ielts_study import dictionary
+from echoloop import dictionary
 
 
 def test_download_is_verified_and_moved_into_place(tmp_path, monkeypatch):

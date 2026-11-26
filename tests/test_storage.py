@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from ielts_study.storage import ffmpeg_exe, media_info, shrink
+from echoloop.storage import ffmpeg_exe, media_info, shrink
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def test_unknown_mode_is_refused(video_dir):
 
 
 def test_other_systems_compress_with_x264(video_dir, monkeypatch):
-    from ielts_study import storage
+    from echoloop import storage
 
     monkeypatch.setattr(storage.sys, "platform", "linux")  # no VideoToolbox outside macOS
     assert storage._video_encoder(1400)[:2] == ["-c:v", "libx264"]

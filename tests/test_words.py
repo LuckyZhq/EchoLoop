@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from ielts_study import config, placement, review, words
+from echoloop import config, placement, review, words
 
 NOW = 1_800_000_000
 

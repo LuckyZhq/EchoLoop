@@ -1,7 +1,7 @@
 """Translation settings: what the settings page may save."""
 import pytest
 
-from ielts_study.settings import TranslationSettings, settings_from
+from echoloop.settings import TranslationSettings, settings_from
 
 SAVED = TranslationSettings(
     engine="api", base_url="https://api.deepseek.com", model="deepseek-flash", api_key="sk-saved",

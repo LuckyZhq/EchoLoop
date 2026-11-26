@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from ielts_study import goals, placement, plan
+from echoloop import goals, placement, plan
 
 NOW = time.mktime((2026, 11, 24, 15, 0, 0, 0, 0, -1))
 

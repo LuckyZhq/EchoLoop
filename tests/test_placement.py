@@ -1,9 +1,9 @@
 """水平测试: vocabulary estimate, spot-check, profile; and the word ranks it relies on."""
 import pytest
 
-from ielts_study import placement as pl
-from ielts_study.annotate import nlp, word_info
-from ielts_study.dictionary import Dictionary
+from echoloop import placement as pl
+from echoloop.annotate import nlp, word_info
+from echoloop.dictionary import Dictionary
 
 
 @pytest.fixture(scope="module")

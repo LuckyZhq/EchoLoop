@@ -1,4 +1,4 @@
-// Draws the IELTS-study app icon (1024×1024 PNG). Usage: swift make_icon.swift out.png
+// Draws the EchoLoop app icon (1024×1024 PNG). Usage: swift make_icon.swift out.png
 import AppKit
 
 let size: CGFloat = 1024
@@ -39,11 +39,11 @@ tilePath.fill()
 NSGraphicsContext.restoreGraphicsState()
 NSGradient(starting: color(0x3d5b8f), ending: color(0x1b2a45))!.draw(in: tilePath, angle: -90)
 
-// "IELTS" wordmark.
+// "ECHO" wordmark.
 let para = NSMutableParagraphStyle()
 para.alignment = .center
 let font = NSFont.systemFont(ofSize: 214, weight: .heavy)
-let title = NSAttributedString(string: "IELTS", attributes: [
+let title = NSAttributedString(string: "ECHO", attributes: [
     .font: font, .foregroundColor: NSColor.white, .paragraphStyle: para, .kern: 4,
 ])
 title.draw(in: rect(100, 232, 824, 260))

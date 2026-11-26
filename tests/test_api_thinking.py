@@ -5,8 +5,8 @@ from urllib.error import HTTPError
 
 import pytest
 
-from ielts_study import translate
-from ielts_study.settings import TranslationSettings
+from echoloop import translate
+from echoloop.settings import TranslationSettings
 
 REPLY = {"choices": [{"message": {"content": "[\"你好\"]"}}]}
 

@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>写作与翻译</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="workspace">
+  <aside class="workspace-nav"></aside>
+  <main class="wrap home-wrap">
+    <header class="hero page-heading">
+      <div>
+        <h1>写作与翻译</h1>
+        <p>练大学英语六级作文、段落汉译英，或雅思 Task 1 / Task 2；支持粘贴自选题目。AI 按对应考试评分标准打分、逐句纠错并给出高分参考。</p>
+      </div>
+    </header>
+
+    <div class="tabs reading-tabs" id="tabs" role="tablist" aria-label="题型">
+      <button type="button" class="btn" data-tab="cet6_essay">六级作文</button>
+      <button type="button" class="btn" data-tab="cet6_trans">六级翻译（汉译英）</button>
+      <button type="button" class="btn" data-tab="task2">雅思 Task 2</button>
+      <button type="button" class="btn" data-tab="task1">雅思 Task 1 图表</button>
+      <button type="button" class="btn" data-tab="letter">雅思 G 类书信</button>
+      <button type="button" class="btn" data-tab="mine">我的练习</button>
+    </div>
+    <p class="muted" id="apiNote" hidden></p>
+
+    <section id="pickPanel">
+      <div class="graded-grid" id="taskGrid"></div>
+    </section>
+
+    <section id="writePanel" hidden>
+      <button type="button" class="btn back-btn" id="back">← 换一道题</button>
+      <article class="write-task">
+        <div class="speak-meta" id="taskMeta"></div>
+        <textarea class="write-prompt-input" id="ownPrompt" rows="3" placeholder="把题目粘贴在这里（英文）" hidden></textarea>
+        <p class="write-prompt" id="taskPrompt"></p>
+        <figure class="write-chart" id="chart" hidden></figure>
+      </article>
+      <div class="write-bar">
+        <span id="wordCount">0 词</span>
+        <span id="clock" class="muted"></span>
+        <span class="muted" id="draftNote"></span>
+      </div>
+      <textarea class="write-box" id="essay" spellcheck="false" placeholder="在这里写你的作文。计时从你开始打字算起。"></textarea>
+      <div class="speak-actions">
+        <button type="button" class="btn primary" id="submit">提交批改</button>
+        <span class="muted" id="submitNote"></span>
+      </div>
+      <div class="speak-result" id="result" aria-live="polite"></div>
+    </section>
+
+    <section id="minePanel" hidden>
+      <div class="speak-history" id="history"></div>
+      <div class="speak-result" id="mineResult"></div>
+    </section>
+  </main>
+</div>
+<script src="/static/common.js"></script>
+<script>
+let info = null, tab = "cet6_essay", task = null, startedAt = null, clockTimer = null;
+const KIND_LABEL = { cet6_essay: "六级作文", cet6_trans: "六级汉译英", task2: "Task 2", task1: "Task 1 图表", letter: "Task 1 书信" };
+const TYPE_LABEL = { opinion: "观点论证", discussion: "讨论双方观点", advantages: "利弊", problem: "现象与对策", "two-part": "双问题",
+  proverb: "名言哲理", letter: "应用书信", culture: "传统文化", society: "社会发展", tech: "科技生活", ecology: "生态环保" };
+const MINUTES = { cet6_essay: 30, cet6_trans: 30, task2: 40, task1: 20, letter: 20 };
+const isCet = kind => kind === "cet6_essay" || kind === "cet6_trans";
+
+function pref(key, fallback) { try { return localStorage.getItem(key) || fallback; } catch { return fallback; } }
+function setPref(key, value) { try { localStorage.setItem(key, value); } catch { /* private mode */ } }
+function words(text) { return (text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g) || []).length; }
+function draftKey() { return `essayDraft:${task.id || "own-" + task.kind}`; }
+
+// ---------------------------------------------------------------- charts (Task 1 data)
+const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
+function fmt(v, unit) { return unit === "%" ? `${v}%` : unit === "$" ? `$${v}` : `${v}${unit && unit !== "k" ? " " + unit : unit || ""}`; }
+function chartHtml(c) {
+  const legend = c.kind === "table" ? "" : `<figcaption class="chart-legend">${c.series.map((s, i) =>
+    `<span><i style="background:${SERIES[i]}"></i>${esc(s.name)}</span>`).join("")}</figcaption>`;
+  if (c.kind === "table") {
+    return `<b class="chart-title">${esc(c.title)}</b><div class="table-wrap"><table class="data-table"><thead><tr><th></th>${c.series.map(s => `<th>${esc(s.name)}</th>`).join("")}</tr></thead>
+      <tbody>${c.categories.map((cat, i) => `<tr><th>${esc(cat)}</th>${c.series.map(s => `<td>${s.values[i].toLocaleString()}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  }
+  const W = innerWidth < 600 ? 380 : 640, H = innerWidth < 600 ? 260 : 300, L = 40, R = 12, T = 14, B = 34;  // narrower on phones: labels stay readable
+  const max = Math.max(...c.series.flatMap(s => s.values));
+  const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000].find(s => max / s <= 6) || 1000;
+  const top = Math.ceil(max / step) * step;
+  const y = v => T + (H - T - B) * (1 - v / top);
+  const grid = [];
+  for (let v = 0; v <= top; v += step) grid.push(`<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="${v ? "grid" : "axis"}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`);
+  const band = (W - L - R) / c.categories.length;
+  const labels = c.categories.map((cat, i) => `<text x="${L + band * (i + .5)}" y="${H - 12}" text-anchor="middle">${esc(cat)}</text>`).join("");
+  let marks = "";
+  if (c.kind === "bar") {
+    const n = c.series.length, bw = Math.min(28, (band * .7) / n);
+    c.series.forEach((s, si) => s.values.forEach((v, i) => {
+      const x = L + band * (i + .5) - (bw * n + 2 * (n - 1)) / 2 + si * (bw + 2), h = y(0) - y(v), r = Math.min(4, bw / 2, h);
+      marks += `<path d="M${x},${y(0)} V${y(v) + r} Q${x},${y(v)} ${x + r},${y(v)} H${x + bw - r} Q${x + bw},${y(v)} ${x + bw},${y(v) + r} V${y(0)} Z" fill="${SERIES[si]}"><title>${esc(s.name)} · ${esc(c.categories[i])}: ${fmt(v, c.unit)}</title></path>`;
+    }));
+  } else {
+    c.series.forEach((s, si) => {
+      const pts = s.values.map((v, i) => [L + band * (i + .5), y(v)]);
+      marks += `<polyline points="${pts.map(p => p.join(",")).join(" ")}" fill="none" stroke="${SERIES[si]}" stroke-width="2" stroke-linejoin="round"/>`;
+      marks += pts.map(([px, py], i) => `<circle cx="${px}" cy="${py}" r="4" fill="${SERIES[si]}" stroke="var(--surface)" stroke-width="2"><title>${esc(s.name)} · ${esc(c.categories[i])}: ${fmt(s.values[i], c.unit)}</title></circle>`).join("");
+    });
+  }
+  return `<b class="chart-title">${esc(c.title)}${c.unit ? ` <span class="muted">(${esc(c.unit === "k" ? "thousands" : c.unit)})</span>` : ""}</b>${legend}
+    <svg class="chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.title)}">${grid.join("")}${marks}${labels}</svg>`;
+}
+
+// ---------------------------------------------------------------- task list
+function renderTabs() {
+  $$("#tabs .btn").forEach(b => { b.classList.toggle("on", b.dataset.tab === tab); b.setAttribute("aria-selected", b.dataset.tab === tab); });
+}
+function showTab(id) {
+  tab = id; setPref("writingTab", id); renderTabs();
+  $("#pickPanel").hidden = id === "mine";
+  $("#writePanel").hidden = true;
+  $("#minePanel").hidden = id !== "mine";
+  if (id === "mine") return renderHistory();
+  const list = id === "cet6_essay" ? (info.tasks.cet6_essay || []) : id === "cet6_trans" ? (info.tasks.cet6_trans || [])
+    : id === "task2" ? info.tasks.task2 : id === "task1" ? info.tasks.task1 : info.tasks.letters;
+  const wordHint = id === "cet6_trans" ? "段落汉译英" : `至少 ${info.minWords[id]} 词`;
+  $("#taskGrid").innerHTML = list.map(t => `
+    <article class="graded-card"><button type="button" class="graded-open" data-task="${esc(t.id)}">
+      <span class="graded-top"><span class="badge word">${esc(t.type ? TYPE_LABEL[t.type] || t.type : t.chart ? { bar: "柱状图", line: "折线图", table: "表格" }[t.chart.kind] : "书信")}</span></span>
+      <b class="write-card-text">${esc(t.prompt)}</b>
+      <span class="graded-meta">${MINUTES[id]} 分钟 · ${wordHint}${pref(`essayDraft:${t.id}`, "") ? " · 有草稿" : ""}</span>
+    </button></article>`).join("") + `
+    <article class="graded-card own"><button type="button" class="graded-open" data-own="${id}">
+      <span class="graded-top"><span class="badge phrase">自己出题</span></span>
+      <b>${id === "cet6_trans" ? "粘贴一段中文来翻译" : "粘贴一道题目来写"}</b><span class="graded-meta">${id === "cet6_trans" ? "比如真题或模拟翻译原段" : "比如真题、老师布置的题目"}</span></button></article>`;
+}
+function openTask(t) {
+  task = t;
+  $("#pickPanel").hidden = true;
+  $("#writePanel").hidden = false;
+  $("#result").innerHTML = "";
+  const isTrans = t.kind === "cet6_trans";
+  $("#taskMeta").textContent = `${KIND_LABEL[t.kind]} · 建议 ${MINUTES[t.kind]} 分钟${isTrans ? "" : ` · 至少 ${info.minWords[t.kind]} 词`}`;
+  $("#ownPrompt").hidden = !!t.id;
+  $("#ownPrompt").placeholder = isTrans ? "把要翻译的中文段落粘贴在这里" : "把题目粘贴在这里（英文）";
+  $("#taskPrompt").hidden = !t.id;
+  $("#taskPrompt").textContent = t.prompt || "";
+  $("#ownPrompt").value = t.id ? "" : pref(`essayPrompt:${t.kind}`, "");
+  $("#chart").hidden = !t.chart;
+  $("#chart").innerHTML = t.chart ? chartHtml(t.chart) : "";
+  $("#essay").value = pref(draftKey(), "");
+  $("#essay").placeholder = isTrans ? "在这里写你的英文译文。计时从你开始打字算起。" : "在这里写你的作文。计时从你开始打字算起。";
+  $("#draftNote").textContent = $("#essay").value ? "已恢复上次的草稿" : "";
+  startedAt = null; clearInterval(clockTimer);
+  $("#clock").textContent = `限时 ${MINUTES[t.kind]}:00`;
+  updateCount();
+  window.scrollTo({ top: 0 });
+  (t.id ? $("#essay") : $("#ownPrompt")).focus({ preventScroll: true });
+}
+function updateCount() {
+  const n = words($("#essay").value), min = info.minWords[task.kind];
+  if (task.kind === "cet6_trans") {
+    $("#wordCount").innerHTML = `<b>${n}</b> 词`;
+    return;
+  }
+  $("#wordCount").innerHTML = `<b>${n}</b> 词${n < min ? ` <span class="muted">· 还差 ${min - n} 词</span>` : ` <span class="good-text">· 字数够了</span>`}`;
+}
+function tickClock() {
+  const used = Math.floor((Date.now() - startedAt) / 1000), left = MINUTES[task.kind] * 60 - used;
+  $("#clock").innerHTML = left >= 0 ? `剩余 ${fmtTime(left)}` : `<span class="bad-text">超时 ${fmtTime(-left)}</span>`;
+}
+
+// ---------------------------------------------------------------- marking
+function band(b, scale) {
+  if (b == null) return "–";
+  const v = Number(b).toFixed(1);
+  return scale === "cet15" ? `${v}/15` : v;
+}
+function markedEssay(essay, corrections) {
+  // highlight each corrected phrase where it appears in the essay
+  let html = esc(essay);
+  corrections.forEach((c, i) => {
+    const target = esc(c.original);
+    const at = html.indexOf(target);
+    if (target && at >= 0) html = html.slice(0, at) + `<mark class="fix-mark" title="${esc(c.better)}">${target}<sup>${i + 1}</sup></mark>` + html.slice(at + target.length);
+  });
+  return html.replace(/\n/g, "<br>");
+}
+function resultHtml(entry) {
+  const r = entry.result;
+  const cet = r.scale === "cet15" || isCet(entry.kind);
+  const scale = cet ? "cet15" : "ielts9";
+  const list = (title, items) => items.length ? `<h4>${title}</h4><ul>${items.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const scaledNote = cet && r.scaled != null ? `（折合 ${r.scaled} / 106.5）` : "";
+  const rubricNote = cet
+    ? "分数由 AI 按全国大学英语六级 15 分制评分标准估计，仅供参考。"
+    : "分数由 AI 按公开的雅思写作评分标准估计，仅供参考；同一篇作文多次批改可能相差半分。";
+  const rewriteSummary = entry.kind === "cet6_trans"
+    ? "14 分高分参考译文"
+    : cet ? "按你的思路改写成 14 分参考作文" : "按你的思路改写成 8 分的版本";
+  return `
+    <div class="band-head"><b>${band(r.overall, scale)}</b><span>估计得分${scaledNote} · ${entry.words} 词${entry.seconds ? ` · 用时 ${fmtTime(entry.seconds)}` : ""}</span></div>
+    ${r.summary ? `<p class="write-summary">${esc(r.summary)}</p>` : ""}
+    <div class="band-grid">${r.criteria.map(c => `
+      <div class="band-item"><div><b>${band(c.band, scale)}</b><span>${esc(c.name)}</span></div><p>${esc(c.comment)}</p></div>`).join("")}</div>
+    <p class="muted">${rubricNote}</p>
+    ${list("做得好的地方", r.strengths)}${list("下一步重点", r.improve)}
+    ${r.corrections.length ? `<h4>逐句改错</h4><div class="write-marked">${markedEssay(entry.essay, r.corrections)}</div>
+      <div class="fix-list">${r.corrections.map((c, i) => `<div class="fix"><s><sup>${i + 1}</sup> ${esc(c.original)}</s><b>${esc(c.better)}</b><span>${esc(c.why)}</span></div>`).join("")}</div>` : ""}
+    ${r.vocabulary.length ? `<h4>${entry.kind === "cet6_trans" ? "地道表达与词组" : "更好的用词"}</h4><div class="fix-list">${r.vocabulary.map(c => `<div class="fix"><s>${esc(c.instead)}</s><b>${esc(c.try)}</b><span>${esc(c.why)}</span></div>`).join("")}</div>` : ""}
+    ${r.structure ? `<h4>${entry.kind === "cet6_trans" ? "句法与翻译建议" : "结构建议"}</h4><p>${esc(r.structure)}</p>` : ""}
+    ${r.rewrite ? `<details class="write-rewrite"><summary>${rewriteSummary}</summary><p>${esc(r.rewrite).replace(/\n/g, "<br>")}</p></details>` : ""}`;
+}
+async function submit() {
+  const essay = $("#essay").value.trim();
+  const prompt = task.id ? task.prompt : $("#ownPrompt").value.trim();
+  if (!prompt) { $("#submitNote").textContent = "请先粘贴题目。"; return; }
+  const minSubmit = task.kind === "cet6_trans" ? 25 : 40;
+  if (words(essay) < minSubmit) { $("#submitNote").textContent = `至少写 ${minSubmit} 个词再批改。`; return; }
+  $("#submit").disabled = true;
+  $("#submitNote").textContent = "正在批改，大约需要 1 分钟…";
+  try {
+    const entry = await api("/api/writing/mark", { method: "POST", body: {
+      taskId: task.id || "", kind: task.kind, prompt, essay,
+      seconds: startedAt ? Math.round((Date.now() - startedAt) / 1000) : null } });
+    clearInterval(clockTimer);
+    $("#submitNote").textContent = "已批改，结果也保存在「我的练习」里。";
+    $("#result").innerHTML = resultHtml(entry);
+    $("#result").scrollIntoView({ behavior: "smooth", block: "start" });
+    info.history.unshift({ id: entry.id, at: entry.at, kind: entry.kind, prompt: entry.prompt.slice(0, 160), words: entry.words,
+      overall: entry.result.overall, scale: entry.result.scale, scaled: entry.result.scaled });
+  } catch (e) {
+    $("#submitNote").innerHTML = `<span class="err">${esc(e.message)}</span>`;
+  } finally {
+    $("#submit").disabled = !info.hasApi;
+  }
+}
+
+// ---------------------------------------------------------------- my essays
+function renderHistory() {
+  $("#mineResult").innerHTML = "";
+  $("#history").innerHTML = info.history.length ? info.history.map(h => `
+    <div class="speak-history-row">
+      <button type="button" class="speak-history-item" data-open="${esc(h.id)}">
+        <b>${band(h.overall, h.scale || (isCet(h.kind) ? "cet15" : "ielts9"))}</b>
+        <span><span class="muted">${KIND_LABEL[h.kind] || ""} · ${new Date(h.at * 1000).toLocaleDateString()} · ${h.words} 词</span>${esc(h.prompt)}</span>
+      </button>
+      <button type="button" class="iconbtn" data-del="${esc(h.id)}" aria-label="删除这篇练习">删除</button>
+    </div>`).join("") : `<p class="muted">还没有批改过的作文或翻译。</p>`;
+}
+$("#history").addEventListener("click", async e => {
+  const open = e.target.closest("[data-open]"), del = e.target.closest("[data-del]");
+  if (open) {
+    const entry = await api(`/api/writing/${open.dataset.open}`);
+    $("#mineResult").innerHTML = `<h3>${esc(entry.prompt)}</h3>${entry.chart ? `<figure class="write-chart">${chartHtml(entry.chart)}</figure>` : ""}${resultHtml(entry)}`;
+    $("#mineResult").scrollIntoView({ behavior: "smooth", block: "start" });
+  } else if (del && await confirmDialog("删除这篇作文和它的批改结果吗？", { ok: "删除", danger: true })) {
+    await api(`/api/writing/${del.dataset.del}`, { method: "DELETE" });
+    info.history = info.history.filter(h => h.id !== del.dataset.del);
+    renderHistory();
+  }
+});
+
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) showTab(b.dataset.tab); });
+$("#taskGrid").addEventListener("click", e => {
+  const b = e.target.closest("[data-task], [data-own]");
+  if (!b) return;
+  if (b.dataset.own) return openTask({ id: "", kind: b.dataset.own, prompt: "" });
+  const list = [...(info.tasks.cet6_essay || []).map(t => ({ ...t, kind: "cet6_essay" })),
+    ...(info.tasks.cet6_trans || []).map(t => ({ ...t, kind: "cet6_trans" })),
+    ...info.tasks.task2.map(t => ({ ...t, kind: "task2" })), ...info.tasks.task1.map(t => ({ ...t, kind: "task1" })),
+    ...info.tasks.letters.map(t => ({ ...t, kind: "letter" }))];
+  openTask(list.find(t => t.id === b.dataset.task));
+});
+$("#back").addEventListener("click", () => { clearInterval(clockTimer); showTab(tab); });
+$("#essay").addEventListener("input", () => {
+  if (!startedAt) { startedAt = Date.now(); clockTimer = setInterval(tickClock, 1000); tickClock(); }
+  setPref(draftKey(), $("#essay").value);
+  $("#draftNote").textContent = "草稿自动保存在这个浏览器里";
+  updateCount();
+});
+$("#ownPrompt").addEventListener("input", () => setPref(`essayPrompt:${task.kind}`, $("#ownPrompt").value));
+$("#submit").addEventListener("click", submit);
+
+(async () => {
+  info = await api("/api/writing");
+  if (!info.hasApi) {
+    $("#apiNote").hidden = false;
+    $("#apiNote").innerHTML = `可以先选题限时写，草稿会自动保存；AI 批改需要先<a href="/settings/services#translation">配置 API</a>。`;
+    $("#submit").disabled = true;
+  }
+  const fallback = info.track === "ielts" ? "task2" : "cet6_essay";
+  const valid = ["cet6_essay", "cet6_trans", "task2", "task1", "letter", "mine"];
+  showTab(valid.includes(pref("writingTab", fallback)) ? pref("writingTab", fallback) : fallback);
+})();
+</script>
+</body>
+</html>

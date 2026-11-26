@@ -1,6 +1,6 @@
 import pytest
 
-from ielts_study import usage
+from echoloop import usage
 
 
 @pytest.fixture(autouse=True)

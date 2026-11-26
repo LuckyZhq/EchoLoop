@@ -23,5 +23,5 @@ jobs:
           path: data/ecdict.csv
           key: ecdict-39cfb96
       - name: Download the dictionary if it isn't cached
-        run: uv run python -c "from ielts_study import dictionary as d; d.CSV_PATH.exists() or d.download_ecdict()"
+        run: uv run python -c "from echoloop import dictionary as d; d.CSV_PATH.exists() or d.download_ecdict()"
       - run: uv run pytest -q

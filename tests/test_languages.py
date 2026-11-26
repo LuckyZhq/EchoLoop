@@ -3,10 +3,10 @@ import json
 
 import pytest
 
-from ielts_study import languages, meanings, placement, translate
-from ielts_study.annotate import annotate_cues
-from ielts_study.dictionary import Dictionary, english_definition
-from ielts_study.settings import TranslationSettings
+from echoloop import languages, meanings, placement, translate
+from echoloop.annotate import annotate_cues
+from echoloop.dictionary import Dictionary, english_definition
+from echoloop.settings import TranslationSettings
 
 API = TranslationSettings(engine="api", base_url="https://api.example.com/v1", model="m", api_key="k", provider="custom")
 

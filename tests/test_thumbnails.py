@@ -1,5 +1,5 @@
 """Local cover images (no network needed for these checks)."""
-from ielts_study.media import local_thumbnail, save_thumbnail
+from echoloop.media import local_thumbnail, save_thumbnail
 
 
 def test_local_thumbnail_finds_any_saved_type(tmp_path):

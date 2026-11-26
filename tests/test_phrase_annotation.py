@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from ielts_study import annotate, pipeline, reading
-from ielts_study.dictionary import Dictionary
+from echoloop import annotate, pipeline, reading
+from echoloop.dictionary import Dictionary
 
 
 @pytest.fixture(scope="module")

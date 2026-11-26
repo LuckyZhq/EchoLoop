@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from ielts_study import asr, settings
+from echoloop import asr, settings
 
 
 @pytest.fixture

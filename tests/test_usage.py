@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from ielts_study import translate, usage
-from ielts_study.settings import TranslationSettings
+from echoloop import translate, usage
+from echoloop.settings import TranslationSettings
 
 DEEPSEEK = TranslationSettings(engine="api", provider="deepseek", base_url="https://api.deepseek.com",
                                model="deepseek-flash", api_key="k")
