@@ -305,9 +305,8 @@ def _secs(m) -> float:
 
 
 def _clean_text(t: str) -> str:
-    m = _TS_LINE.search(t)
-    if m:  # the text after a stray timing line repeats the cue, so keep one copy
-        t = next((p for p in (t[: m.start()], t[m.end():]) if p.strip()), "")
+    if _TS_LINE.search(t):  # the text after each stray timing line repeats the cue, so keep one copy
+        t = next((p for p in _TS_LINE.sub("\0", t).split("\0") if p.strip()), "")
     t = re.sub(r"<[^>]+>", "", t)
     t = html.unescape(t)
     t = re.sub(r"\[[^\]]*\]|\([^)]*(music|applause|laughter|inaudible)[^)]*\)", "", t, flags=re.I)

@@ -140,6 +140,49 @@ def settings_from(payload: dict, current: TranslationSettings, *, require_model:
     return TranslationSettings(engine, base_url, model, key, provider, profiles)
 
 
+def settings_for_engine(engine: str | None, current: TranslationSettings | None = None) -> TranslationSettings:
+    """Return settings overridden for `engine` ('local' or 'api'), or `current` when `engine` is None."""
+    current = load_settings() if current is None else current
+    if engine is None:
+        return current
+    if engine not in ("local", "api"):
+        raise ValueError("无效的解析引擎。")
+    if engine == "local":
+        return current if current.engine == "local" else TranslationSettings(
+            engine="local", profiles=current.api_profiles()
+        )
+    if current.engine == "api" and current.base_url and current.model:
+        return current
+    profiles = current.api_profiles()
+    candidates = []
+    if current.provider in profiles:
+        candidates.append((current.provider, profiles[current.provider]))
+    for provider, profile in profiles.items():
+        if provider != current.provider:
+            candidates.append((provider, profile))
+    chosen = None
+    for provider, profile in candidates:
+        base_url = (profile.get("base_url") or "").strip()
+        model = (profile.get("model") or "").strip()
+        api_key = (profile.get("api_key") or "").strip()
+        if base_url and model and (api_key or provider == "custom"):
+            chosen = (provider, base_url, model, api_key)
+            break
+    if chosen is None:
+        for provider, profile in candidates:
+            base_url = (profile.get("base_url") or "").strip()
+            model = (profile.get("model") or "").strip()
+            if base_url and model:
+                chosen = (provider, base_url, model, (profile.get("api_key") or "").strip())
+                break
+    if chosen is None:
+        raise ValueError("使用 AI 精讲需要先在设置里配置 API 模型。")
+    provider, base_url, model, api_key = chosen
+    rest = {k: v for k, v in profiles.items() if k != provider}
+    return TranslationSettings(engine="api", base_url=base_url, model=model, api_key=api_key,
+                               provider=provider, profiles=rest)
+
+
 def save_settings(payload: dict) -> TranslationSettings:
     with _lock:
         settings = settings_from(payload, load_settings())

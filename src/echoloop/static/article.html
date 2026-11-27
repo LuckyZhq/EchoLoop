@@ -1,162 +1,828 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>文章精读</title>
-<link rel="stylesheet" href="/static/app.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>文章精读 · EchoLoop</title>
+  <link rel="stylesheet" href="/static/app.css">
 </head>
-<body>
+<body class="article-page">
+<div class="article-progress" aria-hidden="true"><div id="readingProgress"></div></div>
 <div class="workspace">
-  <aside class="workspace-nav"></aside>
+  <aside class="workspace-nav" id="sideNav"></aside>
   <main class="wrap article-wrap">
-    <a class="back-link" href="/reading">← 文章列表</a>
-    <header class="article-head">
-      <h1 id="title">&nbsp;</h1>
-      <p class="article-meta" id="meta"></p>
-    </header>
-    <div class="article-tools" role="toolbar" aria-label="阅读设置">
-      <button type="button" class="btn" id="zhBtn" aria-pressed="false" title="逐句显示中文 (C)">中文对照</button>
-      <button type="button" class="btn" id="marksBtn" aria-pressed="true" title="标出重点短语和难词 (M)">重点标注</button>
-      <button type="button" class="btn" id="retranslate" title="用设置里的 API 模型重新翻译，并按单词和短语对照中文">↻ 重新翻译</button>
-      <span class="hint">点单词查词、收藏；点句子末尾的「译」看这一句的中文。</span>
+    <div class="article-layout" id="articleLayout">
+      <div class="article-reading">
+        <a class="back-link" id="readingBack" href="/reading">← 返回阅读</a>
+        <header class="article-head">
+          <h1 id="title">正在加载…</h1>
+          <p class="article-meta" id="meta"></p>
+        </header>
+        <div class="article-tools" aria-label="阅读设置">
+          <div class="article-tools-group">
+            <div class="article-segment" role="group" aria-label="译文显示">
+              <button type="button" id="englishBtn" aria-pressed="true">英文</button>
+              <button type="button" id="bilingualBtn" aria-pressed="false">双语</button>
+            </div>
+            <button type="button" class="article-tool" id="marksBtn" aria-pressed="true">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 2.5 13.5 6.5 6 14H2v-4z"/><path d="m8 4 4 4"/></svg>
+              <span>重点标注</span>
+            </button>
+            <div class="article-size" role="group" aria-label="文字大小">
+              <button type="button" id="sizeDown" aria-label="缩小文字">A−</button>
+              <button type="button" id="sizeUp" aria-label="放大文字">A+</button>
+            </div>
+            <button type="button" class="article-tool" id="eyeCareBtn" aria-pressed="false" title="切换护眼暖色纸张模式">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3C8.2 3 4.5 6.4 4.5 11.5c0 .5 0 1 .1 1.5 5.1.1 8.4-3.6 8.4-10Z"/><path d="M3 13c1.8-2.2 4.1-4.1 7-5.5"/></svg>
+              <span>护眼</span>
+            </button>
+          </div>
+          <div class="article-tools-group article-tools-actions">
+            <button type="button" class="article-tool" id="readBtn" aria-pressed="false">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 3.2a.7.7 0 0 1 1.06-.6l7.5 4.8a.7.7 0 0 1 0 1.2l-7.5 4.8a.7.7 0 0 1-1.06-.6z"/></svg>
+              <span>朗读全文</span>
+            </button>
+            <button type="button" class="article-tool" id="panelBtn" aria-controls="companion" aria-expanded="true">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M10 2.5v11"/></svg>
+              <span>解析与词句</span>
+            </button>
+            <div class="article-more">
+              <button type="button" class="article-tool" id="moreBtn" aria-label="更多操作" aria-controls="moreMenu" aria-expanded="false">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.2" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.8" cy="8" r="1.3"/></svg>
+              </button>
+              <div class="article-menu" id="moreMenu" hidden>
+                <span id="translationLabel"></span>
+                <button type="button" id="retranslate">↻ 重新翻译</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="lang-notice" id="langNotice" hidden></div>
+        <article class="article-paper" aria-label="文章正文">
+          <div class="article-body" id="body" aria-live="polite"><p class="empty">正在加载文章…</p></div>
+        </article>
+        <nav class="chapter-navigation" id="chapterNav" aria-label="章节导航" hidden></nav>
+      </div>
+      <aside class="article-companion" id="companion" aria-label="文章辅助栏">
+        <div class="article-companion-head">
+          <div class="article-tabs" role="tablist" aria-label="文章辅助内容">
+            <button type="button" role="tab" id="tabLesson" aria-controls="lessonPanel" aria-selected="true">句子解析</button>
+            <button type="button" role="tab" id="tabFocus" aria-controls="focusPanel" aria-selected="false" tabindex="-1">本篇词句 <span id="focusCount">0</span></button>
+          </div>
+          <button type="button" class="article-panel-close" id="panelClose" aria-label="关闭辅助栏"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+        <section class="article-panel" id="lessonPanel" role="tabpanel" aria-labelledby="tabLesson">
+          <div id="lessonCards"><div class="article-empty"><strong>选择一句，开始精读</strong><p>在文章中选择句子，再点击「解析」查看结构、重点词语和搭配。</p></div></div>
+        </section>
+        <section class="article-panel" id="focusPanel" role="tabpanel" aria-labelledby="tabFocus" hidden>
+          <div id="focusList"></div>
+        </section>
+        <footer class="article-lesson-foot" id="lessonFoot" hidden>
+          <span id="lessonStatus" role="status"></span>
+          <label for="lessonEngine">解析引擎</label>
+          <select id="lessonEngine"><option value="local">本地解析</option><option value="api">AI 精讲</option></select>
+          <button type="button" id="lessonRefresh">重新解析</button>
+        </footer>
+      </aside>
     </div>
-    <div class="lang-notice" id="langNotice" hidden></div>
-    <article class="article-body" id="body"></article>
   </main>
+</div>
+<div class="article-backdrop" id="panelBackdrop" hidden></div>
+<div class="article-sent-toolbar" id="sentToolbar" role="toolbar" aria-label="句子操作" hidden>
+  <button type="button" id="sentTranslate" aria-label="显示本句译文" aria-pressed="false">译</button>
+  <button type="button" id="sentSpeak" aria-label="朗读本句"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 4 20 12 6 20 6 4"/></svg> <span>朗读</span></button>
+  <button type="button" id="sentAnalyze" aria-label="解析本句"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h7"/><circle cx="17.5" cy="15.5" r="2.5"/><path d="m19.5 17.5 2 2"/></svg> <span>解析</span></button>
+  <button type="button" id="sentSave" aria-label="收藏本句"></button>
 </div>
 <div class="pop" id="pop"></div>
 <script src="/static/common.js"></script>
 <script>
-const aid = decodeURIComponent(location.pathname.split("/").pop());
-let data = null, cues = [];
-let zhOn = storedFlag("readingZh");
-let marksOn = readPreference("marks");
-
-function render() {
-  const paragraphs = [];
-  for (const c of cues) (paragraphs[c.p] ||= []).push(c);
-  const body = $("#body");
-  body.classList.toggle("zh-on", zhOn);
-  body.classList.toggle("no-marks", !marksOn);
-  // 中文对照: each word or phrase gets its Chinese underneath (same layout as the video captions).
-  const enHtml = c => {
-    const marks = marksOn ? visibleMarks(c) : [];
-    const layered = zhOn && interlinearFor(c, data.translator);
-    return `<span class="sent-en${layered ? " interlinear" : ""}">${layered ? renderInterlinear(c.text, marks, c.gl, c.seg) : renderMarked(c.text, marks)}</span>`;
-  };
-  body.innerHTML = paragraphs.filter(Boolean).map(sents => `<div class="para">${sents.map(c => `
-    <span class="sent" id="s${c.i}" data-i="${c.i}">${enHtml(c)}` +
-      `<button type="button" class="sent-tr" data-tr="${c.i}" title="看这一句的中文">译</button>` + sentenceButton(c.text, c.i) +
-      // one Chinese line only: when the phrases already carry their Chinese, skip the whole-sentence translation
-      (zhOn && interlinearFor(c, data.translator) ? "" : `<span class="sent-zh"${zhLowAttrs(c)}>${esc(c.zh || "")}</span>`) +
-      `</span>`).join(" ")}</div>`).join("");
-  $("#zhBtn").setAttribute("aria-pressed", zhOn);
-  $("#zhBtn").classList.toggle("on", zhOn);
-  $("#marksBtn").setAttribute("aria-pressed", marksOn);
-  $("#marksBtn").classList.toggle("on", marksOn);
-}
-
-// ---------- word cards (shared code in common.js)
-function toggleSave(btn) {
-  const c = cues[+btn.dataset.cue];
-  return toggleSaved(btn, c, { articleId: aid, sentenceIndex: c.i });
-}
-
-document.addEventListener("click", async e => {
-  const sp = e.target.closest("[data-speak]");
-  if (sp) { e.stopPropagation(); speak(sp.dataset.speak); return; }
-  const sv = e.target.closest("[data-save]");
-  if (sv) { e.stopPropagation(); return toggleSave(sv); }
-  const ss = e.target.closest("[data-save-sent]");
-  if (ss) {
-    e.stopPropagation();
-    const c = cues[+ss.dataset.saveSent];
-    return toggleSentence(ss, { text: c.text, zh: c.zh, articleId: aid, sentenceIndex: c.i, title: data.title });
-  }
-  const tr = e.target.closest("[data-tr]");
-  if (tr) {
-    const c = cues[+tr.dataset.tr];
-    showPop(tr, `<div class="note" style="border:0;padding:0"><div class="h"><span class="muted">第 ${c.i + 1} 句</span>
-      <span class="act"><button class="iconbtn" data-speak="${esc(c.text)}" title="朗读这一句">🔊 朗读</button></span></div>
-      <div class="zh"${zhLowAttrs(c)}>${esc(c.zh || "（没有译文）")}</div></div>`);
-    return;
-  }
-  const word = e.target.closest(".article-body .w, .article-body mark");
-  if (word) {
-    return showWordCard(word, cues[+word.closest(".sent").dataset.i]);
-  }
-  if (!e.target.closest(".pop")) hidePop();
-});
+const id = decodeURIComponent(location.pathname.split("/").pop());
+let data = null, cues = [], zhOn = storedFlag("readingZh"), marksOn = readPreference("marks"), pageReady = false;
+let lessonIndex = -1, lessonRequest = 0, lessonPendingKey = null, lessonNotes = new Map();
+const lessonCache = new Map(), translatedSentences = new Set(), hiddenBilingualSentences = new Set();
+let toolbarIndex = -1, selectedIndex = -1, toolbarTimer = null, toolbarSwitchTimer = null;
+let speechRun = 0, speechIndex = -1, readingAll = false, utterance = null;
+let chapterCompleted = false, chapterSaving = false;
+const widePanel = matchMedia("(min-width: 1281px)");
 
 function showMeta() {
-  const words = cues.reduce((n, c) => n + (c.text.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length, 0);
-  const marks = cues.reduce((n, c) => n + visibleMarks(c).length, 0);
-  const aligned = cues.some(c => c.seg && c.seg.length);
-  const how = translationLabel(data.translator, data.translatorModel, aligned);
-  $("#meta").textContent = `${words} 词 · ${cues.length} 句 · ${marks} 处重点 · ${translationName(data.lang)}：${how}`;
+  if (!data) return;
+  const words = cues.reduce((sum, cue) => sum + [...cue.text.matchAll(WORD_RE)].length, 0);
+  const marks = cues.reduce((sum, cue) => sum + visibleMarks(cue).length, 0);
+  const aligned = cues.some(cue => cue.seg?.length);
+  $("#meta").textContent = `${words} 词 · 约 ${Math.max(1, Math.ceil(words / 200))} 分钟 · ${marks} 处重点`;
+  $("#translationLabel").textContent = `${translationName(data.lang)}：${translationLabel(data.translator, data.translatorModel, aligned)}`;
   showLanguageNotice($("#langNotice"), data.lang, "这篇文章", retranslate);
 }
-
-// ---------- 重新翻译 with the API model (phrase by phrase)
-async function retranslate() {
-  const btn = $("#retranslate");
-  if (!(await confirmRetranslate(cues.length, "这篇文章"))) return;
-  btn.disabled = true;
+function setSize(value, persist = true) {
+  const size = Math.max(.8, Math.min(1.8, Math.round((Number(value) || 1) * 10) / 10));
+  if (persist) localStorage.setItem("textSize", size);
+  document.documentElement.style.setProperty("--text-scale", size);
+  $("#sizeDown").disabled = size <= .8;
+  $("#sizeUp").disabled = size >= 1.8;
+}
+function setEyeCare(on, persist = true) {
+  const enabled = Boolean(on);
+  if (persist) storeFlag("readingEyeCare", enabled);
+  if (enabled) document.body.dataset.eyecare = "1";
+  else delete document.body.dataset.eyecare;
+  $("#eyeCareBtn").setAttribute("aria-pressed", String(enabled));
+}
+function setTab(tab, focus = false) {
+  const lesson = tab === "lesson";
+  for (const [button, selected] of [[$("#tabLesson"), lesson], [$("#tabFocus"), !lesson]]) {
+    button.setAttribute("aria-selected", String(selected));
+    button.tabIndex = selected ? 0 : -1;
+    if (selected && focus) button.focus();
+  }
+  $("#lessonPanel").hidden = !lesson;
+  $("#focusPanel").hidden = lesson;
+  $("#lessonFoot").hidden = !lesson || lessonIndex < 0;
+}
+function setPanel(open) {
+  const focusTab = open && $("#companion").hidden && !widePanel.matches;
+  $("#companion").hidden = !open;
+  $("#articleLayout").classList.toggle("article-panel-closed", !open);
+  $("#panelBtn").setAttribute("aria-expanded", String(open));
+  $("#panelBackdrop").hidden = !open || widePanel.matches;
+  if (focusTab) $('[role="tab"][aria-selected="true"]', $("#companion")).focus({ preventScroll: true });
+}
+function closeWordCard() {
+  ++wordCardSeq;
+  hidePop();
+}
+function hideToolbar() {
+  clearTimeout(toolbarTimer);
+  clearTimeout(toolbarSwitchTimer);
+  $("#sentToolbar").hidden = true;
+  toolbarIndex = -1;
+}
+function scheduleHideToolbar() {
+  clearTimeout(toolbarTimer);
+  toolbarTimer = setTimeout(() => {
+    if (!$("#sentToolbar").contains(document.activeElement) &&
+        !document.querySelector(".article-body .sent:focus")) hideToolbar();
+  }, 250);
+}
+function updateToolbar() {
+  const cue = cues[toolbarIndex];
+  if (!cue) return;
+  const translated = zhOn ? !hiddenBilingualSentences.has(toolbarIndex) : translatedSentences.has(toolbarIndex);
+  $("#sentTranslate").setAttribute("aria-pressed", String(translated));
+  $("#sentTranslate").setAttribute("aria-label", translated ? "隐藏本句译文" : "显示本句译文");
+  const saved = savedSentences.has(cue.text);
+  const button = $("#sentSave");
+  button.dataset.saveSent = toolbarIndex;
+  button.dataset.text = cue.text;
+  showSentenceSaved(button, saved);
+  button.setAttribute("aria-label", saved ? "取消收藏本句" : "收藏本句");
+}
+function positionToolbar() {
+  const sentence = document.getElementById(`s${toolbarIndex}`);
+  const toolbar = $("#sentToolbar");
+  if (!sentence || toolbar.hidden) return;
+  toolbar.classList.remove("article-toolbar-side");
+  const rect = sentence.getBoundingClientRect();
+  const width = toolbar.offsetWidth, height = toolbar.offsetHeight;
+  const top = rect.top >= height + 12 ? rect.top - height - 7 : rect.bottom + 7;
+  const left = Math.max(8, Math.min(rect.left, innerWidth - width - 8));
+  const boundedTop = Math.max(8, Math.min(top, innerHeight - height - 8));
+  const paragraph = sentence.closest(".para");
+  const paragraphs = [paragraph?.previousElementSibling, paragraph, paragraph?.nextElementSibling].filter(Boolean);
+  const covered = paragraphs.some(element => [...element.querySelectorAll(".sent-en, .sent-zh, .article-sent-translation")]
+    .some(text => [...text.getClientRects()].some(box => left < box.right && left + width > box.left
+      && boundedTop < box.bottom && boundedTop + height > box.top)));
+  if (covered) {
+    toolbar.classList.add("article-toolbar-side");
+    toolbar.style.left = `${Math.max(0, $("#body").getBoundingClientRect().left - toolbar.offsetWidth - 2)}px`;
+    toolbar.style.top = `${Math.max(8, Math.min(rect.top, innerHeight - toolbar.offsetHeight - 8))}px`;
+  } else {
+    toolbar.style.left = `${left}px`;
+    toolbar.style.top = `${boundedTop}px`;
+  }
+}
+function showToolbar(sentence) {
+  const index = Number(sentence.dataset.i);
+  if (!cues[index]) return;
+  clearTimeout(toolbarTimer);
+  clearTimeout(toolbarSwitchTimer);
+  toolbarIndex = index;
+  $("#sentToolbar").hidden = false;
+  updateToolbar();
+  positionToolbar();
+}
+function refreshSentenceStar(index) {
+  const sentence = document.getElementById(`s${index}`);
+  if (!sentence) return;
+  sentence.querySelector(".article-saved-star")?.remove();
+  if (savedSentences.has(cues[index].text)) {
+    const star = document.createElement("span");
+    star.className = "article-saved-star";
+    star.setAttribute("aria-label", "已收藏句子");
+    star.innerHTML = starSvg(true);
+    sentence.querySelector(".sent-en").after(star);
+  }
+  if (toolbarIndex === index) updateToolbar();
+}
+function sentenceContent(cue) {
+  const bilingual = zhOn && !hiddenBilingualSentences.has(cue.i);
+  const layered = bilingual && interlinearFor(cue, data.translator);
+  const marks = marksOn ? visibleMarks(cue) : [];
+  const english = layered ? renderInterlinear(cue.text, marks, cue.gl, cue.seg) : renderMarked(cue.text, marks);
+  const translation = bilingual && !layered ? `<span class="sent-zh"${zhLowAttrs(cue)}>${esc(cue.zh || "")}</span>` : "";
+  const star = savedSentences.has(cue.text) ? `<span class="article-saved-star" aria-label="已收藏句子">${starSvg(true)}</span>` : "";
+  const singleVisible = !zhOn && translatedSentences.has(cue.i);
+  return `<span class="sent-en${layered ? " interlinear" : ""}" lang="en">${english}</span>${star}${translation}<span class="article-sent-translation" ${singleVisible ? "" : "hidden"}>${esc(cue.zh || "暂无译文")}</span>`;
+}
+function render() {
+  const focused = document.activeElement;
+  const previousSentence = focused.closest?.("#body .sent");
+  const previousWord = focused.closest?.("#body .w[data-w], #body mark[data-key]");
+  const previousWordIndex = previousWord?.dataset.k ?? previousWord?.querySelector("[data-k]")?.dataset.k;
+  hideToolbar();
+  const paras = [];
+  for (const cue of cues) (paras[cue.p || 0] ||= []).push(cue);
+  $("#body").classList.toggle("zh-on", zhOn);
+  $("#body").innerHTML = paras.filter(Boolean).map(group => `<p class="para">${group.map(cue =>
+    `<span class="sent${speechIndex === cue.i ? " article-speaking" : ""}" id="s${cue.i}" data-i="${cue.i}" tabindex="0" aria-label="第 ${cue.i + 1} 句：${esc(cue.text)}。按 Enter 打开句子操作，按方向键查词">${sentenceContent(cue)}</span>`
+  ).join(zhOn ? "" : " ")}</p>`).join("");
+  for (const word of $$("#body .w[data-w], #body mark[data-key]")) {
+    word.tabIndex = -1;
+    word.setAttribute("role", "button");
+    word.setAttribute("aria-label", `查词：${word.textContent}`);
+  }
+  if (previousSentence) {
+    const sentence = document.getElementById(previousSentence.id);
+    const token = sentence && previousWordIndex !== undefined ? $(`[data-k="${previousWordIndex}"]`, sentence) : null;
+    (token?.closest(".w[data-w], mark[data-key]") || sentence)?.focus({ preventScroll: true });
+  }
+  $("#englishBtn").setAttribute("aria-pressed", String(!zhOn));
+  $("#bilingualBtn").setAttribute("aria-pressed", String(zhOn));
+  $("#marksBtn").setAttribute("aria-pressed", String(marksOn));
+}
+function renderFocusList() {
+  const entries = new Map();
+  for (const cue of cues) {
+    for (const { key } of visibleMarks(cue)) {
+      const note = cue.notes?.[key];
+      if (note && !entries.has(key)) entries.set(key, { note, cue });
+    }
+  }
+  $("#focusCount").textContent = entries.size;
+  $("#focusList").innerHTML = entries.size ? [...entries.values()].map(({ note, cue }) => `
+    <article class="article-focus-entry">
+      ${noteHtml(note, cue.i)}
+      <button type="button" class="article-focus-source" data-focus-cue="${cue.i}">
+        <span>第 ${cue.i + 1} 句</span><span>${esc(cue.text)}</span><span aria-hidden="true">↗</span>
+      </button>
+    </article>`).join("") : '<p class="article-empty">本篇暂无标注词句。</p>';
+}
+function goToSentence(index, updateHash = false) {
+  const sentence = document.getElementById(`s${index}`);
+  if (!sentence) return;
+  selectedIndex = index;
+  if (updateHash) history.replaceState(null, "", `#s${index}`);
+  sentence.scrollIntoView({ block: "center", behavior: "smooth" });
+  sentence.classList.remove("flash");
+  void sentence.offsetWidth;
+  sentence.classList.add("flash");
+  if (updateHash) sentence.focus({ preventScroll: true });
+  setTimeout(() => sentence.classList.remove("flash"), 1800);
+}
+function readLessonEngine() {
+  const engine = localStorage.getItem("lessonEngine");
+  return engine === "local" || engine === "api" ? engine : "";
+}
+function lessonWordIndex(cue, word) {
+  const words = [...cue.text.matchAll(WORD_RE)];
+  return words.findIndex(match => match[0].toLowerCase() === String(word).toLowerCase());
+}
+function lessonHtml(lesson, cue) {
+  const structure = (lesson.structure || []).map(item => `<li><span>${esc(item.segment)}</span><small>${esc(item.role)}</small></li>`).join("");
+  const words = (lesson.vocabulary || []).map(item => {
+    const index = lessonWordIndex(cue, item.word);
+    return `<li><div><button type="button" class="article-lesson-word" data-lesson-word data-w="${esc(item.word)}"${index >= 0 ? ` data-k="${index}"` : ""}>${esc(item.word)}</button> <small>${esc(item.pos || "")}</small><p>${esc(item.meaning || "")}</p></div></li>`;
+  }).join("");
+  lessonNotes = new Map((lesson.expressions || []).map(item => {
+    const note = { type: "phrase", en: item.phrase, zh: item.explanation || "" };
+    return [saveKey(note), note];
+  }));
+  const expressions = (lesson.expressions || []).map(item => {
+    const note = { type: "phrase", en: item.phrase, zh: item.explanation || "" };
+    const saved = savedWords.has(note.en.toLowerCase());
+    return `<li><div><strong>${esc(item.phrase)}</strong><p>${esc(item.explanation || "")}</p></div><button type="button" class="iconbtn${saved ? " saved" : ""}" data-save="${esc(saveKey(note))}" data-cue="${cue.i}" aria-label="${saved ? "取消收藏" : "收藏"} ${esc(item.phrase)}">${starSvg(saved)}</button></li>`;
+  }).join("");
+  return `<div class="article-lesson-sentence"><span>第 ${cue.i + 1} 句</span><p lang="en">${esc(cue.text)}</p>${cue.zh ? `<p>${esc(cue.zh)}</p>` : ""}</div>
+    <div class="article-lesson-group"><h3>句子结构</h3>${structure ? `<ul class="article-structure">${structure}</ul>` : '<p class="article-lesson-empty">暂无结构解析。</p>'}</div>
+    <div class="article-lesson-group"><h3>重点词语</h3>${words ? `<ul class="article-lesson-list">${words}</ul>` : '<p class="article-lesson-empty">暂无重点词语。</p>'}</div>
+    <div class="article-lesson-group"><h3>重点搭配</h3>${expressions ? `<ul class="article-lesson-list">${expressions}</ul>` : '<p class="article-lesson-empty">暂无重点搭配。</p>'}</div>`;
+}
+function displayLesson(result, cue, engine, fromMemory = false) {
+  $("#lessonCards").innerHTML = lessonHtml(result, cue);
+  $("#lessonEngine").value = engine || (result.source === "api" ? "api" : "local");
+  $("#lessonStatus").textContent = `${result.source === "api" ? "AI 精讲" : "本地解析"}${fromMemory || result.cached ? " · 已缓存" : ""}`;
+}
+async function loadLesson(force = false) {
+  const index = lessonIndex, cue = cues[index];
+  if (!cue) return;
+  const engine = readLessonEngine();
+  const track = profileTrack(), key = `${index}:${engine || "auto"}:${track}:${cue.text}`;
+  if (!force && lessonPendingKey === key) return;
+  const request = ++lessonRequest;
+  const cards = $("#lessonCards"), refresh = $("#lessonRefresh"), engineSelect = $("#lessonEngine");
+  const cached = !force && lessonCache.get(key);
+  if (cached) {
+    lessonPendingKey = null;
+    cards.removeAttribute("aria-busy");
+    refresh.disabled = engineSelect.disabled = false;
+    displayLesson(cached, cue, engine, true);
+    return;
+  }
+  lessonPendingKey = key;
+  refresh.disabled = engineSelect.disabled = true;
+  $("#lessonStatus").textContent = "正在解析…";
+  engineSelect.value = engine || "local";
+  cards.setAttribute("aria-busy", "true");
+  cards.innerHTML = `<div class="article-lesson-sentence"><span>第 ${index + 1} 句</span><p lang="en">${esc(cue.text)}</p></div><p class="article-empty">正在解析句子…</p>`;
   try {
-    let job = await api(`/api/reading/${encodeURIComponent(aid)}/retranslate`, { method: "POST" });
+    const result = await api("/api/sentence/analyze", {
+      method: "POST",
+      body: { articleId: id, index, text: cue.text, ...(force ? { force: true } : {}), ...(engine ? { engine } : {}) },
+    });
+    if (request !== lessonRequest) return;
+    lessonCache.set(key, result);
+    lessonCache.set(`${index}:${result.source === "api" ? "api" : "local"}:${track}:${cue.text}`, result);
+    displayLesson(result, cue, engine);
+  } catch (error) {
+    if (request !== lessonRequest) return;
+    cards.innerHTML = `<div class="article-lesson-sentence"><span>第 ${index + 1} 句</span><p lang="en">${esc(cue.text)}</p></div><p class="article-lesson-error">${esc(error.message)}</p>`;
+    $("#lessonStatus").textContent = "解析失败";
+  } finally {
+    if (request === lessonRequest) {
+      lessonPendingKey = null;
+      cards.removeAttribute("aria-busy");
+      refresh.disabled = engineSelect.disabled = false;
+    }
+  }
+}
+function openLesson(index) {
+  if (!cues[index]) return;
+  lessonIndex = index;
+  setTab("lesson");
+  setPanel(true);
+  hideToolbar();
+  $("#tabLesson").focus({ preventScroll: true });
+  loadLesson();
+}
+function phraseCue(cue, key, phrase) {
+  const normalize = text => String(text || "").toLowerCase().replace(/\s*(?:\.{2,}|…)\s*/g, " ... ").trim();
+  const noteKey = Object.keys(cue.notes || {}).find(item => normalize(cue.notes[item].en) === normalize(phrase));
+  let spans = noteKey ? (cue.marks || []).filter(mark => mark.key === noteKey) : [];
+  if (!spans.length && /(?:\.{2,}|…)/.test(phrase)) {
+    let cursor = 0;
+    spans = phrase.split(/\s*(?:\.{2,}|…)\s*/).filter(Boolean).map(part => {
+      const text = cue.text.toLowerCase(), needle = part.toLowerCase();
+      let start = text.indexOf(needle, cursor);
+      while (start >= 0 && (/[a-z]/.test(text[start - 1] || "") || /[a-z]/.test(text[start + needle.length] || ""))) {
+        start = text.indexOf(needle, start + 1);
+      }
+      if (start < 0) return null;
+      cursor = start + part.length;
+      return { s: start, e: cursor };
+    });
+    if (spans.some(span => !span)) spans = [];
+  }
+  return spans.length ? { ...cue, marks: [...(cue.marks || []), ...spans.map(span => ({ ...span, key }))] } : cue;
+}
+function updateSpeechUI() {
+  document.querySelectorAll(".article-speaking").forEach(element => element.classList.remove("article-speaking"));
+  if (speechIndex >= 0) document.getElementById(`s${speechIndex}`)?.classList.add("article-speaking");
+  const icon = readingAll
+    ? '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.6"/></svg>'
+    : '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 3.2a.7.7 0 0 1 1.06-.6l7.5 4.8a.7.7 0 0 1 0 1.2l-7.5 4.8a.7.7 0 0 1-1.06-.6z"/></svg>';
+  $("#readBtn").innerHTML = `${icon}<span>${readingAll ? "停止朗读" : "朗读全文"}</span>`;
+  $("#readBtn").setAttribute("aria-pressed", String(readingAll));
+}
+function stopSpeech() {
+  ++speechRun;
+  readingAll = false;
+  speechIndex = -1;
+  if (utterance) utterance.onend = utterance.onerror = null;
+  utterance = null;
+  ttsAudio.onended = ttsAudio.onerror = null;
+  ttsAudio.pause();
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  updateSpeechUI();
+}
+async function playText(text, run, done) {
+  let fellBack = false;
+  const system = () => {
+    if (run !== speechRun || fellBack) return;
+    fellBack = true;
+    ttsAudio.onended = ttsAudio.onerror = null;
+    ttsAudio.pause();
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+      stopSpeech();
+      toast("浏览器不支持语音朗读");
+      return;
+    }
+    utterance = new SpeechSynthesisUtterance(text);
+    const voice = pickVoice();
+    if (voice) utterance.voice = voice;
+    utterance.lang = voice?.lang || (VOICE_ACCENTS[readPreference("voice")] || VOICE_ACCENTS.uk).lang;
+    utterance.rate = .95;
+    utterance.onend = () => { if (run === speechRun) { utterance = null; done(); } };
+    utterance.onerror = () => { if (run === speechRun) { stopSpeech(); toast("语音朗读失败"); } };
+    speechSynthesis.speak(utterance);
+  };
+  if (!useNeural()) { system(); return; }
+  const state = await neuralState();
+  if (run !== speechRun) return;
+  if (state.status !== "ready") {
+    if (state.status === "missing") {
+      ttsState = { status: "downloading" };
+      api("/api/tts/download", { method: "POST" }).catch(() => {});
+      toast("正在下载神经语音（约 165 MB），下载好之前先用系统语音");
+    } else toast("神经语音不可用，已使用系统语音");
+    system();
+    return;
+  }
+  ttsAudio.src = speechUrl(text, .95);
+  ttsAudio.onended = () => { if (run === speechRun && !fellBack) done(); };
+  ttsAudio.onerror = system;
+  try { await ttsAudio.play(); } catch { system(); }
+}
+function speakSentence(index, continuous = false) {
+  stopSpeech();
+  const run = speechRun;
+  readingAll = continuous;
+  const next = current => {
+    if (run !== speechRun) return;
+    if (!cues[current]) { stopSpeech(); return; }
+    speechIndex = current;
+    updateSpeechUI();
+    playText(cues[current].text, run, () => continuous ? next(current + 1) : stopSpeech());
+  };
+  next(index);
+}
+function speakWord(text) {
+  stopSpeech();
+  const run = speechRun;
+  playText(text, run, () => { if (run === speechRun) stopSpeech(); });
+}
+function updateProgress() {
+  const max = document.documentElement.scrollHeight - innerHeight;
+  $("#readingProgress").style.width = `${max > 0 ? Math.min(100, Math.max(0, scrollY / max * 100)) : 0}%`;
+}
+
+async function saveChapterProgress(completed = false) {
+  if (completed && (chapterSaving || chapterCompleted)) return;
+  if (completed) chapterSaving = true;
+  try {
+    await api(`/api/reading/${encodeURIComponent(id)}/progress`, { method: "POST", body: { completed } });
+    if (completed) {
+      chapterCompleted = true;
+      const button = $("#chapterComplete");
+      if (button) { button.textContent = "本章已读"; button.disabled = true; }
+    }
+  } catch (error) { toast(error.message); }
+  finally { if (completed) chapterSaving = false; }
+}
+
+async function openNeighbor(button) {
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const out = await api("/api/classics/open", { method: "POST", body: {
+      bookId: data.bookId, chapterIndex: Number(button.dataset.chapter)
+    } });
+    let aid = out.articleId;
+    let job = out.job;
+    while (!aid && job.stage !== "done" && job.stage !== "error") {
+      $("#chapterStatus").textContent = `${job.stageLabel} ${Math.round(job.percent || 0)}%`;
+      await new Promise(resolve => setTimeout(resolve, 800));
+      job = await api(`/api/jobs/${job.id}`);
+    }
+    if (!aid && job.stage === "error") throw new Error(job.error || "处理失败");
+    location.href = `/reading/${encodeURIComponent(aid || job.videoId)}`;
+  } catch (error) {
+    $("#chapterStatus").textContent = error.message;
+    button.disabled = false;
+  }
+}
+
+async function setupChapterNavigation() {
+  if (data.section !== "classic") return;
+  const back = $("#readingBack");
+  back.href = `/reading?book=${encodeURIComponent(data.bookId)}`;
+  back.textContent = "← 返回目录";
+  const book = (await api("/api/classics")).find(item => item.id === data.bookId);
+  if (!book) return;
+  const index = book.chapters.findIndex(chapter => chapter.chapterIndex === data.chapterIndex);
+  if (index < 0) return;
+  chapterCompleted = !!book.chapters[index].completedAt;
+  const previous = book.chapters[index - 1], next = book.chapters[index + 1];
+  $("#chapterNav").hidden = false;
+  $("#chapterNav").innerHTML = `
+    <div class="chapter-navigation-actions">
+      <button class="btn" type="button" data-chapter="${previous ? previous.chapterIndex : ""}" ${previous ? "" : "disabled"}>← 上一章</button>
+      <button class="btn" type="button" id="chapterComplete" ${chapterCompleted ? "disabled" : ""}>${chapterCompleted ? "本章已读" : "标记本章已读"}</button>
+      <button class="btn" type="button" data-chapter="${next ? next.chapterIndex : ""}" ${next ? "" : "disabled"}>下一章 →</button>
+    </div>
+    <span id="chapterStatus" class="muted" role="status"></span>`;
+  $("#chapterNav").addEventListener("click", event => {
+    const chapter = event.target.closest("[data-chapter]");
+    if (chapter) openNeighbor(chapter);
+    if (event.target.closest("#chapterComplete")) saveChapterProgress(true);
+  });
+  await saveChapterProgress();
+}
+
+function setZh(on) {
+  if (on && !zhOn) hiddenBilingualSentences.clear();
+  zhOn = on;
+  storeFlag("readingZh", on);
+  render();
+}
+$("#englishBtn").onclick = () => setZh(false);
+$("#bilingualBtn").onclick = () => setZh(true);
+$("#marksBtn").onclick = () => { marksOn = !marksOn; render(); };
+$("#readBtn").onclick = () => readingAll ? stopSpeech() : speakSentence(selectedIndex >= 0 ? selectedIndex : 0, true);
+$("#sizeDown").onclick = () => setSize(Number(readPreference("textSize")) - .1);
+$("#sizeUp").onclick = () => setSize(Number(readPreference("textSize")) + .1);
+$("#eyeCareBtn").onclick = () => setEyeCare(document.body.dataset.eyecare !== "1");
+$("#panelBtn").onclick = () => setPanel($("#companion").hidden);
+$("#panelClose").onclick = () => { setPanel(false); $("#panelBtn").focus(); };
+$("#panelBackdrop").onclick = () => { setPanel(false); $("#panelBtn").focus(); };
+$("#moreBtn").onclick = () => {
+  const menu = $("#moreMenu");
+  menu.hidden = !menu.hidden;
+  $("#moreBtn").setAttribute("aria-expanded", String(!menu.hidden));
+};
+$("#tabLesson").onclick = () => setTab("lesson");
+$("#tabFocus").onclick = () => setTab("focus");
+$(".article-tabs").onkeydown = event => {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const lesson = event.key === "Home" || (event.key !== "End" && event.target === $("#tabFocus"));
+  setTab(lesson ? "lesson" : "focus", true);
+};
+$("#lessonEngine").onchange = event => {
+  localStorage.setItem("lessonEngine", event.target.value);
+  loadLesson();
+};
+$("#lessonRefresh").onclick = () => loadLesson(true);
+$("#sentTranslate").onclick = () => {
+  const index = toolbarIndex;
+  const sentence = document.getElementById(`s${index}`);
+  if (!sentence || !cues[index]) return;
+  if (zhOn) {
+    if (hiddenBilingualSentences.has(index)) hiddenBilingualSentences.delete(index); else hiddenBilingualSentences.add(index);
+    sentence.innerHTML = sentenceContent(cues[index]);
+  } else {
+    if (translatedSentences.has(index)) translatedSentences.delete(index); else translatedSentences.add(index);
+    sentence.querySelector(".article-sent-translation").hidden = !translatedSentences.has(index);
+  }
+  updateToolbar();
+  positionToolbar();
+};
+$("#sentSpeak").onclick = () => { const index = toolbarIndex; speakSentence(index); };
+$("#sentAnalyze").onclick = () => openLesson(toolbarIndex);
+$("#sentSave").onclick = async event => {
+  const index = toolbarIndex, cue = cues[index];
+  if (!cue) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  try { await toggleSentence(button, { text: cue.text, zh: cue.zh || "", articleId: id, sentenceIndex: cue.i, title: data.title }); }
+  finally {
+    button.disabled = false;
+    cues.forEach((item, current) => { if (item.text === cue.text) refreshSentenceStar(current); });
+    updateToolbar();
+  }
+};
+$("#body").addEventListener("pointerover", event => {
+  if (event.pointerType === "touch") return;
+  const sentence = event.target.closest(".sent");
+  if (!sentence) return;
+  if (!$("#sentToolbar").hidden && $("#sentToolbar").classList.contains("article-toolbar-side")
+      && Number(sentence.dataset.i) !== toolbarIndex) {
+    clearTimeout(toolbarSwitchTimer);
+    toolbarSwitchTimer = setTimeout(() => showToolbar(sentence), 150);
+  } else showToolbar(sentence);
+});
+$("#body").addEventListener("pointerout", event => {
+  if (!event.relatedTarget?.closest?.(".sent, #sentToolbar")) {
+    clearTimeout(toolbarSwitchTimer);
+    scheduleHideToolbar();
+  }
+});
+$("#body").addEventListener("pointerup", event => {
+  if (event.pointerType !== "touch") return;
+  const sentence = event.target.closest(".sent");
+  if (sentence) { selectedIndex = Number(sentence.dataset.i); showToolbar(sentence); }
+});
+$("#body").addEventListener("focusin", event => {
+  const sentence = event.target.closest(".sent");
+  if (sentence) { selectedIndex = Number(sentence.dataset.i); showToolbar(sentence); }
+});
+$("#body").addEventListener("focusout", scheduleHideToolbar);
+$("#body").addEventListener("keydown", event => {
+  const sentence = event.target.closest(".sent");
+  if (!sentence) return;
+  const word = event.target.closest(".w[data-w], mark[data-key]");
+  if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+    const words = $$(".w[data-w], mark[data-key]", sentence);
+    if (!words.length) return;
+    const step = event.key === "ArrowRight" ? 1 : -1;
+    const index = word ? words.indexOf(word) + step : step > 0 ? 0 : words.length - 1;
+    if (index >= 0 && index < words.length) {
+      event.preventDefault();
+      words[index].focus({ preventScroll: true });
+    }
+  } else if (["Enter", " "].includes(event.key)) {
+    event.preventDefault();
+    if (word) {
+      stopSpeech();
+      showWordCard(word, cues[Number(sentence.dataset.i)]).catch(error => toast(error.message));
+    } else {
+      showToolbar(sentence);
+      $("#sentTranslate").focus();
+    }
+  }
+});
+$("#sentToolbar").addEventListener("click", () => {
+  if (toolbarIndex >= 0) selectedIndex = toolbarIndex;
+}, true);
+$("#sentToolbar").addEventListener("pointerenter", () => { clearTimeout(toolbarTimer); clearTimeout(toolbarSwitchTimer); });
+$("#sentToolbar").addEventListener("pointerleave", scheduleHideToolbar);
+$("#sentToolbar").addEventListener("focusout", scheduleHideToolbar);
+$("#body").addEventListener("click", event => {
+  const sentence = event.target.closest(".sent");
+  if (sentence) selectedIndex = Number(sentence.dataset.i);
+  const word = event.target.closest("mark[data-key], .w[data-w]");
+  if (!word) return;
+  const cue = cues[Number(word.closest(".sent")?.dataset.i)];
+  if (!cue) return;
+  stopSpeech();
+  showWordCard(word, cue).catch(error => toast(error.message));
+});
+$("#companion").addEventListener("click", event => {
+  const word = event.target.closest("[data-lesson-word]");
+  if (word && cues[lessonIndex]) {
+    stopSpeech();
+    showWordCard(word, cues[lessonIndex]).catch(error => toast(error.message));
+    return;
+  }
+  const sourceButton = event.target.closest("[data-focus-cue]");
+  if (sourceButton) {
+    if (!widePanel.matches) setPanel(false);
+    goToSentence(Number(sourceButton.dataset.focusCue), true);
+  }
+});
+document.addEventListener("click", event => {
+  const target = event.target.closest("[data-speak], [data-save]");
+  if (target?.dataset.speak) { speakWord(target.dataset.speak); return; }
+  if (target?.dataset.save) {
+    const cue = cues[Number(target.dataset.cue)];
+    if (!cue) return;
+    const entry = $("#lessonPanel").contains(target) ? lessonNotes.get(target.dataset.save) : null;
+    const context = entry?.type === "phrase" ? phraseCue(cue, target.dataset.save, entry.en) : cue;
+    toggleSaved(target, context, { articleId: id, sentenceIndex: cue.i }, entry).catch(error => toast(error.message));
+    return;
+  }
+  if (!event.target.closest("#pop, mark[data-key], .w[data-w], [data-lesson-word]")) closeWordCard();
+  if (!event.target.closest(".article-more")) {
+    $("#moreMenu").hidden = true;
+    $("#moreBtn").setAttribute("aria-expanded", "false");
+  }
+  if (!event.target.closest(".sent, #sentToolbar")) hideToolbar();
+});
+async function retranslate() {
+  $("#moreMenu").hidden = true;
+  $("#moreBtn").setAttribute("aria-expanded", "false");
+  if (!data || !(await confirmRetranslate(cues.length, "这篇文章"))) return;
+  const button = $("#retranslate");
+  button.disabled = true;
+  stopSpeech();
+  closeWordCard();
+  ++lessonRequest;
+  lessonPendingKey = null;
+  lessonCache.clear();
+  try {
+    let job = await api(`/api/reading/${encodeURIComponent(id)}/retranslate`, { method: "POST" });
     while (job.stage !== "done" && job.stage !== "error") {
-      btn.textContent = job.stage === "queued" ? "排队中…" : `翻译中 ${Math.round(job.percent)}%`;
-      await new Promise(r => setTimeout(r, 1000));
+      button.textContent = job.stage === "queued" ? "排队中…" : `翻译中 ${Math.round(job.percent)}%`;
+      await new Promise(resolve => setTimeout(resolve, 1000));
       job = await api(`/api/jobs/${job.id}`);
     }
     if (job.stage === "error") throw new Error(job.error || "重新翻译失败");
-    data = await api(`/api/reading/${encodeURIComponent(aid)}`);
+    data = await api(`/api/reading/${encodeURIComponent(id)}`);
     cues = data.cues;
+    translatedSentences.clear();
+    hiddenBilingualSentences.clear();
     showMeta();
     render();
-    toast("已重新翻译");
-  } catch (e) {
-    alertDialog(e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "↻ 重新翻译";
-  }
+    renderFocusList();
+    if (lessonIndex >= cues.length) lessonIndex = -1;
+    if (selectedIndex >= cues.length) selectedIndex = -1;
+    if (lessonIndex >= 0) loadLesson();
+    else $("#lessonFoot").hidden = true;
+    toast("文章翻译已更新");
+  } catch (error) {
+    if (lessonIndex >= 0) loadLesson();
+    toast(error.message);
+  } finally { button.disabled = false; button.textContent = "↻ 重新翻译"; }
 }
 $("#retranslate").onclick = retranslate;
-
-// ---------- reading time for the daily plan: page visible and the reader active in the last 2 minutes
+document.addEventListener("keydown", event => {
+  if (event.key === "Tab" && !widePanel.matches && !$("#companion").hidden) {
+    const available = $$("button, select, input, textarea, a[href], [tabindex]", $("#companion"))
+      .filter(element => !element.disabled && element.tabIndex >= 0 && element.getClientRects().length);
+    if (available.length) {
+      const position = available.indexOf(document.activeElement);
+      if (position < 0 || (event.shiftKey && position === 0) || (!event.shiftKey && position === available.length - 1)) {
+        event.preventDefault();
+        available[event.shiftKey ? available.length - 1 : 0].focus();
+      }
+    }
+    return;
+  }
+  if (event.key === "Escape") {
+    closeWordCard();
+    hideToolbar();
+    $("#moreMenu").hidden = true;
+    $("#moreBtn").setAttribute("aria-expanded", "false");
+    if (!widePanel.matches && !$("#companion").hidden) { setPanel(false); $("#panelBtn").focus(); }
+    return;
+  }
+  if (event.metaKey || event.ctrlKey || event.altKey || event.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (event.key.toLowerCase() === "c") setZh(!zhOn);
+  if (event.key.toLowerCase() === "m") { marksOn = !marksOn; render(); }
+});
+window.addEventListener("profilechange", () => {
+  lessonCache.clear();
+  if (!pageReady) return;
+  render();
+  showMeta();
+  renderFocusList();
+  if (lessonIndex >= 0) loadLesson();
+});
+window.addEventListener("scroll", () => {
+  updateProgress();
+  positionToolbar();
+  const last = $("#body .para:last-child .sent:last-child");
+  const bottom = last?.getBoundingClientRect().bottom;
+  if (data?.section === "classic" && pageReady && scrollY > 80 && bottom > 0 && bottom <= innerHeight) {
+    saveChapterProgress(true);
+  }
+}, { passive: true });
+window.addEventListener("resize", () => { updateProgress(); positionToolbar(); });
+window.addEventListener("hashchange", () => {
+  const match = location.hash.match(/^#s(\d+)$/);
+  if (match) goToSentence(Number(match[1]));
+});
 let lastActive = Date.now(), readPending = 0;
-for (const type of ["scroll", "click", "keydown", "pointermove"]) addEventListener(type, () => { lastActive = Date.now(); }, { passive: true });
+for (const type of ["scroll", "click", "keydown", "pointermove"]) {
+  addEventListener(type, () => { lastActive = Date.now(); }, { passive: true });
+}
 setInterval(() => {
   if (document.visibilityState === "visible" && Date.now() - lastActive < 120000) readPending += 15;
   if (readPending >= 60) { logStudyTime("read", readPending); readPending = 0; }
 }, 15000);
-addEventListener("pagehide", () => { if (readPending) logStudyTime("read", readPending, true); });
-
-function setZh(on) { zhOn = on; storeFlag("readingZh", on); render(); }
-$("#zhBtn").onclick = () => setZh(!zhOn);
-$("#marksBtn").onclick = () => { marksOn = !marksOn; render(); };
-document.addEventListener("keydown", e => {
-  if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest("input, textarea")) return;
-  if (e.key === "c" || e.key === "C") setZh(!zhOn);
-  if (e.key === "m" || e.key === "M") { marksOn = !marksOn; render(); }
-  if (e.key === "Escape") hidePop();
+window.addEventListener("pagehide", () => {
+  stopSpeech();
+  closeWordCard();
+  if (readPending) logStudyTime("read", readPending, true);
 });
-window.addEventListener("profilechange", () => { if (cues.length) { render(); showMeta(); } });
-
+window.addEventListener("storage", event => {
+  if (event.key === null || event.key === "readingEyeCare") setEyeCare(storedFlag("readingEyeCare"), false);
+});
+widePanel.addEventListener("change", event => setPanel(event.matches));
+setEyeCare(storedFlag("readingEyeCare"), false);
+setSize(readPreference("textSize"), false);
+setPanel(widePanel.matches);
 (async () => {
-  try { data = await api(`/api/reading/${encodeURIComponent(aid)}`); }
-  catch { $("#body").innerHTML = `<p>找不到这篇文章。<a href="/reading">返回文章列表</a></p>`; return; }
-  cues = data.cues;
-  await loadLanguage();  // language names for the labels
-  document.title = data.title;
-  $("#title").textContent = data.title;
-  showMeta();
-  render();
-  await loadSavedWords();
-  const target = location.hash && document.getElementById(location.hash.slice(1));
-  if (target) { target.scrollIntoView({ block: "center" }); target.classList.add("flash"); }
+  if (!id || id === "reading") { $("#title").textContent = "文章不存在"; $("#body").innerHTML = '<p class="empty">缺少文章 ID。</p>'; return; }
+  try {
+    data = await api(`/api/reading/${encodeURIComponent(id)}`);
+    cues = data.cues;
+    await loadLanguage();
+    document.title = `${data.title} · EchoLoop`;
+    $("#title").textContent = data.title;
+    await Promise.all([loadSavedWords(), sentencesReady]);
+    pageReady = true;
+    showMeta();
+    render();
+    renderFocusList();
+    updateProgress();
+    setupChapterNavigation().catch(error => toast(error.message));
+    const match = location.hash.match(/^#s(\d+)$/);
+    if (match) goToSentence(Number(match[1]));
+  } catch (error) {
+    $("#title").textContent = "文章加载失败";
+    $("#body").innerHTML = `<p class="empty">${esc(error.message)}</p>`;
+  }
 })();
 </script>
 </body>

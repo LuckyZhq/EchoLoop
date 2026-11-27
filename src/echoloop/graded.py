@@ -50,19 +50,23 @@ def overview(lang: str) -> dict:
     opened = {a["graded"]: a for a in saved if a.get("graded")}
     shown = {lv["id"] for lv in levels_for(lang)}
     items = []
+    periodicals = []
     for p in passages():
-        if p["level"] not in shown:
-            continue
         a = opened.get(p["id"])
-        items.append({"id": p["id"], "level": p["level"], "title": p["title"], "topic": p.get("topic", ""),
-                      "wordCount": len(p["text"].split()), "articleId": a["id"] if a else None,
-                      "readAt": a.get("readAt", 0) if a else 0, "ai": False})
+        level = next((lv for lv in LEVELS if lv["id"] == p["level"]), {})
+        item = {"id": p["id"], "section": "periodical", "level": p["level"], "cefr": level.get("cefr", ""),
+                "levelLabel": level.get("label", ""), "title": p["title"], "topic": p.get("topic", ""),
+                "wordCount": len(p["text"].split()), "articleId": a["id"] if a else None,
+                "readAt": a.get("readAt", 0) if a else 0, "ai": False}
+        periodicals.append(item)
+        if p["level"] in shown:
+            items.append(item)
     for a in saved:
         if a.get("ai") and a.get("level") in shown:
             items.append({"id": a["id"], "level": a["level"], "title": a["title"], "topic": a.get("topic", ""),
                           "wordCount": a["wordCount"], "articleId": a["id"], "readAt": a.get("readAt", 0),
                           "ai": True, "created": a.get("created", 0)})
-    return {"levels": levels_for(lang), "articles": items}
+    return {"levels": levels_for(lang), "articles": items, "periodicals": periodicals}
 
 
 def open_passage(pipeline, gid: str) -> dict:
@@ -80,7 +84,8 @@ def open_passage(pipeline, gid: str) -> dict:
                 if job.url == key and job.stage not in ("done", "error"):
                     return {"job": job.to_json()}
         job = reading.submit_article(pipeline, p["text"], p["title"], key=key,
-                                     extra={"graded": gid, "level": p["level"], "topic": p.get("topic", "")})
+                                     extra={"graded": gid, "section": "periodical", "level": p["level"],
+                                            "topic": p.get("topic", "")})
         return {"job": job.to_json()}
 
 

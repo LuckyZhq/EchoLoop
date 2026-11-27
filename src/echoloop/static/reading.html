@@ -13,30 +13,25 @@
     <header class="hero page-heading">
       <div>
         <h1 id="readingTitle">文章精读</h1>
-        <p>按等级挑一篇读，或粘贴自己的文章。逐句翻译，标出重点短语和难词，点单词就能查。</p>
+        <p>精选外刊与经典名著，支持逐句精读、重点短语标注与即点即查。</p>
       </div>
     </header>
 
-    <div class="tabs reading-tabs" id="tabs" role="tablist" aria-label="文章等级"></div>
+    <div class="tabs reading-tabs" id="tabs" role="tablist" aria-label="文章分类"></div>
 
-    <section id="levelPanel" hidden>
-      <p class="reading-level-hint" id="levelHint"></p>
+    <section id="levelPanel" role="tabpanel" aria-label="外刊精读" hidden>
+      <div class="topic-filter" id="topics" aria-label="主题筛选"></div>
+      <p class="reading-level-hint" id="levelHint" aria-live="polite"></p>
       <div class="graded-grid" id="graded"></div>
-      <form class="graded-write" id="writeForm" autocomplete="off">
-        <div>
-          <b>再来一篇</b>
-          <span class="muted" id="writeHint">用你设置的 API 按这个等级写一篇新文章，话题可以不填。</span>
-        </div>
-        <div class="graded-write-row">
-          <input id="topic" type="text" maxlength="80" placeholder="话题（英文或中文，例如 海洋塑料）" aria-label="话题">
-          <button type="submit" class="btn primary" id="writeBtn">用 API 写一篇</button>
-        </div>
-        <div class="reading-job" id="writeJob" hidden></div>
-        <div class="err" id="writeErr" role="status"></div>
-      </form>
     </section>
 
-    <section id="minePanel" hidden>
+    <section id="classicPanel" role="tabpanel" aria-label="经典名著" hidden>
+      <div class="reading-job" id="classicJob" role="status" hidden></div>
+      <div id="bookshelf"></div>
+      <div id="bookDetail" hidden></div>
+    </section>
+
+    <section id="minePanel" role="tabpanel" aria-label="我的文章" hidden>
       <section class="import-panel" aria-label="粘贴文章">
         <form class="reading-form" id="form">
           <input id="title" type="text" maxlength="120" placeholder="标题（可不填）" aria-label="文章标题" autocomplete="off">
@@ -53,11 +48,24 @@
       <div class="section-h"><h2>我的文章</h2><span class="muted" id="libCount"></span></div>
       <div class="article-list" id="list"></div>
     </section>
+    <form class="graded-write" id="writeForm" autocomplete="off">
+      <div>
+        <b>再来一篇</b>
+        <span class="muted" id="writeHint">用你设置的 API 写一篇新文章，话题可以不填。</span>
+      </div>
+      <div class="graded-write-row">
+        <select id="writeLevel" aria-label="生成文章的难度"></select>
+        <input id="topic" type="text" maxlength="80" placeholder="话题（英文或中文，例如 海洋塑料）" aria-label="话题">
+        <button type="submit" class="btn primary" id="writeBtn">用 API 写一篇</button>
+      </div>
+      <div class="reading-job" id="writeJob" hidden></div>
+      <div class="err" id="writeErr" role="status"></div>
+    </form>
   </main>
 </div>
 <script src="/static/common.js"></script>
 <script>
-let graded = null, tab = null, engine = null;
+let graded = null, books = [], tab = null, engine = null, topic = "", selectedBook = null;
 const textBox = $("#text");
 function updateCount() {
   const words = (textBox.value.match(/[A-Za-z][A-Za-z'’-]*/g) || []).length;
@@ -68,37 +76,134 @@ textBox.addEventListener("input", updateCount);
 function savedTab() { try { return localStorage.getItem("readingTab"); } catch { return null; } }
 function saveTab(id) { try { localStorage.setItem("readingTab", id); } catch { /* private mode */ } }
 
-// The level is the reader's choice: the last tab they opened, else the first level.
+function selectBook(id) {
+  selectedBook = id;
+  const url = new URL(location.href);
+  if (id) url.searchParams.set("book", id); else url.searchParams.delete("book");
+  history.replaceState(history.state, "", url);
+}
+
 function renderTabs() {
-  const tabs = [...graded.levels.map(l => [l.id, l.label]), ["mine", "我的文章"]];
+  const tabs = [["periodical", "外刊精读"], ["classic", "经典名著"], ["mine", "我的文章"]];
   if (!tabs.some(([id]) => id === tab)) tab = tabs[0][0];
   $("#tabs").innerHTML = tabs.map(([id, label]) =>
-    `<button type="button" class="btn${id === tab ? " on" : ""}" role="tab" aria-selected="${id === tab}" data-tab="${esc(id)}">${esc(label)}</button>`).join("");
-  $("#levelPanel").hidden = tab === "mine";
+    `<button type="button" class="btn${id === tab ? " on" : ""}" role="tab" aria-selected="${id === tab}" aria-controls="${id === "periodical" ? "levelPanel" : id === "classic" ? "classicPanel" : "minePanel"}" tabindex="${id === tab ? 0 : -1}" data-tab="${esc(id)}">${esc(label)}</button>`).join("");
+  $("#levelPanel").hidden = tab !== "periodical";
+  $("#classicPanel").hidden = tab !== "classic";
   $("#minePanel").hidden = tab !== "mine";
-  if (tab === "mine") loadList(); else renderLevel();
+  $("#writeForm").hidden = tab === "classic";
+  if (tab === "mine") loadList(); else if (tab === "periodical") renderLevel(); else renderBooks();
 }
 
 function renderLevel() {
-  const level = graded.levels.find(l => l.id === tab);
-  const items = graded.articles.filter(a => a.level === tab).sort((a, b) => (a.ai - b.ai) || ((a.created || 0) - (b.created || 0)));
-  $("#levelHint").textContent = `${level.hint} · ${items.length} 篇文章`;
+  const all = graded.periodicals || [];
+  const topics = [...new Set(all.map(a => a.topic).filter(Boolean))];
+  if (topic && !topics.includes(topic)) topic = "";
+  const items = all.filter(a => !topic || a.topic === topic);
+  $("#topics").innerHTML = [["", "全部"], ...topics.map(name => [name, name])].map(([value, label]) =>
+    `<button type="button" class="topic-chip${topic === value ? " on" : ""}" aria-pressed="${topic === value}" data-topic="${esc(value)}">${esc(label)}</button>`).join("");
+  $("#levelHint").textContent = `${topic || "全部"} · ${items.length} 篇`;
   $("#graded").innerHTML = items.map(a => `
     <article class="graded-card${a.articleId ? " opened" : ""}">
       <button type="button" class="graded-open" data-open="${esc(a.id)}" data-article="${esc(a.articleId || "")}">
-        <span class="graded-top">${a.topic ? `<span class="badge phrase">${esc(a.topic)}</span>` : ""}${a.ai ? `<span class="badge word">AI 写的</span>` : ""}</span>
+        <span class="graded-top"><span class="badge phrase">${esc(a.topic || "其他")}</span><span class="badge">${esc(a.cefr || a.levelLabel || a.level)}</span></span>
         <b>${esc(a.title)}</b>
         <span class="graded-meta">${a.wordCount} 词 · ${a.articleId ? "读过" : "未读"}</span>
         <span class="graded-progress" hidden></span>
       </button>
-      ${a.ai ? `<button type="button" class="iconbtn graded-del" data-del="${esc(a.articleId)}" aria-label="删除 ${esc(a.title)}">删除</button>` : ""}
     </article>`).join("");
+}
+
+function renderWrite() {
   const api = engine && engine.engine === "api";
   $("#writeBtn").disabled = !api;
   $("#topic").disabled = !api;
+  $("#writeLevel").disabled = !api;
   $("#writeHint").innerHTML = api
-    ? `按这个等级写一篇新文章，话题可以不填。模型：${esc(MODEL_NAMES[engine.model] || engine.model)}`
+    ? `选择难度，话题可以不填。模型：${esc(MODEL_NAMES[engine.model] || engine.model)}`
     : `用 API 写新文章需要先<a href="/settings/services#translation">配置翻译 API</a>。`;
+}
+
+function bookCover(book, small = false) {
+  const color = /^#[0-9a-f]{6}$/i.test(book.accentColor) ? book.accentColor : "#a7b6a6";
+  return `<span class="book-cover${small ? " small" : ""}" style="--book-color:${color}">
+    ${book.cover ? `<img src="${esc(book.cover)}" alt="">` : `<span class="book-cover-title">${esc(book.title)}</span><span class="book-cover-author">${esc(book.author)}</span>`}
+  </span>`;
+}
+
+function resumeChapter(book) {
+  if (!book.lastReadChapterId || book.chapters.every(chapter => chapter.completedAt > 0)) return null;
+  const index = book.chapters.findIndex(chapter => chapter.articleId === book.lastReadChapterId);
+  if (index < 0) return null;
+  const last = book.chapters[index];
+  return last.completedAt > 0
+    ? book.chapters[index + 1] || book.chapters.find(chapter => !(chapter.completedAt > 0))
+    : last;
+}
+
+function renderBooks() {
+  const book = books.find(item => item.id === selectedBook);
+  $("#bookshelf").hidden = !!book;
+  $("#bookDetail").hidden = !book;
+  if (!book) {
+    $("#bookshelf").innerHTML = books.length ? `<div class="bookshelf">${books.map(item => {
+      const next = resumeChapter(item);
+      return `<article class="classic-card">
+        <button class="book-open" type="button" data-book="${esc(item.id)}">
+          ${bookCover(item)}
+          <span class="book-name">${esc(item.zhTitle)} <span>${esc(item.title)}</span></span>
+          <span class="book-author">${esc(item.author)}</span>
+          <span class="book-progress" role="progressbar" aria-label="${esc(item.zhTitle)}阅读进度" aria-valuemin="0" aria-valuemax="${item.totalChapters}" aria-valuenow="${item.completedChapters}"><i style="width:${item.totalChapters ? item.completedChapters / item.totalChapters * 100 : 0}%"></i></span>
+          <span class="book-progress-label">${item.lastReadChapterId || item.completedChapters ? `已读 ${item.completedChapters} / ${item.totalChapters} 章` : "未开始"}</span>
+        </button>
+        ${next ? `<button type="button" class="book-resume" data-chapter="${next.chapterIndex}" data-book-id="${esc(item.id)}">继续阅读第 ${next.chapterIndex} 章</button>` : ""}
+      </article>`;
+    }).join("")}</div>` : `<div class="empty">暂无经典名著。</div>`;
+    return;
+  }
+  const completed = book.chapters.length > 0 && book.chapters.every(chapter => chapter.completedAt > 0);
+  const resume = resumeChapter(book);
+  const next = resume || book.chapters[0];
+  $("#bookDetail").innerHTML = `
+    <button type="button" class="back-link book-back" data-bookshelf>← 返回书架</button>
+    <div class="book-detail-head">
+      ${bookCover(book, true)}
+      <div class="book-detail-info">
+        <h2>${esc(book.zhTitle)} <span>${esc(book.title)}</span></h2>
+        <p class="book-author">${esc(book.author)}</p>
+        <p>${esc(book.description)}</p>
+        <p class="muted">${book.totalChapters} 章节选 · ${book.wordCount} 词</p>
+        ${next ? `<button type="button" class="btn primary" data-chapter="${next.chapterIndex}" data-book-id="${esc(book.id)}">${completed ? "重新开始阅读" : resume ? `继续阅读第 ${next.chapterIndex} 章` : "开始阅读"}</button>` : ""}
+      </div>
+    </div>
+    <div class="section-h"><h2>章节目录</h2><span class="muted">已读 ${book.completedChapters} / ${book.totalChapters} 章</span></div>
+    <div class="chapter-list">${book.chapters.map(chapter => `
+      <button type="button" class="chapter-row" data-chapter="${chapter.chapterIndex}" data-book-id="${esc(book.id)}">
+        <span><b>${esc(chapter.title)}</b><small>${chapter.wordCount} 词</small></span>
+        <span class="${chapter.completedAt ? "chapter-done" : ""}">${chapter.completedAt ? "已读" : chapter.readAt ? "正在读" : "未读"} <span aria-hidden="true">→</span></span>
+      </button>`).join("")}</div>`;
+}
+
+async function openChapter(button) {
+  if (button.disabled) return;
+  const bookId = button.dataset.bookId, chapterIndex = Number(button.dataset.chapter);
+  const book = books.find(item => item.id === bookId);
+  const chapter = book && book.chapters.find(item => item.chapterIndex === chapterIndex);
+  if (chapter && chapter.articleId) { location.href = `/reading/${encodeURIComponent(chapter.articleId)}`; return; }
+  button.disabled = true;
+  const box = $("#classicJob");
+  box.hidden = false;
+  box.textContent = "正在准备章节…";
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  try {
+    const out = await api("/api/classics/open", { method: "POST", body: { bookId, chapterIndex } });
+    const aid = out.articleId || await follow(out.job, box);
+    location.href = `/reading/${encodeURIComponent(aid)}`;
+  } catch (error) {
+    box.hidden = false;
+    box.textContent = error.message;
+    button.disabled = false;
+  }
 }
 
 // Show a job's progress in `box` until it finishes; returns the article id.
@@ -141,12 +246,12 @@ async function loadEngine() {
 }
 
 async function loadList() {
-  const items = (await api("/api/reading")).filter(a => !a.level);
+  const items = (await api("/api/reading")).filter(a => a.section === "custom");
   $("#libCount").textContent = items.length ? `${items.length} 篇` : "";
   $("#list").innerHTML = items.length ? items.map(a => `
     <article class="article-item">
       <a class="article-link" href="/reading/${encodeURIComponent(a.id)}">
-        <b>${esc(a.title)}</b>
+        <b>${esc(a.title)}${a.ai ? ` <span class="badge word">AI 写的</span>` : ""}</b>
         <span class="article-preview">${esc(a.preview)}</span>
         <span class="article-meta">${a.wordCount} 词 · ${a.sentenceCount} 句 · ${esc(translationLabel(a.translator, a.translatorModel, a.translator !== "local"))} · ${new Date(a.created * 1000).toLocaleDateString("zh-CN")}</span>
       </a>
@@ -156,15 +261,36 @@ async function loadList() {
 
 document.addEventListener("click", async e => {
   const t = e.target.closest("[data-tab]");
-  if (t) { tab = t.dataset.tab; saveTab(tab); renderTabs(); return; }
+  if (t) { selectBook(null); tab = t.dataset.tab; saveTab(tab); renderTabs(); return; }
+  const filter = e.target.closest("[data-topic]");
+  if (filter) { topic = filter.dataset.topic; renderLevel(); return; }
+  const book = e.target.closest("[data-book]");
+  if (book) { selectBook(book.dataset.book); renderBooks(); return; }
+  if (e.target.closest("[data-bookshelf]")) { selectBook(null); renderBooks(); return; }
+  const chapter = e.target.closest("[data-chapter]");
+  if (chapter) { openChapter(chapter); return; }
   const o = e.target.closest("[data-open]");
   if (o) { openPassage(o); return; }
   const d = e.target.closest("[data-del], .del");
   if (d) {
     if (!(await confirmDialog("确定删除这篇文章吗？", { detail: "已收藏的词句会保留。", ok: "删除", danger: true }))) return;
     await api(`/api/reading/${encodeURIComponent(d.dataset.del || d.dataset.id)}`, { method: "DELETE" });
-    if (d.dataset.del) { graded = await api("/api/graded"); renderLevel(); } else loadList();
+    loadList();
   }
+});
+
+$("#tabs").addEventListener("keydown", e => {
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+  e.preventDefault();
+  const buttons = [...$("#tabs").querySelectorAll("[data-tab]")];
+  const index = buttons.findIndex(button => button.dataset.tab === tab);
+  const next = e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 :
+    (index + (e.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+  selectBook(null);
+  tab = buttons[next].dataset.tab;
+  saveTab(tab);
+  renderTabs();
+  $("#tabs").querySelector(`[data-tab="${tab}"]`).focus();
 });
 
 $("#writeForm").addEventListener("submit", async e => {
@@ -172,7 +298,7 @@ $("#writeForm").addEventListener("submit", async e => {
   $("#writeErr").textContent = "";
   $("#writeBtn").disabled = true;
   try {
-    const job = await api("/api/graded/generate", { method: "POST", body: { level: tab, topic: $("#topic").value } });
+    const job = await api("/api/graded/generate", { method: "POST", body: { level: $("#writeLevel").value, topic: $("#topic").value } });
     const aid = await follow(job, $("#writeJob"));
     location.href = `/reading/${encodeURIComponent(aid)}`;
   } catch (error) {
@@ -200,12 +326,18 @@ $("#form").addEventListener("submit", async e => {
 });
 
 (async () => {
-  tab = savedTab();
+  const saved = savedTab();
+  const bookId = new URLSearchParams(location.search).get("book");
+  tab = bookId ? "classic" : saved === "mine" ? "mine" : saved === "classic" ? "classic" : "periodical";
+  selectedBook = bookId;
   await loadEngine();
-  try { graded = await api("/api/graded"); } catch (e) { toast(e.message); graded = { levels: [], articles: [] }; }
-  if (!tab && graded.track) {
-    tab = graded.track === "ielts" ? "ielts55" : graded.track === "cet4" ? "cet4" : "cet6";
-  }
+  try { [graded, books] = await Promise.all([api("/api/graded"), api("/api/classics")]); }
+  catch (e) { toast(e.message); graded = { levels: [], periodicals: [] }; }
+  $("#writeLevel").innerHTML = graded.levels.map(level => `<option value="${esc(level.id)}">${esc(level.label)}</option>`).join("");
+  const defaultLevel = graded.levels.some(level => level.id === saved) ? saved :
+    graded.track === "ielts" ? "ielts55" : graded.track === "cet4" ? "cet4" : "cet6";
+  if (graded.levels.some(level => level.id === defaultLevel)) $("#writeLevel").value = defaultLevel;
+  renderWrite();
   renderTabs();
 })();
 </script>

@@ -12,10 +12,19 @@
   <main class="wrap player-wrap">
   <header class="player-header">
     <a class="back-link" href="/listening">← 资料库</a>
-    <h1 id="title"></h1>
-    <div class="side-switch player-modes" role="group" aria-label="播放模式">
-      <button type="button" id="modeWatch" aria-pressed="true">双语精看</button>
-      <button type="button" id="modeStudy" aria-pressed="false">逐句精读</button>
+    <div class="player-title-row">
+      <h1 id="title" title=""></h1>
+      <button class="source-info-btn" id="sourceInfoBtn" type="button" aria-label="查看视频来源信息" title="视频来源信息">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle>
+          <path d="M12 11v5"></path>
+          <path d="M12 8h.01"></path>
+        </svg>
+      </button>
+    </div>
+    <div class="side-switch player-modes" role="group" aria-label="全部字幕显示">
+      <button type="button" id="modeBilingual" aria-pressed="true">双语精读</button>
+      <button type="button" id="modeEnglish" aria-pressed="false">英文精读</button>
     </div>
   </header>
 
@@ -24,16 +33,25 @@
       <div class="study-stage">
         <video id="video" controls playsinline preload="metadata"></video>
         <div class="lang-notice" id="langNotice" hidden></div>
-        <div class="caption" id="caption"><div class="en" id="capEn"></div><div class="zh" id="capZh"></div></div>
+        <div class="caption" id="caption">
+          <div class="caption-head">
+            <div class="en" id="capEn"></div>
+            <div class="side-switch caption-modes" role="group" aria-label="当前句字幕显示">
+              <button type="button" id="cueBilingual" aria-pressed="true" title="本句显示双语" disabled>双语</button>
+              <button type="button" id="cueEnglish" aria-pressed="false" title="本句只显示英文" disabled>英文</button>
+            </div>
+          </div>
+          <div class="zh" id="capZh"></div>
+        </div>
       </div>
 
       <div class="controls">
-        <button class="btn" id="analyze" aria-haspopup="dialog" aria-controls="lesson" disabled>✨ 解析</button>
-        <button class="btn" id="prev" title="上一句 (←)">⏮ 上一句</button>
-        <button class="btn" id="replay" title="重听本句 (↑)">↺ 重听</button>
-        <button class="btn" id="next" title="下一句 (→)">下一句 ⏭</button>
-        <button class="btn" id="dictBtn" title="听写模式 (D)" aria-pressed="false">✎ 听写</button>
-        <button class="btn" id="retranslate" title="用设置里的 API 模型重新翻译这个视频，并按单词和短语对照中文">↻ 重新翻译</button>
+        <button class="btn" id="analyze" aria-haspopup="dialog" aria-controls="lesson" disabled><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h10M4 17h7"/><circle cx="17.5" cy="15.5" r="2.5"/><path d="m19.5 17.5 2 2"/></svg> 解析</button>
+        <button class="btn" id="prev" title="上一句 (←)">上一句</button>
+        <button class="btn" id="replay" title="重听本句 (↑)">重听</button>
+        <button class="btn" id="next" title="下一句 (→)">下一句</button>
+        <button class="btn" id="dictBtn" title="听写模式 (D)" aria-pressed="false"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> 听写</button>
+        <button class="btn" id="retranslate" title="用设置里的 API 模型重新翻译这个视频，并按单词和短语对照中文">重新翻译</button>
         <span class="select-wrap">
           <select class="btn" id="export" aria-label="导出字幕" title="导出字幕">
             <option value="" selected disabled hidden>⤓ 导出 SRT</option>
@@ -99,20 +117,24 @@ const vid = decodeURIComponent(location.pathname.split("/").pop());
 const video = $("#video");
 const player = $("#player");
 let data = null, cues = [], cur = -1, loop = false, autoPause = false;
+let showTranslations = readPreference("zh");
+const cueTranslations = new Map();
 let pauseAt = null;
 let stoppedCue = -1;
 const lesson = $("#lesson");
 let lessonIndex = -1, lessonRequest = 0;
 let lessonNotes = new Map();
+const lessonCache = new Map();
 
 function noteFor(cue, key) { return cue?.notes?.[key]; }
+function showsTranslation(i) { return cueTranslations.get(i) ?? showTranslations; }
 
 function renderList() {
   $("#list").style.setProperty("--tm-w", `${Math.max(5, ...cues.map(c => fmtTime(c.start).length)) * 7 + 6}px`);
   $("#list").innerHTML = cues.map(c => `
     <div class="cue" data-i="${c.i}">
       <div class="tm">${fmtTime(c.start)}<span class="dscore"></span>${sentenceButton(c.text, c.i)}</div>
-      <div><div class="en">${renderMarked(c.text, visibleMarks(c))}</div><div class="zh"${zhLowAttrs(c)}>${esc(c.zh)}</div></div>
+      <div><div class="en">${renderMarked(c.text, visibleMarks(c))}</div><div class="zh"${showsTranslation(c.i) ? "" : " hidden"}${zhLowAttrs(c)}>${esc(c.zh)}</div></div>
     </div>`).join("");
 }
 
@@ -150,27 +172,35 @@ function showFocus(show) {
   if (!show) followCurrent();
 }
 
+function renderCaption() {
+  const c = cues[cur], show = showsTranslation(cur);
+  $("#cueBilingual").disabled = $("#cueEnglish").disabled = !c;
+  $("#cueBilingual").setAttribute("aria-pressed", !!c && show);
+  $("#cueEnglish").setAttribute("aria-pressed", !!c && !show);
+  if (!c) { $("#capEn").innerHTML = ""; $("#capZh").textContent = ""; $("#capZh").removeAttribute("data-low"); return; }
+  const caption = $("#capEn");
+  const layered = glossOn && (show || (data.translator === "none" && !c.seg?.length)) && interlinearFor(c, data.translator);
+  caption.classList.toggle("interlinear", layered);
+  caption.innerHTML = layered ? renderInterlinear(c.text, visibleMarks(c), c.gl, c.seg) : renderMarked(c.text, visibleMarks(c));
+  $("#capZh").textContent = layered ? "" : c.zh || "";
+  $("#capZh").hidden = layered || !show;
+  $("#capZh").toggleAttribute("data-low", !layered && !!c.zhLow);
+  $("#capZh").title = !layered && c.zhLow ? ZH_LOW : "";
+  spokenK = -1;
+  updateSpoken();
+}
+
 function setCurrent(i) {
   if (i === cur) return;
   cur = i;
   $$(".cue.active").forEach(el => el.classList.remove("active"));
   const c = cues[i];
   $("#analyze").disabled = !c || dict.on;
-  if (!c) { $("#capEn").innerHTML = ""; $("#capZh").textContent = ""; $("#capZh").removeAttribute("data-low"); $("#notes").innerHTML = ""; return; }
+  renderCaption();
+  if (!c) { $("#notes").innerHTML = ""; return; }
   $(`.cue[data-i="${i}"]`)?.classList.add("active");
   followCurrent();
-  const caption = $("#capEn");
-  const layered = glossOn && interlinearFor(c, data.translator);
-  caption.classList.toggle("interlinear", layered);
-  caption.innerHTML = layered ? renderInterlinear(c.text, visibleMarks(c), c.gl, c.seg) : renderMarked(c.text, visibleMarks(c));
-  // one Chinese line only: when each phrase shows its Chinese, the whole-sentence translation is left out
-  $("#capZh").textContent = layered ? "" : c.zh || "";
-  $("#capZh").hidden = layered;
-  $("#capZh").toggleAttribute("data-low", !layered && !!c.zhLow);
-  $("#capZh").title = !layered && c.zhLow ? ZH_LOW : "";
   renderNotes();
-  spokenK = -1;
-  updateSpoken();
   if (dict.on) dictReset();
 }
 
@@ -362,46 +392,106 @@ function lessonSection(title, rows, empty) {
 function lessonEntry(item, type) {
   const entry = type === "phrase"
     ? { en: item.phrase, zh: item.explanation, type }
-    : { en: item.word, zh: item.meaning, type, pos: item.pos, phonetic: item.phonetic || "", tags: item.tags || [] };
+    : { en: item.word, zh: item.meaning, type, pos: item.pos, phonetic: item.phonetic || "", tags: item.tags || [],
+        lemma: item.lemma || item.word, lookup: true };
   lessonNotes.set(saveKey(entry), entry);
   return entry;
 }
 
-async function loadLesson() {
+function readLessonEngine() {
+  try {
+    const v = localStorage.getItem("lessonEngine");
+    return v === "local" || v === "api" ? v : null;
+  } catch { return null; }
+}
+function saveLessonEngine(v) {
+  try { localStorage.setItem("lessonEngine", v); } catch {}
+}
+
+function lessonFootHtml(statusHtml, selectedEngine) {
+  const value = selectedEngine || "local";
+  return `<div class="lesson-foot">${statusHtml}<div class="lesson-actions"><select class="lesson-engine" id="lessonEngine" aria-label="解析方式"><option value="local"${value === "local" ? " selected" : ""}>本地解析</option><option value="api"${value === "api" ? " selected" : ""}>AI 精讲</option></select><button type="button" class="lesson-refresh" id="lessonRefresh">重新解析</button></div></div>`;
+}
+
+function bindLessonFoot() {
+  const sel = $("#lessonEngine");
+  if (sel) sel.onchange = () => {
+    saveLessonEngine(sel.value);
+    loadLesson(false);
+  };
+  const btn = $("#lessonRefresh");
+  if (btn) btn.onclick = () => loadLesson(true);
+}
+
+function renderLesson(result, { fromMemory = false } = {}) {
+  const index = lessonIndex, cue = cues[index];
+  if (!cue) return;
+  lessonNotes.clear();
+  $("#lessonText").textContent = result.sentence || cue.text;
+  $("#lessonZh").textContent = result.translation || cue.zh || "";
+  $("#lessonZh").hidden = !$("#lessonZh").textContent;
+  const structure = (result.structure || []).map(s =>
+    `<li><b lang="en">${esc(s.segment)}</b>：<span>${esc(s.role)}</span></li>`);
+  const vocabulary = (result.vocabulary || []).map(v => {
+    const key = saveKey(lessonEntry(v, "word"));
+    const pos = v.pos ? `<span class="pos">${esc(v.pos)}</span>` : "";
+    return `<li><button type="button" class="word-link" data-lesson-word="${esc(key)}" title="查看释义与收藏">${esc(v.word)}</button>：${pos}<span>${esc(v.meaning)}</span></li>`;
+  });
+  const expressions = (result.expressions || []).map(e => {
+    const entry = lessonEntry(e, "phrase");
+    const on = savedWords.has(e.phrase.toLowerCase());
+    return `<li><b lang="en">${esc(e.phrase)}</b>：<span>${esc(e.explanation)}</span><button type="button"
+      class="lesson-save ${on ? "saved" : ""}" data-save="${esc(saveKey(entry))}" data-cue="${index}"
+      data-title="收藏短语" data-title-on="取消收藏短语"
+      title="${on ? "取消收藏短语" : "收藏短语"}" aria-label="${on ? "取消收藏短语" : "收藏短语"}" aria-pressed="${on}">${starSvg(on)}</button></li>`;
+  });
+  const body = lessonSection("句子结构", structure, "未识别到可拆解的成分。")
+    + lessonSection("重点词语", vocabulary, "本句没有需要重点掌握的词汇。")
+    + lessonSection("重点搭配", expressions, "本句没有需要积累的搭配。");
+  const cached = fromMemory || result.cached;
+  const status = cached
+    ? (result.source === "local" ? "已缓存 · 本地句法与词典释义" : "已缓存 · 模型解析")
+    : (result.source === "local" ? "本地句法与词典释义" : "模型解析 · 考试标签来自词典");
+  const selectedEngine = readLessonEngine() || (result.source === "api" ? "api" : "local");
+  $("#lessonCards").innerHTML = body + lessonFootHtml(`<span class="lesson-status" id="lessonStatus" role="status">${status}</span>`, selectedEngine);
+  bindLessonFoot();
+}
+
+async function loadLesson(force = false) {
   const request = ++lessonRequest;
   const index = lessonIndex, cue = cues[index];
+  if (!cue) return;
+  const engine = readLessonEngine();
+  const cacheKey = `${index}:${engine || "auto"}:${profileTrack()}:${cue.text}`;
   const cards = $("#lessonCards");
+  if (!force && lessonCache.has(cacheKey)) {
+    cards.removeAttribute("aria-busy");
+    renderLesson(lessonCache.get(cacheKey), { fromMemory: true });
+    return;
+  }
+  hidePop();
+  const refreshBtn = $("#lessonRefresh");
+  if (refreshBtn) refreshBtn.disabled = true;
+  const engineSelect = $("#lessonEngine");
+  if (engineSelect) engineSelect.disabled = true;
   cards.setAttribute("aria-busy", "true");
   cards.innerHTML = '<div class="lesson-skeleton" role="status" aria-label="正在解析本句"><i></i><i></i><i></i></div>';
   try {
-    const result = await api("/api/sentence/analyze", { method: "POST", body: { videoId: vid, index, text: cue.text } });
+    const body = { videoId: vid, index, text: cue.text };
+    if (force) body.force = true;
+    if (engine) body.engine = engine;
+    const result = await api("/api/sentence/analyze", { method: "POST", body });
     if (request !== lessonRequest) return;
-    $("#lessonText").textContent = result.sentence || cue.text;
-    $("#lessonZh").textContent = result.translation || cue.zh || "";
-    $("#lessonZh").hidden = !$("#lessonZh").textContent;
-    const structure = (result.structure || []).map(s =>
-      `<li><b lang="en">${esc(s.segment)}</b>：<span>${esc(s.role)}</span></li>`);
-    const vocabulary = (result.vocabulary || []).map(v => {
-      const key = saveKey(lessonEntry(v, "word"));
-      const pos = v.pos ? `<span class="pos">${esc(v.pos)}</span>` : "";
-      return `<li><button type="button" class="word-link" data-lesson-word="${esc(key)}" title="查看释义与收藏">${esc(v.word)}</button>：${pos}<span>${esc(v.meaning)}</span></li>`;
-    });
-    const expressions = (result.expressions || []).map(e => {
-      const entry = lessonEntry(e, "phrase");
-      const on = savedWords.has(e.phrase.toLowerCase());
-      return `<li><b lang="en">${esc(e.phrase)}</b>：<span>${esc(e.explanation)}</span><button type="button"
-        class="lesson-save ${on ? "saved" : ""}" data-save="${esc(saveKey(entry))}" data-cue="${index}"
-        title="${on ? "取消收藏短语" : "收藏短语"}" aria-label="${on ? "取消收藏短语" : "收藏短语"}" aria-pressed="${on}">${starSvg(on)}</button></li>`;
-    });
-    const body = lessonSection("句子结构", structure, "未识别到可拆解的成分。")
-      + lessonSection("重点词语", vocabulary, "本句没有需要重点掌握的词汇。")
-      + lessonSection("重点搭配", expressions, "本句没有需要积累的搭配。");
-    const status = result.source === "local" ? "本地句法与词典释义" : "模型解析 · 考试标签来自词典";
-    cards.innerHTML = body + `<p class="lesson-status" id="lessonStatus" role="status">${status}</p>`;
+    const sourceEngine = result.source === "api" ? "api" : "local";
+    lessonCache.set(cacheKey, result);
+    lessonCache.set(`${index}:${sourceEngine}:${profileTrack()}:${cue.text}`, result);
+    renderLesson(result);
   } catch (error) {
     if (request !== lessonRequest) return;
-    cards.innerHTML = `<p class="lesson-error" role="alert">${esc(error.message)}</p><button class="btn" id="lessonRetry">重新解析</button>`;
-    $("#lessonRetry").onclick = loadLesson;
+    cards.innerHTML = `<p class="lesson-error" role="alert">${esc(error.message)}</p><button class="btn" id="lessonRetry">重新解析</button>`
+      + lessonFootHtml('<span class="lesson-status" id="lessonStatus" role="status"></span>', engine);
+    $("#lessonRetry").onclick = () => loadLesson(force);
+    bindLessonFoot();
   } finally {
     if (request === lessonRequest) cards.removeAttribute("aria-busy");
   }
@@ -436,7 +526,11 @@ lesson.addEventListener("click", event => {
   const entry = lessonNotes.get(word.dataset.lessonWord);
   if (entry) showPop(word, noteHtml(entry, lessonIndex, { bare: true }));
 });
-lesson.addEventListener("cancel", event => { event.preventDefault(); lesson.close(); });
+lesson.addEventListener("cancel", event => {
+  event.preventDefault();
+  if ($("#pop")?.classList.contains("show")) hidePop();
+  else lesson.close();
+});
 lesson.addEventListener("close", () => {
   lessonIndex = -1;
   video.pause();
@@ -584,6 +678,7 @@ async function retranslate() {
     if (job.stage === "error") throw new Error(job.error || "重新翻译失败");
     data = await api(`/api/video/${encodeURIComponent(vid)}`);
     cues = data.cues;
+    lessonCache.clear();
     rerenderMarks();
     showLanguageNotice($("#langNotice"), data.lang, "这个视频", retranslate);  // hides once the languages match
     toast("已重新翻译");
@@ -599,20 +694,37 @@ $("#retranslate").onclick = retranslate;
 // ---------- controls
 function setAutoPause(enabled) {
   autoPause = enabled;
-  $("#modeWatch").setAttribute("aria-pressed", !enabled);
-  $("#modeStudy").setAttribute("aria-pressed", enabled);
   player.classList.toggle("intensive", enabled);
   pauseAt = autoPause && cues[cur] ? cues[cur].end : null;
 }
 
-function selectMode(intensive) {
+function selectAutoPause(intensive) {
   if (dict.on) setDictation(false);
   loop = false;
   setAutoPause(intensive);
   try { localStorage.setItem("autoPause", intensive ? "1" : "0"); } catch {}
 }
-$("#modeWatch").onclick = () => selectMode(false);
-$("#modeStudy").onclick = () => selectMode(true);
+
+function setSubtitleMode(show, currentOnly = false) {
+  if (currentOnly) {
+    if (!cues[cur]) return;
+    if (show === showTranslations) cueTranslations.delete(cur);
+    else cueTranslations.set(cur, show);
+    const translation = $(`.cue[data-i="${cur}"] .zh`);
+    if (translation) translation.hidden = !show;
+  } else {
+    showTranslations = show;
+    cueTranslations.clear();
+    $$("#list .cue .zh").forEach(translation => { translation.hidden = !show; });
+  }
+  $("#modeBilingual").setAttribute("aria-pressed", showTranslations);
+  $("#modeEnglish").setAttribute("aria-pressed", !showTranslations);
+  renderCaption();
+}
+$("#modeBilingual").onclick = () => setSubtitleMode(true);
+$("#modeEnglish").onclick = () => setSubtitleMode(false);
+$("#cueBilingual").onclick = () => setSubtitleMode(true, true);
+$("#cueEnglish").onclick = () => setSubtitleMode(false, true);
 
 function applyPlaybackPreferences() {
   const rate = Number(readPreference("speed"));
@@ -620,7 +732,7 @@ function applyPlaybackPreferences() {
   video.playbackRate = rate;
   loop = readPreference("loop");
   setAutoPause(readPreference("autoPause"));
-  player.classList.toggle("hide-zh", !readPreference("zh"));
+  setSubtitleMode(readPreference("zh"));
   player.classList.toggle("no-marks", !readPreference("marks"));
   karaoke = readPreference("karaoke");
   const gloss = readPreference("gloss");
@@ -642,7 +754,7 @@ function rerenderMarks() {
   const i = cur; cur = -1; setCurrent(i);
 }
 // level, target or 我认识 changed (here or in another tab): mark again
-window.addEventListener("profilechange", () => { if (cues.length) rerenderMarks(); });
+window.addEventListener("profilechange", () => { lessonCache.clear(); if (cues.length) rerenderMarks(); });
 
 window.addEventListener("pageshow", event => {
   if (event.persisted && player.isConnected) {
@@ -663,12 +775,22 @@ document.addEventListener("keydown", e => {
   else if (k === "arrowup") { e.preventDefault(); dict.on ? dictPlay(cur) : seekCue(Math.max(cur, 0)); }
   else if (k === "d") { e.preventDefault(); setDictation(!dict.on); }
   else if (k === "l") { loop = !loop; if (loop) setAutoPause(false); toast(loop ? "单句循环：开" : "单句循环：关"); }
-  else if (k === "p") { selectMode(!autoPause); toast(autoPause ? "逐句精读：每句播完暂停" : "双语精看：连续播放"); }
-  else if (k === "c") player.classList.toggle("hide-zh");
+  else if (k === "p") { selectAutoPause(!autoPause); toast(autoPause ? "逐句暂停：开" : "逐句暂停：关"); }
+  else if (k === "c") setSubtitleMode(!showTranslations);
   else if (k === "m") player.classList.toggle("no-marks");
   else if (k === "g") { glossOn = !glossOn; const i = cur; cur = -1; setCurrent(i); toast(glossOn ? "逐词释义：开" : "逐词释义：关"); }
   else if (k === "escape") hidePop();
 });
+
+function showSourceInfo(data) {
+  const lines = [];
+  if (data.uploader) lines.push(`来源：${data.uploader}`);
+  if (data.url) lines.push(`原始链接：${data.url}`);
+  if (data.duration) lines.push(`时长：${fmtTime(data.duration)}`);
+  if (data.subtitleSource === "whisper") lines.push("字幕来源：本机转写");
+  if (data.subtitleSource === "subtitles") lines.push("字幕来源：平台字幕");
+  showDialog("视频来源信息", { detail: lines.join("\n") || "这个视频没有可显示的来源信息。", ok: "关闭", alert: true });
+}
 
 (async () => {
   try {
@@ -677,11 +799,13 @@ document.addEventListener("keydown", e => {
   cues = data.cues;
   document.title = `${data.title} · 播放器`;
   $("#title").textContent = data.title;
+  $("#title").title = data.title;
+  $("#sourceInfoBtn").onclick = () => showSourceInfo(data);
   if (data.preview) {
     const note = document.createElement("p");
     note.className = "preview-note player-preview";
     note.textContent = `只下载到试看片段（完整 ${fmtTime(data.preview.full)}）：这个视频要登录会员才能看全。`;
-    $("#title").after(note);
+    $(".player-title-row").after(note);
   }
   await loadLanguage();  // language names for the labels below
   const aligned = cues.some(c => c.seg && c.seg.length);

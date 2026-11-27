@@ -109,7 +109,7 @@ def word_info(t, dic: Dictionary, school: bool = True):
     Returns (info, rank, ielts, exam). rank 0 means the word is not in the frequency lists (usually rare)."""
     if not t.is_alpha or t.is_stop or len(t.text) < 3 or t.pos_ not in CONTENT_POS:
         return None
-    if t.text[0].isupper() and t.i > 0 and t.pos_ != "ADJ":  # likely a name the tagger missed
+    if t.text[0].isupper() and not t.text.isupper() and t.i > 0 and t.pos_ != "ADJ":  # likely a name the tagger missed
         return None
     lemma = t.lemma_.lower()
     if lemma != t.lower_:
@@ -126,7 +126,8 @@ def word_info(t, dic: Dictionary, school: bool = True):
         # (but not for "-ing" verbs: "improving residents' lives" is improve, not 有启发的)
         adjective = dic.word(t.lower_, "ADJ")
         if adjective and adjective["zh"].startswith("a."):
-            info = adjective
+            merged = " ".join(dict.fromkeys(((adjective["tag"] or "") + " " + ((base or {}).get("tag") or "")).split()))
+            info = {**adjective, "tag": merged}
     if not info or not info["zh"]:
         return None
     rank = info["rank"]
@@ -157,7 +158,7 @@ def _hard_words(doc, dic: Dictionary, taken, school: bool = True):
             continue
         if rank > MIN_CANDIDATE_RANK or (rank == 0 and exam):
             out.append((rank or 10**6, r, info, rank, ielts, exam))
-    out.sort(key=lambda x: -x[0])
+    out.sort(key=lambda x: (not (x[5] or (x[2]["tag"] or "").strip()), -x[0]))
     return out
 
 

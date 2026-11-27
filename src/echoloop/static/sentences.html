@@ -43,9 +43,9 @@ function render() {
         ${s.title ? `<div class="source-tags">${esc(s.title)}</div>` : ""}
       </div>
       <div class="ops">
-        <button class="iconbtn" data-play="${esc(s.id)}" title="${s.media ? "播放原声" : "朗读"}">${s.media ? "🎧 原声" : "🔊"}</button>
-        ${s.media ? `<a class="iconbtn" href="/player/${encodeURIComponent(s.videoId)}?t=${s.time}">▶ 原句</a>` : ""}
-        ${s.articleId ? `<a class="iconbtn" href="/reading/${encodeURIComponent(s.articleId)}#s${s.sentenceIndex || 0}">▤ 原文</a>` : ""}
+        <button class="iconbtn" data-play="${esc(s.id)}" title="${s.media ? "播放原声" : "朗读"}" aria-label="${s.media ? "播放原声" : "朗读"}">${s.media ? `${iconSvg("headphones")} 原声` : iconSvg("speak")}</button>
+        ${s.media ? `<a class="iconbtn" href="/player/${encodeURIComponent(s.videoId)}?t=${s.time}">${iconSvg("play")} 原句</a>` : ""}
+        ${s.articleId ? `<a class="iconbtn" href="/reading/${encodeURIComponent(s.articleId)}#s${s.sentenceIndex || 0}">${iconSvg("article")} 原文</a>` : ""}
         <button class="iconbtn" data-del="${esc(s.id)}">删除</button>
       </div>
     </div>`).join("") : `<div class="empty">还没有收藏的句子。在播放器右侧的逐句原文里，或文章里每句后面，点星标收藏。</div>`;

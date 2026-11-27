@@ -83,13 +83,13 @@ function render() {
         <div class="source-tags">来源：${(v.sources || []).map(s => esc(SOURCE_LABEL[s] || s)).join(" · ")}</div>
       </div>
       <div class="ops">
-        <button class="iconbtn" data-speak="${esc(v.en)}">🔊</button>
-        ${v.clip ? `<button class="iconbtn" data-clip="${esc(v.en)}" title="播放原句的原声">🎧 原声</button>` : ""}
-        ${v.videoId && !v.videoGone ? `<a class="iconbtn" href="/player/${encodeURIComponent(v.videoId)}?t=${v.time}">▶ 原句</a>` : ""}
-        ${v.articleId ? `<a class="iconbtn" href="/reading/${encodeURIComponent(v.articleId)}#s${v.sentenceIndex || 0}">▤ 原文</a>` : ""}
+        <button class="iconbtn" data-speak="${esc(v.en)}" aria-label="发音" title="发音">${iconSvg("speak")}</button>
+        ${v.clip ? `<button class="iconbtn" data-clip="${esc(v.en)}" title="播放原句的原声">${iconSvg("headphones")} 原声</button>` : ""}
+        ${v.videoId && !v.videoGone ? `<a class="iconbtn" href="/player/${encodeURIComponent(v.videoId)}?t=${v.time}">${iconSvg("play")} 原句</a>` : ""}
+        ${v.articleId ? `<a class="iconbtn" href="/reading/${encodeURIComponent(v.articleId)}#s${v.sentenceIndex || 0}">${iconSvg("article")} 原文</a>` : ""}
         ${v.status === "known"
           ? `<button class="iconbtn" data-known="${esc(v.en)}" data-on="0" title="重新开始复习这个词">取消认识</button>`
-          : `<button class="iconbtn" data-known="${esc(v.en)}" data-on="1" title="不再复习，也不再标为难词">✓ 认识</button>`}
+          : `<button class="iconbtn" data-known="${esc(v.en)}" data-on="1" title="不再复习，也不再标为难词">${iconSvg("check")} 认识</button>`}
         <button class="iconbtn" data-del="${esc(v.en)}">删除</button>
       </div>
       ${v.sentence ? `<div class="sent">${esc(v.sentence)}<br>${esc(v.sentenceZh || "")}</div>` : ""}

@@ -16,7 +16,7 @@
         <a href="/settings/study"><b>学习</b><small>水平、目标和每天学多少</small></a>
         <a href="/settings/services"><b>模型与服务</b><small>服务商、密钥、识别、朗读和用量</small></a>
         <a href="/settings/playback"><b>播放</b><small>倍速、字幕和高亮</small></a>
-        <a href="/settings/appearance"><b>外观与语言</b><small>母语、主题、字幕字号</small></a>
+        <a href="/settings/appearance"><b>外观与语言</b><small>语言、主题、字体、配色与护眼</small></a>
         <a href="/settings/data"><b>数据</b><small>下载、存储、备份、手机访问</small></a>
       </nav>
       <div class="settings-content">
@@ -158,9 +158,9 @@
         </section>
       </section>
       <section class="settings-group" hidden id="appearance" aria-labelledby="appearanceGroup">
-        <header class="settings-group-head"><h2 id="appearanceGroup">外观与语言</h2><p>母语决定翻译成什么语言，也决定界面语言；还有颜色和学习文字的大小。</p></header>
-        <section class="settings-section" id="display" aria-labelledby="appearanceTitle">
-          <h3 id="appearanceTitle">语言与显示</h3>
+        <header class="settings-group-head"><h2 id="appearanceGroup">外观与语言</h2><p>母语决定翻译和界面语言；外观统一控制全局主题、配色、阅读字体、护眼配色与字号。</p></header>
+        <section class="settings-section" id="language" aria-labelledby="languageTitle">
+          <h3 id="languageTitle">语言</h3>
           <div class="settings-row">
             <label class="settings-label" for="nativeLang"><span>母语</span><small>字幕、短语和单词释义翻译成这种语言，按钮和提示也用这种语言</small></label>
             <span class="select-wrap wide"><select class="btn" id="nativeLang"></select></span>
@@ -171,12 +171,37 @@
             <span class="select-wrap wide"><select class="btn" id="uiLang"></select></span>
           </div>
           <p id="langStatus" class="settings-status" role="status" aria-live="polite"></p>
+        </section>
+        <section class="settings-section" id="display" aria-labelledby="appearanceTitle">
+          <h3 id="appearanceTitle">外观</h3>
           <div class="settings-row">
-            <label class="settings-label" for="theme"><span>界面主题</span><small>选「跟随系统」时会随 macOS 的浅色、深色自动切换</small></label>
+            <label class="settings-label" for="theme"><span>界面主题</span><small>选「跟随系统」时会随系统的浅色、深色自动切换</small></label>
             <span class="select-wrap"><select class="btn" id="theme" data-preference="appearance"></select></span>
           </div>
           <div class="settings-row stack">
-            <label class="settings-label" for="textSize"><span>字幕字号</span><small>视频字幕、逐句原文、听写和错句本；点百分比恢复默认</small></label>
+            <div class="settings-label"><span>全局配色</span><small>统一调整按钮、链接、选中态与强调色</small></div>
+            <div class="swatch-group" id="colorSchemeGroup" data-swatch-preference="colorScheme" role="group" aria-label="全局配色">
+              <button type="button" class="swatch-btn" data-value="slate" aria-pressed="false"><span class="swatch-dot" style="background:#3b557f"></span>靛青蓝</button>
+              <button type="button" class="swatch-btn" data-value="emerald" aria-pressed="false"><span class="swatch-dot" style="background:#1d6b53"></span>松石绿</button>
+              <button type="button" class="swatch-btn" data-value="amber" aria-pressed="false"><span class="swatch-dot" style="background:#8a5314"></span>暖琥珀</button>
+              <button type="button" class="swatch-btn" data-value="plum" aria-pressed="false"><span class="swatch-dot" style="background:#5d4585"></span>暮紫灰</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label class="settings-label" for="readingFont"><span>阅读字体</span><small>用于字幕、文章正文、单词复习与错句本中的英文内容</small></label>
+            <span class="select-wrap wide"><select class="btn" id="readingFont" data-preference="readingFont"></select></span>
+          </div>
+          <div class="settings-row stack">
+            <div class="settings-label"><span>护眼模式配色</span><small>用于文章精读开启「护眼」时，浅色与深色主题各有对应暖色调</small></div>
+            <div class="swatch-group" id="eyeCarePaletteGroup" data-swatch-preference="eyeCarePalette" role="group" aria-label="护眼模式配色">
+              <button type="button" class="swatch-btn" data-value="parchment" aria-pressed="false"><span class="swatch-dot" style="background:#f5eedc"></span>暖米纸</button>
+              <button type="button" class="swatch-btn" data-value="sage" aria-pressed="false"><span class="swatch-dot" style="background:#dcebdd"></span>豆沙绿</button>
+              <button type="button" class="swatch-btn" data-value="sepia" aria-pressed="false"><span class="swatch-dot" style="background:#e8dac0"></span>复古羊皮</button>
+              <button type="button" class="swatch-btn" data-value="gray" aria-pressed="false"><span class="swatch-dot" style="background:#e6e6e3"></span>柔灰纸</button>
+            </div>
+          </div>
+          <div class="settings-row stack">
+            <label class="settings-label" for="textSize"><span>字幕与阅读字号</span><small>视频字幕、文章正文、听写和错句本；点百分比恢复默认</small></label>
             <span class="range-wrap">
               <span class="range-end small" aria-hidden="true">A</span>
               <input type="range" id="textSize" data-preference="textSize" min="0.8" max="1.8" step="0.05">
@@ -185,8 +210,12 @@
             </span>
           </div>
           <div class="text-preview" aria-hidden="true">
-            <div class="text-preview-label">预览</div>
+            <div class="text-preview-label">实时预览</div>
             <div class="caption"><div class="en">I swear listening to podcasts is going to <mark class="phrase">improve</mark> your English.</div><div class="zh">我发誓听播客会提高你的英语水平。</div></div>
+          </div>
+          <div class="eyecare-preview" data-eyecare="1" aria-hidden="true">
+            <div class="eyecare-preview-label">护眼模式预览</div>
+            <div class="eyecare-preview-en">Reading in <span class="phrase">eye-care mode</span> keeps contrast gentle across light and dark themes.</div>
           </div>
           <p class="settings-help">整个页面要放大缩小，可以用浏览器的 ⌘+ / ⌘−。</p>
         </section>
@@ -249,7 +278,7 @@
           <p class="settings-lead">手机和电脑连同一个 Wi-Fi，就能在手机浏览器里复习单词、听写、读文章。电脑需要开着 EchoLoop。</p>
           <label class="settings-row"><span class="settings-label"><span>允许同一个 Wi-Fi 里的手机访问</span><small>打开后需要重启一次。只有扫过二维码（带访问密钥）的手机能打开，API Key、备份和这些设置仍然只能在电脑上改</small></span><input type="checkbox" role="switch" class="settings-switch" id="lanSwitch"></label>
           <div class="lan-box" id="lanBox" hidden>
-            <img id="lanQr" alt="用手机相机扫描这个二维码" width="220" height="220">
+            <img id="lanQr" alt="用手机相机扫描这个二维码" width="220" height="220" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'/%3E">
             <div>
               <b>用手机相机扫描二维码</b>
               <p class="muted">或者在手机浏览器里打开：</p>
@@ -312,6 +341,33 @@ function showPreference(control) {
   }
 }
 
+const APPEARANCE_PREFS = new Set(["appearance", "textSize", "nowColor", "colorScheme", "readingFont", "eyeCarePalette"]);
+const swatchGroups = $$("[data-swatch-preference]");
+
+function showSwatchGroup(groupEl) {
+  const value = readPreference(groupEl.dataset.swatchPreference);
+  for (const btn of $$(".swatch-btn", groupEl)) {
+    btn.setAttribute("aria-pressed", btn.dataset.value === value ? "true" : "false");
+  }
+}
+
+for (const groupEl of swatchGroups) {
+  const name = groupEl.dataset.swatchPreference;
+  showSwatchGroup(groupEl);
+  groupEl.addEventListener("click", event => {
+    const btn = event.target.closest(".swatch-btn");
+    if (!btn) return;
+    try {
+      localStorage.setItem(name, btn.dataset.value);
+      applyAppearance();
+      toast("偏好已保存");
+    } catch {
+      toast("无法保存偏好");
+    }
+    showSwatchGroup(groupEl);
+  });
+}
+
 for (const control of preferenceControls) {
   const name = control.dataset.preference;
   const options = preferenceOptions[name];
@@ -329,7 +385,7 @@ for (const control of preferenceControls) {
     const value = control.type === "checkbox" ? (control.checked ? "1" : "0") : control.value;
     try {
       localStorage.setItem(name, value);
-      if (name === "appearance" || name === "textSize" || name === "nowColor") applyAppearance();
+      if (APPEARANCE_PREFS.has(name)) applyAppearance();
       toast("偏好已保存");
     } catch {
       toast("无法保存偏好");
@@ -337,7 +393,19 @@ for (const control of preferenceControls) {
     showPreference(control);
   });
 }
-window.addEventListener("pageshow", () => preferenceControls.forEach(showPreference));
+function syncAppearanceControls() {
+  preferenceControls.forEach(showPreference);
+  swatchGroups.forEach(showSwatchGroup);
+}
+window.addEventListener("pageshow", syncAppearanceControls);
+window.addEventListener("storage", event => {
+  for (const control of preferenceControls) {
+    if (event.key === null || event.key === control.dataset.preference) showPreference(control);
+  }
+  for (const groupEl of swatchGroups) {
+    if (event.key === null || event.key === groupEl.dataset.swatchPreference) showSwatchGroup(groupEl);
+  }
+});
 
 // 朗读口音: say which voice will be used, and let it be heard.
 if ($("#voiceTry")) {
@@ -377,11 +445,6 @@ if ($("#voiceTry")) {
   if ("speechSynthesis" in window) speechSynthesis.addEventListener("voiceschanged", showVoice);
   showVoice();
 }
-window.addEventListener("storage", event => {
-  for (const control of preferenceControls) {
-    if (event.key === null || event.key === control.dataset.preference) showPreference(control);
-  }
-});
 
 const textSizeReset = $("#textSizeValue");
 if (textSizeReset) textSizeReset.onclick = () => {

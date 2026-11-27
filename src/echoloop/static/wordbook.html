@@ -67,7 +67,7 @@ function render() {
         <div class="book-meaning">${esc(w.zh)}</div>
       </div>
       <div class="ops">
-        <button class="iconbtn" data-speak="${esc(w.en)}" title="发音">🔊</button>
+        <button class="iconbtn" data-speak="${esc(w.en)}" title="发音" aria-label="发音">${iconSvg("speak")}</button>
         <button class="iconbtn" data-known="${esc(w.en)}">认识</button>
       </div>
     </div>`).join("");

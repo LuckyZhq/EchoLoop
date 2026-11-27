@@ -4,6 +4,9 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
 const preferenceOptions = {
   appearance: [["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"]],
+  colorScheme: [["slate", "靛青蓝"], ["emerald", "松石绿"], ["amber", "暖琥珀"], ["plum", "暮紫灰"]],
+  readingFont: [["serif", "经典衬线"], ["sans", "现代无衬线"], ["book", "书卷衬线"], ["mono", "等宽清晰"]],
+  eyeCarePalette: [["parchment", "暖米纸"], ["sage", "豆沙绿"], ["sepia", "复古羊皮"], ["gray", "柔灰纸"]],
   nowColor: [["green", "淡绿"], ["yellow", "淡黄"], ["blue", "淡蓝"]],
   quality: [["480", "480p"], ["720", "720p"], ["1080", "1080p"], ["1440", "1440p"], ["2160", "2160p"], ["best", "最高可用"]],
   speed: ["0.6", "0.75", "0.9", "1", "1.25", "1.5"].map(rate => [rate, rate + "×"]),
@@ -13,6 +16,9 @@ const preferenceOptions = {
 };
 const preferenceDefaults = {
   appearance: "system",
+  colorScheme: "slate",
+  readingFont: "serif",
+  eyeCarePalette: "parchment",
   textSize: "1",
   quality: "720",
   speed: "1",
@@ -58,13 +64,16 @@ function applyAppearance() {
   // Subtitle / study-text size; app.css multiplies reading text by --text-scale.
   document.documentElement.style.setProperty("--text-scale", readPreference("textSize"));
   document.documentElement.dataset.now = readPreference("nowColor");
+  document.documentElement.dataset.palette = readPreference("colorScheme");
+  document.documentElement.dataset.font = readPreference("readingFont");
+  document.documentElement.dataset.eyecarePalette = readPreference("eyeCarePalette");
 }
 
 applyAppearance();
 systemAppearance.addEventListener("change", applyAppearance);
 window.addEventListener("pageshow", applyAppearance);
 window.addEventListener("storage", event => {
-  if (event.key === null || event.key === "appearance" || event.key === "textSize" || event.key === "nowColor") applyAppearance();
+  if (event.key === null || ["appearance", "textSize", "nowColor", "colorScheme", "readingFont", "eyeCarePalette"].includes(event.key)) applyAppearance();
 });
 
 const workspaceNav = $(".workspace-nav");
@@ -105,7 +114,7 @@ if (workspaceNav) {
     <a class="workspace-label" href="/"${current === "/" ? ' aria-current="page"' : ""} title="首页">
       <span class="workspace-mark" aria-hidden="true"></span><span>EchoLoop</span></a>
     <a class="goal-card" href="/goals"${current === "/goals" ? ' aria-current="page"' : ""}>
-      <span class="goal-card-head"><span class="goal-card-icon" aria-hidden="true">◎</span><b>我的目标</b></span>
+      <span class="goal-card-head"><span class="goal-card-icon" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg></span><b>我的目标</b></span>
       <span class="goal-card-line" id="goalLine">定一个目标分数</span>
       <span class="goal-card-bar" aria-hidden="true"><i id="goalBar"></i></span>
       <span class="goal-card-meta" id="goalMeta"></span>
@@ -151,7 +160,7 @@ async function refreshSidebar() {
     $("#goalLine").textContent = g.current === null && g.target === null ? "定一个目标分数"
       : `${g.current ?? "?"} → ${g.target ?? "?"} 分 · ${g.stageLabel}`;
     $("#goalBar").style.width = `${Math.round(g.done / Math.max(1, g.total) * 100)}%`;
-    $("#goalMeta").textContent = g.done >= g.total ? "今天的计划都完成了 ✓" : `今天完成 ${g.done} / ${g.total} 项`;
+    $("#goalMeta").textContent = g.done >= g.total ? "今天的计划都完成了" : `今天完成 ${g.done} / ${g.total} 项`;
   }
   const playing = location.pathname.startsWith("/player/") ? decodeURIComponent(location.pathname.split("/").pop()) : null;
   $(".workspace-recent").hidden = !info.recent.length;
@@ -314,6 +323,7 @@ let knownCache = null;
 function setProfile(profile) {
   studyProfile = profile;
   knownCache = null;
+  lookedUp.clear();
   try { localStorage.setItem("profileCache", JSON.stringify(profile)); } catch { /* private mode */ }
   window.dispatchEvent(new Event("profilechange"));
 }
@@ -333,7 +343,7 @@ window.addEventListener("storage", event => {
 
 function profileTrack(profile = studyProfile) { return profile.track || "cet6"; }
 // The exams a track studies: the target list plus the next one up.
-const TRACK_SCOPE = { cet4: ["四级", "六级"], cet6: ["六级", "考研"], ielts: ["雅思", "托福"] };
+const TRACK_SCOPE = { cet4: ["四级", "六级"], cet6: ["六级", "考研"], ielts: ["雅思", "托福", "IELTS", "TOEFL"] };
 function noteTags(n) { return n.tags || (n.note ? n.note.split(" / ") : []); }
 function scopeTags(n, track = profileTrack()) {
   const scope = TRACK_SCOPE[track] || [];
@@ -399,6 +409,17 @@ function starSvg(on) {
   const paint = on ? ' fill="currentColor"' : ' fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"';
   return `<svg class="ico-star" viewBox="0 0 24 24" aria-hidden="true"${paint}><path d="${STAR_PATH}"/></svg>`;
 }
+const UI_ICONS = {
+  speak: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>',
+  headphones: '<path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  play: '<polygon points="6 4 20 12 6 20 6 4"/>',
+  article: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+};
+function iconSvg(name) {
+  return `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${UI_ICONS[name] || ""}</svg>`;
+}
 
 // ---- 句子收藏: a star next to each sentence in the player's list and the article reader.
 const savedSentences = new Map();  // sentence text -> saved id
@@ -448,7 +469,7 @@ function noteHtml(n, cueIndex, { bare = false, k = null } = {}) {
       <span class="badge ${n.type}">${n.type === "phrase" ? "重点短语" : "查词"}</span>
       <span class="act">
         <button class="iconbtn" data-speak="${esc(n.en)}" title="发音">🔊</button>
-        ${n.type === "word" && !n.lookup ? `<button class="iconbtn" data-known="${esc(n.en)}" title="以后不再标出这个词">✓ 认识</button>` : ""}
+        ${n.type === "word" && !n.lookup ? `<button class="iconbtn" data-known="${esc(n.lemma || n.en)}" title="以后不再标出这个词">✓ 认识</button>` : ""}
         <button class="iconbtn ${isSaved ? "saved" : ""}" data-save="${esc(saveKey(n))}" data-cue="${cueIndex}" data-label="收藏" data-label-on="已收藏"${k === null ? "" : ` data-k="${k}"`}>${starSvg(isSaved)}<span>${isSaved ? "已收藏" : "收藏"}</span></button>
       </span></div>
     <div class="zh">${esc(n.zh || "（词典里没有找到）")}</div>
@@ -477,8 +498,11 @@ function showPop(anchor, html) {
 function hidePop() { $("#pop")?.classList.remove("show"); }
 
 // Card for a clicked word: a marked phrase/hard word uses the sentence's note, any other word the dictionary.
+let wordCardSeq = 0;
 async function showWordCard(target, cue) {
+  const seq = ++wordCardSeq;
   const n = target.tagName === "MARK" ? cue.notes?.[target.dataset.key] : await lookupNote(target.dataset.w);
+  if (seq !== wordCardSeq) return;
   if (n) showPop(target, noteHtml(n, cue.i, { bare: true, k: target.dataset.k ?? null }));
 }
 
@@ -488,7 +512,10 @@ function savedSpans(cue, key, btn) {
   const marked = (cue.marks || []).filter(m => m.key === key).map(m => [m.s, m.e]);
   if (marked.length) return marked;
   const match = btn.dataset.k === undefined ? null : [...cue.text.matchAll(WORD_RE)][+btn.dataset.k];
-  return match ? [[match.index, match.index + match[0].length]] : [];
+  if (match) return [[match.index, match.index + match[0].length]];
+  const word = key.slice(2).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const found = new RegExp(`(?<![A-Za-z])${word}(?![A-Za-z])`, "i").exec(cue.text);
+  return found ? [[found.index, found.index + found[0].length]] : [];
 }
 
 // ✓ 认识: stop marking this word everywhere. Capture phase, so the page's own click handlers don't run.
@@ -527,6 +554,8 @@ async function toggleSaved(btn, cue, source, entry = null) {
       if (b.dataset.save.slice(2).toLowerCase() !== k) continue;
       b.classList.toggle("saved", on);
       b.setAttribute("aria-pressed", on);
+      const title = on ? b.dataset.titleOn : b.dataset.title;
+      if (title) { b.title = title; b.setAttribute("aria-label", title); }
       b.innerHTML = starSvg(on) + (b.dataset.label ? `<span>${on ? b.dataset.labelOn || b.dataset.label : b.dataset.label}</span>` : "");
     }
   } finally {

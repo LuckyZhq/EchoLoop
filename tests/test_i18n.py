@@ -49,6 +49,13 @@ def test_api_text_follows_the_right_setting():
     plan = server.localize({"tasks": [{"label": "复习到期的词"}]}, "/api/plan", lang)
     assert plan["tasks"][0]["label"] == "Review due words"
 
+    book = {"zhTitle": "傲慢与偏见", "description": "开始阅读", "error": "请求需要来自本机页面。"}
+    traditional = server.localize(book, "/api/classics", lang)
+    simplified = server.localize(book, "/api/classics", {"ui": "en", "zh": "zh-CN"})
+    assert traditional["zhTitle"] == "傲慢與偏見" and traditional["description"] == "開始閱讀"
+    assert simplified["zhTitle"] == book["zhTitle"] and simplified["description"] == book["description"]
+    assert traditional["error"] == "The request must come from a page on this computer."
+
 
 def test_language_settings(tmp_path, monkeypatch):
     monkeypatch.setattr(i18n, "SETTINGS_PATH", tmp_path / "language.json")

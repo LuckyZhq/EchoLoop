@@ -21,6 +21,7 @@ MAX_CHARS = 40_000
 # wait behind a long video import that holds the pipeline's lock.
 _article_lock = threading.Lock()
 _annotate_lock = threading.Lock()
+_progress_lock = threading.Lock()
 ARTICLE_ID = re.compile(r"^a[0-9a-f]{12}$")
 
 
@@ -51,7 +52,9 @@ def load_article(aid: str) -> dict | None:
     if not ARTICLE_ID.match(aid):
         return None
     try:
-        return json.loads(article_path(aid).read_text(encoding="utf-8"))
+        data = json.loads(article_path(aid).read_text(encoding="utf-8"))
+        data.setdefault("section", "periodical" if data.get("graded") else "custom")
+        return data
     except (OSError, ValueError):
         return None
 
@@ -71,6 +74,29 @@ def delete_article(aid: str) -> bool:
     return True
 
 
+def article_progress(aid: str) -> dict:
+    try:
+        return json.loads((article_path(aid).parent / "progress.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def mark_progress(aid: str, completed: bool = False) -> dict | None:
+    with _progress_lock:
+        data = load_article(aid)
+        if not data or data["section"] != "classic":
+            return None
+        progress = article_progress(aid)
+        progress["readAt"] = time.time()
+        if completed:
+            progress.setdefault("completedAt", progress["readAt"])
+        path = article_path(aid).parent / "progress.json"
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(progress), encoding="utf-8")
+        tmp.replace(path)
+        return progress
+
+
 def list_articles() -> list[dict]:
     items = []
     if not ARTICLES_DIR.exists():
@@ -80,11 +106,14 @@ def list_articles() -> list[dict]:
         if not data:
             continue
         cues = data.get("cues", [])
+        progress = article_progress(data["id"]) if data["section"] == "classic" else {}
         items.append({
             "id": data["id"], "title": data.get("title") or "未命名文章", "created": data.get("created", 0),
             "sentenceCount": len(cues), "wordCount": sum(len(c["text"].split()) for c in cues),
             "preview": " ".join(c["text"] for c in cues[:2])[:160], "translator": data.get("translator"), "translatorModel": data.get("translatorModel") or "", "lang": data.get("lang", "zh-CN"),
-            "readAt": data.get("readAt", 0),
+            "readAt": progress.get("readAt", data.get("readAt", 0)),
+            "completedAt": progress.get("completedAt", data.get("completedAt", 0)),
+            "section": data["section"], "bookId": data.get("bookId"), "chapterIndex": data.get("chapterIndex"),
             # 分级阅读: a built-in passage ("graded": its id) or one the API wrote ("ai"), and its level
             "level": data.get("level"), "graded": data.get("graded"), "ai": bool(data.get("ai")),
             "topic": data.get("topic", ""),
@@ -127,7 +156,7 @@ def run_article_job(pipeline, job, text: str, title: str, extra: dict | None = N
             save_article({
                 "id": job.video_id, "title": job.title, "created": int(time.time()), "translator": translator,
                 "translatorModel": settings.model if translator != "local" else "",
-                "annotation": ANNOTATION_VERSION, "lang": lang, "cues": cues, **(extra or {}),
+                "annotation": ANNOTATION_VERSION, "lang": lang, "cues": cues, "section": "custom", **(extra or {}),
             })
             pipeline._set(job, "done", 1.0)
             log("完成 ✓")

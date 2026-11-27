@@ -48,6 +48,40 @@ def test_own_page_passes_the_guard(base):
     assert status == 400 and json.loads(body)["error"] == "empty"  # reached the handler
 
 
+def test_classic_chapter_api_tracks_progress(base, tmp_path, monkeypatch):
+    from echoloop import classics, reading
+
+    monkeypatch.setattr(reading, "ARTICLES_DIR", tmp_path)
+    book = classics.BOOKS[0]
+    chapter = book["chapters"][0]
+    aid = "a000000000001"
+    reading.save_article({"id": aid, "section": "classic", "bookId": book["id"],
+                          "chapterIndex": chapter["chapterIndex"]})
+    headers = {"Origin": base, "Content-Type": "application/json"}
+    body = json.dumps({"bookId": book["id"], "chapterIndex": chapter["chapterIndex"]}).encode()
+    status, result = call(base + "/api/classics/open", "POST", body, headers)
+    assert status == 200 and json.loads(result)["articleId"] == aid
+    status, result = call(base + f"/api/reading/{aid}/progress", "POST", b'{"completed":true}', headers)
+    assert status == 200 and json.loads(result)["completedAt"]
+    status, result = call(base + "/api/classics")
+    saved = json.loads(result)[0]
+    assert status == 200 and saved["completedChapters"] == 1 and saved["lastReadChapterId"] == aid
+    status, _ = call(base + f"/api/reading/{aid}/progress", "POST", b'{"completed":"true"}', headers)
+    assert status == 400
+
+
+def test_static_cache_policy_does_not_change_media(base, tmp_path, monkeypatch):
+    video_dir = tmp_path / "test-video"
+    video_dir.mkdir()
+    (video_dir / "video.mp4").write_bytes(b"video")
+    monkeypatch.setattr(server, "LIBRARY_DIR", tmp_path)
+
+    with urlopen(base + "/static/app.css", timeout=5) as response:
+        assert response.headers.get("Cache-Control") == "no-cache"
+    with urlopen(base + "/media/test-video/video.mp4", timeout=5) as response:
+        assert response.headers.get("Cache-Control") is None
+
+
 def test_version_reports_not_stale_right_after_start(base):
     status, body = call(base + "/api/version")
     info = json.loads(body)

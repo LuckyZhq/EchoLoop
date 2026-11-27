@@ -176,7 +176,7 @@ async function next() {
   if (!questions.length) return finish();
   $("#checkForm").innerHTML = questions.map((q, i) => `
     <fieldset class="level-q">
-      <legend><b>${esc(q.en)}</b> <button type="button" class="iconbtn" data-speak="${esc(q.en)}" title="发音">🔊</button></legend>
+      <legend><b>${esc(q.en)}</b> <button type="button" class="iconbtn" data-speak="${esc(q.en)}" title="发音" aria-label="发音">${iconSvg("speak")}</button></legend>
       ${[...q.options, "不认识"].map((o, j) => `<label><input type="radio" name="q${i}" value="${j < q.options.length ? j : -1}"> ${esc(o)}</label>`).join("")}
     </fieldset>`).join("");
   show("check");

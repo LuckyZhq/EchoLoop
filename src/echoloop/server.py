@@ -20,8 +20,8 @@ from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlpars
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import asr, backup, goals, graded, i18n, keep, languages, placement, plan, reading, review, network, speaking, tts, usage, wordbook, words, writing
-from .settings import load_settings, save_settings, settings_from
+from . import asr, backup, classics, goals, graded, i18n, keep, languages, placement, plan, reading, review, network, speaking, tts, usage, wordbook, words, writing
+from .settings import load_settings, save_settings, settings_for_engine, settings_from
 
 _vocab_lock = words._lock  # held while a deleted video's sentences are kept for its words
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
@@ -253,7 +253,7 @@ LOCAL_ONLY = ("/api/settings", "/api/usage", "/api/asr", "/api/network", "/api/b
 
 # API responses whose Chinese is content (subtitles, meanings, saved words): shown in the translation
 # language. Everything else is interface text and follows the interface language.
-CONTENT_PATHS = ("/api/video/", "/api/reading", "/api/lookup", "/api/vocab", "/api/sentences", "/api/mistakes", "/api/dictation/",
+CONTENT_PATHS = ("/api/video/", "/api/reading", "/api/classics", "/api/lookup", "/api/vocab", "/api/sentences", "/api/mistakes", "/api/dictation/",
                  "/api/library", "/api/home", "/api/sidebar", "/api/review", "/api/placement/check",
                  "/api/placement/result", "/api/profile", "/api/wordbook", "/api/speaking", "/api/writing",
                  "/api/sentence/analyze")
@@ -488,6 +488,8 @@ def make_handler(app: App):
             self.send_header("Content-Type", ctype)
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(length))
+            if STATIC_DIR.resolve() in path.resolve().parents:
+                self.send_header("Cache-Control", "no-cache")
             if status == HTTPStatus.PARTIAL_CONTENT:
                 self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
             if download_name:
@@ -543,6 +545,8 @@ def make_handler(app: App):
                 return self._json(storage.overview())
             if p == "/api/reading":
                 return self._json(reading.list_articles())
+            if p == "/api/classics":
+                return self._json(classics.overview())
             if p == "/api/graded":
                 return self._json({**graded.overview(i18n.load()["native"]),
                                    "track": placement.load_profile().get("track", placement.DEFAULT_TRACK)})
@@ -788,22 +792,47 @@ def make_handler(app: App):
             if p == "/api/sentence/analyze":
                 from . import sentence
 
-                vid, index = body.get("videoId"), body.get("index")
-                if not isinstance(vid, str) or not SAFE_ID.fullmatch(vid) or type(index) is not int or index < 0:
-                    return self._json({"error": "无效的视频或字幕序号。"}, 400)
-                data = self._video_data(vid)
+                vid, aid, index = body.get("videoId"), body.get("articleId"), body.get("index")
+                if (("videoId" in body) == ("articleId" in body)
+                        or type(index) is not int or index < 0):
+                    return self._json({"error": "请选择一个视频或文章，并提供有效的句子序号。"}, 400)
+                if "articleId" in body:
+                    if not isinstance(aid, str) or not reading.ARTICLE_ID.fullmatch(aid):
+                        return self._json({"error": "无效的文章 ID。"}, 400)
+                    data = reading.load_article(aid)
+                    if data is None:
+                        return self._json({"error": "找不到这篇文章。"}, 404)
+                    data = reading.ensure_article_annotation(data, app.dic)
+                    directory = reading.article_path(aid).parent
+                else:
+                    if not isinstance(vid, str) or not SAFE_ID.fullmatch(vid):
+                        return self._json({"error": "无效的视频或字幕序号。"}, 400)
+                    data = self._video_data(vid)
+                    if index >= len((data or {}).get("cues") or []):
+                        return self._json({"error": "找不到这句字幕。"}, 404)
+                    directory = LIBRARY_DIR / vid
+                    data = ensure_annotation(directory, data, app.dic)
                 cues = (data or {}).get("cues") or []
                 if index >= len(cues):
-                    return self._json({"error": "找不到这句字幕。"}, 404)
-                data = ensure_annotation(LIBRARY_DIR / vid, data, app.dic)
-                cues = data.get("cues") or []
+                    return self._json({"error": "找不到这句话。" if aid else "找不到这句字幕。"}, 404)
                 cue = cues[index]
                 if not str(cue.get("text") or "").strip():
-                    return self._json({"error": "这句字幕没有原文。"}, 400)
+                    return self._json({"error": "这句话没有原文。" if aid else "这句字幕没有原文。"}, 400)
                 if "text" in body and body["text"] != cue["text"]:
-                    return self._json({"error": "字幕已更新，请刷新播放器。"}, 409)
+                    return self._json({"error": "文章已更新，请刷新页面。" if aid else "字幕已更新，请刷新播放器。"}, 409)
+                engine = body.get("engine")
+                if engine is not None and engine not in ("local", "api"):
+                    return self._json({"error": "无效的解析引擎。"}, 400)
                 try:
-                    lesson = sentence.analyze(LIBRARY_DIR / vid, cue, app.dic, load_settings(), goals.track())
+                    analyze_settings = settings_for_engine(engine, load_settings())
+                except ValueError as error:
+                    return self._json({"error": str(error)}, 400)
+                force = bool(body.get("force"))
+                try:
+                    lesson = sentence.analyze(
+                        directory, cue, app.dic, analyze_settings,
+                        goals.track(), force=force, explicit_engine=bool(engine),
+                    )
                 except RuntimeError as error:
                     return self._json({"error": str(error)}, 502)
                 except (ValueError, OSError):
@@ -854,6 +883,18 @@ def make_handler(app: App):
                     return self._json({"error": f"文章太长了，请控制在 {reading.MAX_CHARS // 1000}k 字符以内，或分几次粘贴。"}, 400)
                 title = re.sub(r"\s+", " ", str(body.get("title") or "")).strip()[:120]
                 return self._json(reading.submit_article(app.pipeline, text, title).to_json())
+            if p == "/api/classics/open":
+                book_id, chapter_index = body.get("bookId"), body.get("chapterIndex")
+                if not isinstance(book_id, str) or type(chapter_index) is not int:
+                    return self._json({"error": "bad request"}, 400)
+                result = classics.open_chapter(app.pipeline, book_id, chapter_index)
+                return self._json(result, 404 if "error" in result else 200)
+            if p.startswith("/api/reading/") and p.endswith("/progress"):
+                aid = p.split("/")[3]
+                if type(body.get("completed", False)) is not bool:
+                    return self._json({"error": "bad request"}, 400)
+                result = reading.mark_progress(aid, body.get("completed", False))
+                return self._json(result or {"error": "not found"}, 200 if result else 404)
             if p == "/api/tts/download":
                 return self._json(tts.start_download())
             if p == "/api/speaking/shadow":

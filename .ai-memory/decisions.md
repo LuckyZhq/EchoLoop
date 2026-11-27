@@ -8,3 +8,6 @@
 - **持久化与兼容性**。学习记录以本地 JSON 和媒体文件保存。`data/` 存放词典及应用设置，`library/` 存放媒体库及学习记录，`articles/` 存放自建和分级阅读材料。三处均被 Git 忽略。`backup.py` 管理 ZIP 备份与恢复，支持旧 IELTS Study 备份。新环境变量采用 `ECHOLOOP_*`，`config.py` 为已有入口保留相应旧变量兼容。
 - **验证入口**。`tests/` 使用 pytest。`.github/workflows/tests.yml` 为各平台准备 ECDICT 后运行测试。已有依赖和词典时，可用 `uv run --no-sync python -m pytest -q` 复跑。
 - **主动式 attribute … to**。本项目的 spaCy 模型在验收句中将第一个介词 to 挂在直接宾语 failure 上。规则优先检查动词本身，再检查其直接宾语的介词子节点，避免误选同句其他动词的 to。
+- **导入页模型选择器**。Chromium 的 base-select 显示长选项时会超出限宽框；此选择器使用原生 select 的省略号，完整名称保存在 select 的 title 中。不要依赖 `.composer-actions > .select-wrap`，该元素实际嵌套在 label 内。
+- **句子解析词表与缓存**。ECDICT 的英文代码先经 `exam_info` 转为中文考试标签，再与目标轨道比较并过滤输出；API 提示不含 notes，但缓存键保留 notes，因为本地降级选词依赖它们。修复后使用 `lesson-v8`，不删除旧缓存。
+- **精读分类与名著进度**。旧文章缺省 `section` 时，含 `graded` 的内置文章映射为 `periodical`，其余映射为 `custom`；名著章节以 `classic` 文章复用原有导入和精读管线。每章 `progress.json` 独立保存最近阅读与完成时间，避免并发改写 `data.json` 或句子缓存；书籍进度和 `lastReadChapterId` 根据章节实时汇总。

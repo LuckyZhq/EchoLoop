@@ -229,6 +229,7 @@ function renderTranslator(settings) {
   options.push(new Option(usable.length ? "添加或管理模型…" : "添加 API 模型…", MANAGE));
   $("#translator").replaceChildren(...options);
   $("#translator").value = translatorValue(settings);
+  $("#translator").title = $("#translator").selectedOptions[0]?.text || "";
   $(".import-translator").hidden = false;
 }
 
@@ -258,12 +259,14 @@ $("#translator").addEventListener("change", async event => {
   const [provider, model] = choice.split("|");
   const body = choice === "local" ? { engine: "local" } : { engine: "api", provider, model };
   const label = event.target.selectedOptions[0].text;
+  event.target.title = label;
   event.target.disabled = true;
   try {
     renderTranslator(await api("/api/settings", { method: "POST", body }));
     toast(choice === "local" ? "已切换为本地翻译" : `已切换为 ${label}`);
   } catch (error) {
     event.target.value = translatorValue(translatorState);
+    event.target.title = event.target.selectedOptions[0]?.text || "";
     $("#formErr").textContent = error.message;
   } finally {
     event.target.disabled = importing;
