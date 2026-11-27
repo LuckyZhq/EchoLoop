@@ -1,22 +1,52 @@
 # Python-generated files
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
 build/
 dist/
 wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+.venv/
+venv/
 
-# local data
+# Local data, downloads & caches
 library/
 data/
 articles/
+downloads/
+cache/
+.cache/
+*.cache
+.ruff_cache/
+.mypy_cache/
+.tmp.drivedownload/
+.tmp.driveupload/
 
-# outdated promo page (kept locally, not published)
+# Outdated promo page (kept locally, not published)
 site/
 
-# OS / partial downloads
+# OS / partial downloads & temp files
 .DS_Store
+Thumbs.db
 *.part
+*.tmp
+*.temp
+*.crdownload
+*.download
+
+# Tests & temporary verification scripts
+tests/
+test_*.py
+*_test.py
+tmp_rss_verify/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local workspace / agent metadata
+.ai-memory/
+.agents/
+.github/
+transfer/

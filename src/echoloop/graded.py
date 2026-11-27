@@ -12,7 +12,7 @@ import random
 import threading
 from pathlib import Path
 
-from . import languages, reading
+from . import languages, periodicals, reading
 
 PASSAGES_PATH = Path(__file__).with_name("graded_articles.json")
 LEVELS = [
@@ -36,7 +36,8 @@ _open_lock = threading.Lock()
 
 
 def passages() -> list[dict]:
-    return json.loads(PASSAGES_PATH.read_text(encoding="utf-8"))
+    """Return cached periodical articles (legacy built-in seed passages have been removed)."""
+    return []
 
 
 def levels_for(lang: str) -> list[dict]:
@@ -45,28 +46,17 @@ def levels_for(lang: str) -> list[dict]:
 
 
 def overview(lang: str) -> dict:
-    """Levels and every passage in them: built-in ones (opened or not) and the ones the API wrote."""
-    saved = reading.list_articles()
-    opened = {a["graded"]: a for a in saved if a.get("graded")}
+    """Real periodicals overview alongside level metadata for AI-written custom articles."""
+    saved = reading.list_articles(include_managed=False)
     shown = {lv["id"] for lv in levels_for(lang)}
     items = []
-    periodicals = []
-    for p in passages():
-        a = opened.get(p["id"])
-        level = next((lv for lv in LEVELS if lv["id"] == p["level"]), {})
-        item = {"id": p["id"], "section": "periodical", "level": p["level"], "cefr": level.get("cefr", ""),
-                "levelLabel": level.get("label", ""), "title": p["title"], "topic": p.get("topic", ""),
-                "wordCount": len(p["text"].split()), "articleId": a["id"] if a else None,
-                "readAt": a.get("readAt", 0) if a else 0, "ai": False}
-        periodicals.append(item)
-        if p["level"] in shown:
-            items.append(item)
     for a in saved:
         if a.get("ai") and a.get("level") in shown:
             items.append({"id": a["id"], "level": a["level"], "title": a["title"], "topic": a.get("topic", ""),
                           "wordCount": a["wordCount"], "articleId": a["id"], "readAt": a.get("readAt", 0),
                           "ai": True, "created": a.get("created", 0)})
-    return {"levels": levels_for(lang), "articles": items, "periodicals": periodicals}
+    po = periodicals.overview()
+    return {"levels": levels_for(lang), "articles": items, **po}
 
 
 def open_passage(pipeline, gid: str) -> dict:

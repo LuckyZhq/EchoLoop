@@ -53,6 +53,11 @@ def load_article(aid: str) -> dict | None:
         return None
     try:
         data = json.loads(article_path(aid).read_text(encoding="utf-8"))
+        if data.get("classicManaged"):
+            from .book_importer import load_chapter
+            data = load_chapter(data.get("bookId"), data.get("chapterIndex"))
+            if not data or data.get("id") != aid:
+                return None
         data.setdefault("section", "periodical" if data.get("graded") else "custom")
         return data
     except (OSError, ValueError):
@@ -60,6 +65,10 @@ def load_article(aid: str) -> dict | None:
 
 
 def save_article(data: dict) -> None:
+    if data.get("classicRevision"):
+        from .book_importer import save_chapter
+        save_chapter(data)
+        return
     f = article_path(data["id"])
     f.parent.mkdir(parents=True, exist_ok=True)
     tmp = f.with_suffix(".tmp")
@@ -69,6 +78,12 @@ def save_article(data: dict) -> None:
 
 def delete_article(aid: str) -> bool:
     if not ARTICLE_ID.match(aid) or not (ARTICLES_DIR / aid).is_dir():
+        return False
+    try:
+        data = json.loads(article_path(aid).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    if data.get("classicManaged"):
         return False
     shutil.rmtree(ARTICLES_DIR / aid)
     return True
@@ -97,20 +112,45 @@ def mark_progress(aid: str, completed: bool = False) -> dict | None:
         return progress
 
 
-def list_articles() -> list[dict]:
+def list_articles(include_managed=True) -> list[dict]:
     items = []
+    manifests = {}
     if not ARTICLES_DIR.exists():
         return items
     for d in ARTICLES_DIR.iterdir():
-        data = load_article(d.name)
+        if not ARTICLE_ID.match(d.name):
+            continue
+        try:
+            record = json.loads(article_path(d.name).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        summary = {}
+        if record.get("classicManaged"):
+            if not include_managed:
+                continue
+            from .book_importer import load_manifest
+            book_id = record.get("bookId")
+            if book_id not in manifests:
+                manifests[book_id] = load_manifest(book_id)
+            manifest = manifests[book_id] or {}
+            summary = next((chapter for chapter in manifest.get("chapters", [])
+                            if chapter["articleId"] == d.name), None)
+            if not summary:
+                continue
+            data = {**record, "title": summary["title"], "created": manifest.get("created", 0)}
+        else:
+            data = record
+            data.setdefault("section", "periodical" if data.get("graded") else "custom")
         if not data:
             continue
         cues = data.get("cues", [])
         progress = article_progress(data["id"]) if data["section"] == "classic" else {}
         items.append({
             "id": data["id"], "title": data.get("title") or "未命名文章", "created": data.get("created", 0),
-            "sentenceCount": len(cues), "wordCount": sum(len(c["text"].split()) for c in cues),
-            "preview": " ".join(c["text"] for c in cues[:2])[:160], "translator": data.get("translator"), "translatorModel": data.get("translatorModel") or "", "lang": data.get("lang", "zh-CN"),
+            "sentenceCount": summary.get("sentenceCount", len(cues)),
+            "wordCount": summary.get("wordCount", sum(len(c["text"].split()) for c in cues)),
+            "preview": summary.get("preview", " ".join(c["text"] for c in cues[:2])[:160]),
+            "translator": data.get("translator"), "translatorModel": data.get("translatorModel") or "", "lang": data.get("lang", "zh-CN"),
             "readAt": progress.get("readAt", data.get("readAt", 0)),
             "completedAt": progress.get("completedAt", data.get("completedAt", 0)),
             "section": data["section"], "bookId": data.get("bookId"), "chapterIndex": data.get("chapterIndex"),

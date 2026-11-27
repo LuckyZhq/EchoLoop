@@ -51,6 +51,23 @@ uv run echoloop
 
 Open [http://127.0.0.1:8765](http://127.0.0.1:8765) in your browser. The first launch installs dependencies and downloads the offline dictionary, so give it a few minutes.
 
+### Import a classic
+
+Import an EPUB into the classics bookshelf:
+
+```bash
+uv run --no-sync python -m echoloop.book_importer path/to/book.epub
+```
+
+The command prints a `book_id`. Reimporting the same file skips it; `--overwrite` replaces its chapters while preserving saved words, sentences, and lesson caches. Import annotates with the local dictionary without calling a translation API.
+
+```bash
+uv run --no-sync python -m echoloop.book_enricher --book-id YOUR_BOOK_ID --chapters 1 --dry-run
+uv run --no-sync python -m echoloop.book_enricher --book-id YOUR_BOOK_ID --chapters 1 --translator local
+```
+
+Prewarming generates translations and sentence lessons and can be resumed. Without `--chapters`, it handles at most the first three chapters; use `--chapters all` for the whole book. Without `--translator`, it uses the current configuration; `llm` uses the configured API and may incur charges. Unwarmed chapters remain readable and display translations after prewarming.
+
 ### Install with an AI assistant
 
 Copy the entire prompt below to your AI assistant on the computer where you want to install EchoLoop. You can also use it to update an existing installation.

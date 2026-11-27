@@ -233,21 +233,31 @@ def _local_lesson(cue, dic, labels=()):
     return {"source": "local", "structure": structure, "vocabulary": vocabulary, "expressions": expressions}
 
 
-def analyze(directory, cue, dic, settings, track=None, force=False, explicit_engine=False):
-    digest = hashlib.sha256(
+def cache_key(cue, track=None):
+    return hashlib.sha256(
         json.dumps(["lesson-v9", track or "", cue["text"]], ensure_ascii=False).encode()
     ).hexdigest()
+
+
+def read_cache(directory, cue, settings, track=None, explicit_engine=False):
+    digest = cache_key(cue, track)
+    sources = (settings.engine,) if (explicit_engine or settings.engine == "api") else ("api", "local")
+    for source in sources:
+        target = directory / f"lesson-{digest}-{source}.json"
+        try:
+            return {**json.loads(target.read_text(encoding="utf-8")), "cached": True}
+        except (OSError, ValueError):
+            pass
+    return None
+
+
+def analyze(directory, cue, dic, settings, track=None, force=False, explicit_engine=False):
+    digest = cache_key(cue, track)
     with _locks[int(digest[0], 16)]:
         if not force:
-            # an API lesson is the richer one, so local mode reuses it unless the caller explicitly picked an engine
-            sources = (settings.engine,) if (explicit_engine or settings.engine == "api") else ("api", "local")
-            for source in sources:
-                target = directory / f"lesson-{digest}-{source}.json"
-                try:
-                    cached = json.loads(target.read_text(encoding="utf-8"))
-                    return {**cached, "cached": True}
-                except (OSError, ValueError):
-                    pass
+            cached = read_cache(directory, cue, settings, track, explicit_engine)
+            if cached is not None:
+                return cached
         labels = TRACK_EXAMS.get(track or "", ())
         if settings.engine == "api":
             payload = {k: cue.get(k) for k in ("text", "zh")}

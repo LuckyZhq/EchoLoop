@@ -59,6 +59,9 @@
         </div>
         <div class="lang-notice" id="langNotice" hidden></div>
         <article class="article-paper" aria-label="文章正文">
+          <figure class="article-cover" id="articleCover" hidden>
+            <img id="articleCoverImg" alt="">
+          </figure>
           <div class="article-body" id="body" aria-live="polite"><p class="empty">正在加载文章…</p></div>
         </article>
         <nav class="chapter-navigation" id="chapterNav" aria-label="章节导航" hidden></nav>
@@ -95,6 +98,10 @@
   <button type="button" id="sentSave" aria-label="收藏本句"></button>
 </div>
 <div class="pop" id="pop"></div>
+<dialog class="app-dialog article-lightbox" id="imageLightbox">
+  <img id="lightboxImg" alt="">
+  <div class="app-dialog-actions"><button type="button" class="btn" id="lightboxClose">关闭</button></div>
+</dialog>
 <script src="/static/common.js"></script>
 <script>
 const id = decodeURIComponent(location.pathname.split("/").pop());
@@ -111,7 +118,9 @@ function showMeta() {
   const words = cues.reduce((sum, cue) => sum + [...cue.text.matchAll(WORD_RE)].length, 0);
   const marks = cues.reduce((sum, cue) => sum + visibleMarks(cue).length, 0);
   const aligned = cues.some(cue => cue.seg?.length);
-  $("#meta").textContent = `${words} 词 · 约 ${Math.max(1, Math.ceil(words / 200))} 分钟 · ${marks} 处重点`;
+  const prefix = [data.sourceName, data.category, data.publishedAt].filter(Boolean);
+  const stats = `${words} 词 · 约 ${Math.max(1, Math.ceil(words / 200))} 分钟 · ${marks} 处重点`;
+  $("#meta").textContent = prefix.length ? `${prefix.join(" · ")} · ${stats}` : stats;
   $("#translationLabel").textContent = `${translationName(data.lang)}：${translationLabel(data.translator, data.translatorModel, aligned)}`;
   showLanguageNotice($("#langNotice"), data.lang, "这篇文章", retranslate);
 }
@@ -243,10 +252,26 @@ function render() {
   hideToolbar();
   const paras = [];
   for (const cue of cues) (paras[cue.p || 0] ||= []).push(cue);
+  const activeParas = paras.filter(Boolean);
+  const imgByPara = new Map();
+  for (const img of (data?.inlineImages || [])) {
+    if (!img?.localUrl) continue;
+    const idx = Math.max(0, Math.min(Number(img.afterParagraphIndex) || 0, Math.max(0, activeParas.length - 1)));
+    if (!imgByPara.has(idx)) imgByPara.set(idx, []);
+    imgByPara.get(idx).push(img);
+  }
   $("#body").classList.toggle("zh-on", zhOn);
-  $("#body").innerHTML = paras.filter(Boolean).map(group => `<p class="para">${group.map(cue =>
-    `<span class="sent${speechIndex === cue.i ? " article-speaking" : ""}" id="s${cue.i}" data-i="${cue.i}" tabindex="0" aria-label="第 ${cue.i + 1} 句：${esc(cue.text)}。按 Enter 打开句子操作，按方向键查词">${sentenceContent(cue)}</span>`
-  ).join(zhOn ? "" : " ")}</p>`).join("");
+  $("#body").innerHTML = activeParas.map((group, paraIdx) => {
+    const pHtml = `<p class="para">${group.map(cue =>
+      `<span class="sent${speechIndex === cue.i ? " article-speaking" : ""}" id="s${cue.i}" data-i="${cue.i}" tabindex="0" aria-label="第 ${cue.i + 1} 句：${esc(cue.text)}。按 Enter 打开句子操作，按方向键查词">${sentenceContent(cue)}</span>`
+    ).join(zhOn ? "" : " ")}</p>`;
+    const figs = (imgByPara.get(paraIdx) || []).map(img => `
+      <figure class="article-inline-figure">
+        <img src="${esc(img.localUrl)}" alt="${esc(img.alt || "")}" loading="lazy" onerror="this.parentElement.remove()">
+        ${img.caption ? `<figcaption>${esc(img.caption)}</figcaption>` : ""}
+      </figure>`).join("");
+    return pHtml + figs;
+  }).join("");
   for (const word of $$("#body .w[data-w], #body mark[data-key]")) {
     word.tabIndex = -1;
     word.setAttribute("role", "button");
@@ -517,12 +542,12 @@ async function setupChapterNavigation() {
   const back = $("#readingBack");
   back.href = `/reading?book=${encodeURIComponent(data.bookId)}`;
   back.textContent = "← 返回目录";
-  const book = (await api("/api/classics")).find(item => item.id === data.bookId);
-  if (!book) return;
-  const index = book.chapters.findIndex(chapter => chapter.chapterIndex === data.chapterIndex);
+  const chapters = await api(`/api/classics/${encodeURIComponent(data.bookId)}/chapters`);
+  if (!Array.isArray(chapters)) return;
+  const index = chapters.findIndex(chapter => chapter.chapterIndex === data.chapterIndex);
   if (index < 0) return;
-  chapterCompleted = !!book.chapters[index].completedAt;
-  const previous = book.chapters[index - 1], next = book.chapters[index + 1];
+  chapterCompleted = !!chapters[index].completedAt;
+  const previous = chapters[index - 1], next = chapters[index + 1];
   $("#chapterNav").hidden = false;
   $("#chapterNav").innerHTML = `
     <div class="chapter-navigation-actions">
@@ -802,10 +827,46 @@ widePanel.addEventListener("change", event => setPanel(event.matches));
 setEyeCare(storedFlag("readingEyeCare"), false);
 setSize(readPreference("textSize"), false);
 setPanel(widePanel.matches);
-(async () => {
+function renderCover() {
+  const cover = $("#articleCover"), img = $("#articleCoverImg");
+  if (!data?.coverImageLocal) { cover.hidden = true; return; }
+  img.alt = data.title || "";
+  img.onerror = () => { cover.hidden = true; };
+  img.src = data.coverImageLocal;
+  cover.hidden = false;
+}
+function openLightbox(src, alt) {
+  if (!src) return;
+  $("#lightboxImg").src = src;
+  $("#lightboxImg").alt = alt || "";
+  $("#imageLightbox").showModal();
+}
+$("#articleCoverImg").addEventListener("click", () => openLightbox($("#articleCoverImg").src, $("#articleCoverImg").alt));
+$("#body").addEventListener("click", event => {
+  const img = event.target.closest(".article-inline-figure img");
+  if (img) openLightbox(img.src, img.alt);
+});
+$("#lightboxClose").addEventListener("click", () => $("#imageLightbox").close());
+$("#imageLightbox").addEventListener("click", event => {
+  if (event.target === $("#imageLightbox")) $("#imageLightbox").close();
+});
+async function loadArticlePage() {
   if (!id || id === "reading") { $("#title").textContent = "文章不存在"; $("#body").innerHTML = '<p class="empty">缺少文章 ID。</p>'; return; }
   try {
     data = await api(`/api/reading/${encodeURIComponent(id)}`);
+    if (data && data.contentCached === false) {
+      document.title = `${data.title} · EchoLoop`;
+      $("#title").textContent = data.title;
+      const metaParts = [data.sourceName, data.category, data.publishedAt].filter(Boolean);
+      $("#meta").textContent = metaParts.join(" · ");
+      $("#articleCover").hidden = true;
+      $("#body").innerHTML = `
+        <div class="article-fetching" role="status">
+          <p class="article-fetching-msg">正在获取外刊原文与配图…</p>
+          <div class="lesson-skeleton"><i></i><i></i><i></i></div>
+        </div>`;
+      data = await api(`/api/periodicals/${encodeURIComponent(id)}/fetch`, { method: "POST", body: {} });
+    }
     cues = data.cues;
     await loadLanguage();
     document.title = `${data.title} · EchoLoop`;
@@ -813,6 +874,7 @@ setPanel(widePanel.matches);
     await Promise.all([loadSavedWords(), sentencesReady]);
     pageReady = true;
     showMeta();
+    renderCover();
     render();
     renderFocusList();
     updateProgress();
@@ -820,10 +882,16 @@ setPanel(widePanel.matches);
     const match = location.hash.match(/^#s(\d+)$/);
     if (match) goToSentence(Number(match[1]));
   } catch (error) {
-    $("#title").textContent = "文章加载失败";
-    $("#body").innerHTML = `<p class="empty">${esc(error.message)}</p>`;
+    $("#title").textContent = data?.title || "文章加载失败";
+    $("#body").innerHTML = `
+      <div class="article-fetching">
+        <p class="err">${esc(error.message)}</p>
+        <button type="button" class="btn primary" id="retryFetchBtn">重试抓取</button>
+      </div>`;
+    $("#retryFetchBtn")?.addEventListener("click", () => loadArticlePage());
   }
-})();
+}
+loadArticlePage();
 </script>
 </body>
 </html>

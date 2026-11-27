@@ -19,10 +19,17 @@ dependencies = [
     "yt-dlp[default]>=2026.10.26",
     "kokoro-onnx>=0.6.1",
     "segno>=1.6",
+    "curl-cffi>=0.17.0",
+    "trafilatura>=2.4.0",
+    "beautifulsoup4>=4.15.0",
+    "feedparser>=6.0.14",
+    "pillow>=13.0.0",
 ]
 
 [project.scripts]
 echoloop = "echoloop:main"
+book_importer = "echoloop.book_importer:main"
+book_enricher = "echoloop.book_enricher:main"
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13.0"]

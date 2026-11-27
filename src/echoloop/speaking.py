@@ -83,16 +83,21 @@ def has_video_sentences() -> bool:
 
 
 def passage_sentences(limit: int = 400) -> list[dict]:
-    """Sentences from the built-in graded passages, read by the neural voice."""
-    from . import graded
+    """Sentences from cached periodical articles, read by the neural voice."""
+    from . import reading
 
     out = []
-    for passage in graded.passages():
-        for s in re.split(r"(?<=[.?!])\s+(?=[A-Z])", passage.get("text", "")):
-            s = " ".join(s.split())
+    for meta in reading.list_articles(include_managed=False):
+        if meta.get("section") != "periodical":
+            continue
+        article = reading.load_article(meta["id"])
+        if not article:
+            continue
+        for cue in article.get("cues", []):
+            s = " ".join(str(cue.get("text") or "").split())
             if _good_sentence(s):
-                out.append({"text": s, "source": "passage", "title": passage.get("title", ""),
-                            "level": passage.get("level", "")})
+                out.append({"text": s, "source": "passage", "title": article.get("title", ""),
+                            "level": article.get("category", "")})
     random.shuffle(out)
     return out[:limit]
 

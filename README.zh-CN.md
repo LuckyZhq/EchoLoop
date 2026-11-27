@@ -51,6 +51,23 @@ uv run echoloop
 
 浏览器打开 [http://127.0.0.1:8765](http://127.0.0.1:8765)。第一次启动会安装依赖并下载离线词典，请预留几分钟。
 
+### 导入经典名著
+
+在项目目录执行以下命令，将 EPUB 导入「经典名著」书架：
+
+```powershell
+uv run --no-sync python -m echoloop.book_importer "tests/books/pride-and-prejudice.epub"
+```
+
+命令会输出 `book_id`。相同文件再次导入时自动跳过；添加 `--overwrite` 可重新解析，同时保留收藏和句子缓存。导入使用本地词典标注，不调用翻译 API。
+
+```powershell
+uv run --no-sync python -m echoloop.book_enricher --book-id YOUR_BOOK_ID --chapters 1 --dry-run
+uv run --no-sync python -m echoloop.book_enricher --book-id YOUR_BOOK_ID --chapters 1 --translator local
+```
+
+预热按句生成翻译和解析缓存，可中断后重跑。省略 `--chapters` 时最多处理前 3 章；使用 `--chapters all` 处理全书。省略 `--translator` 时使用当前配置，选择 `llm` 会使用现有 API 配置并可能产生费用。未预热的章节仍可打开，翻译在预热后显示。
+
 ### 交给 AI 安装
 
 把下面整段复制给要安装 EchoLoop 的那台电脑上的 AI 助手。这段提示词也可以用来更新已有安装。

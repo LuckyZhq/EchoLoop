@@ -20,14 +20,26 @@
     <div class="tabs reading-tabs" id="tabs" role="tablist" aria-label="文章分类"></div>
 
     <section id="levelPanel" role="tabpanel" aria-label="外刊精读" hidden>
-      <div class="topic-filter" id="topics" aria-label="主题筛选"></div>
-      <p class="reading-level-hint" id="levelHint" aria-live="polite"></p>
+      <div class="periodicals-toolbar">
+        <div class="topic-filter" id="topics" aria-label="主题筛选"></div>
+        <div class="periodicals-actions">
+          <span class="reading-level-hint" id="levelHint" aria-live="polite"></span>
+          <button type="button" class="btn" id="refreshPeriodicals">刷新外刊</button>
+        </div>
+      </div>
       <div class="graded-grid" id="graded"></div>
     </section>
 
     <section id="classicPanel" role="tabpanel" aria-label="经典名著" hidden>
       <div class="reading-job" id="classicJob" role="status" hidden></div>
-      <div id="bookshelf"></div>
+      <div id="bookshelf">
+        <div class="section-h classic-shelf-head">
+          <h2>我的书架</h2><span class="muted" id="bookCount"></span>
+          <button type="button" class="btn primary" id="importEpub">导入 EPUB</button>
+          <input type="file" id="epubInput" accept=".epub,application/epub+zip" hidden>
+        </div>
+        <div id="bookList"></div>
+      </div>
       <div id="bookDetail" hidden></div>
     </section>
 
@@ -97,21 +109,33 @@ function renderTabs() {
 
 function renderLevel() {
   const all = graded.periodicals || [];
-  const topics = [...new Set(all.map(a => a.topic).filter(Boolean))];
+  const topics = (graded.categories && graded.categories.length)
+    ? graded.categories
+    : [...new Set(all.map(a => a.category || a.topic).filter(Boolean))];
   if (topic && !topics.includes(topic)) topic = "";
-  const items = all.filter(a => !topic || a.topic === topic);
+  const items = all.filter(a => !topic || (a.category || a.topic) === topic);
   $("#topics").innerHTML = [["", "全部"], ...topics.map(name => [name, name])].map(([value, label]) =>
     `<button type="button" class="topic-chip${topic === value ? " on" : ""}" aria-pressed="${topic === value}" data-topic="${esc(value)}">${esc(label)}</button>`).join("");
   $("#levelHint").textContent = `${topic || "全部"} · ${items.length} 篇`;
-  $("#graded").innerHTML = items.map(a => `
+  $("#graded").innerHTML = items.length ? items.map(a => {
+    const thumb = a.coverImageLocal || a.coverImageUrl || "";
+    const cat = a.category || a.topic || "其他";
+    const srcLabel = a.sourceName || a.cefr || a.levelLabel || a.level || "";
+    const cached = Boolean(a.contentCached || a.articleId);
+    const metaText = cached
+      ? `${a.wordCount} 词 · ${a.readAt ? "读过" : "未读"}${a.publishedAt ? ` · ${a.publishedAt}` : ""}`
+      : `未缓存 · 点击获取正文${a.publishedAt ? ` · ${a.publishedAt}` : ""}`;
+    return `
     <article class="graded-card${a.articleId ? " opened" : ""}">
-      <button type="button" class="graded-open" data-open="${esc(a.id)}" data-article="${esc(a.articleId || "")}">
-        <span class="graded-top"><span class="badge phrase">${esc(a.topic || "其他")}</span><span class="badge">${esc(a.cefr || a.levelLabel || a.level)}</span></span>
+      <button type="button" class="graded-open" data-open="${esc(a.id)}" data-article="${esc(a.articleId || "")}" data-periodical="${a.sourceUrl ? "1" : ""}">
+        ${thumb ? `<span class="periodical-cover"><img src="${esc(thumb)}" alt="" loading="lazy" onerror="this.parentElement.remove()"></span>` : ""}
+        <span class="graded-top"><span class="badge phrase">${esc(cat)}</span>${srcLabel ? `<span class="badge">${esc(srcLabel)}</span>` : ""}</span>
         <b>${esc(a.title)}</b>
-        <span class="graded-meta">${a.wordCount} 词 · ${a.articleId ? "读过" : "未读"}</span>
+        <span class="graded-meta">${esc(metaText)}</span>
         <span class="graded-progress" hidden></span>
       </button>
-    </article>`).join("");
+    </article>`;
+  }).join("") : `<div class="empty">暂无外刊文章，可点击右上角「刷新外刊」同步最新内容。</div>`;
 }
 
 function renderWrite() {
@@ -132,6 +156,7 @@ function bookCover(book, small = false) {
 }
 
 function resumeChapter(book) {
+  if (!book.chapters) return book.resumeChapter || null;
   if (!book.lastReadChapterId || book.chapters.every(chapter => chapter.completedAt > 0)) return null;
   const index = book.chapters.findIndex(chapter => chapter.articleId === book.lastReadChapterId);
   if (index < 0) return null;
@@ -146,17 +171,19 @@ function renderBooks() {
   $("#bookshelf").hidden = !!book;
   $("#bookDetail").hidden = !book;
   if (!book) {
-    $("#bookshelf").innerHTML = books.length ? `<div class="bookshelf">${books.map(item => {
+    $("#bookCount").textContent = `共 ${books.length} 本`;
+    $("#bookList").innerHTML = books.length ? `<div class="bookshelf">${books.map(item => {
       const next = resumeChapter(item);
       return `<article class="classic-card">
         <button class="book-open" type="button" data-book="${esc(item.id)}">
           ${bookCover(item)}
-          <span class="book-name">${esc(item.zhTitle)} <span>${esc(item.title)}</span></span>
+          <span class="book-name">${esc(item.zhTitle || item.title)} ${item.zhTitle ? `<span>${esc(item.title)}</span>` : ""}</span>
           <span class="book-author">${esc(item.author)}</span>
-          <span class="book-progress" role="progressbar" aria-label="${esc(item.zhTitle)}阅读进度" aria-valuemin="0" aria-valuemax="${item.totalChapters}" aria-valuenow="${item.completedChapters}"><i style="width:${item.totalChapters ? item.completedChapters / item.totalChapters * 100 : 0}%"></i></span>
+          <span class="book-progress" role="progressbar" aria-label="${esc(item.zhTitle || item.title)}阅读进度" aria-valuemin="0" aria-valuemax="${item.totalChapters}" aria-valuenow="${item.completedChapters}"><i style="width:${item.totalChapters ? item.completedChapters / item.totalChapters * 100 : 0}%"></i></span>
           <span class="book-progress-label">${item.lastReadChapterId || item.completedChapters ? `已读 ${item.completedChapters} / ${item.totalChapters} 章` : "未开始"}</span>
         </button>
         ${next ? `<button type="button" class="book-resume" data-chapter="${next.chapterIndex}" data-book-id="${esc(item.id)}">继续阅读第 ${next.chapterIndex} 章</button>` : ""}
+        ${item.sourceHash ? `<button type="button" class="del iconbtn" data-delete-book="${esc(item.id)}" aria-label="删除 ${esc(item.zhTitle || item.title)}">删除</button>` : ""}
       </article>`;
     }).join("")}</div>` : `<div class="empty">暂无经典名著。</div>`;
     return;
@@ -169,11 +196,14 @@ function renderBooks() {
     <div class="book-detail-head">
       ${bookCover(book, true)}
       <div class="book-detail-info">
-        <h2>${esc(book.zhTitle)} <span>${esc(book.title)}</span></h2>
+        <h2>${esc(book.zhTitle || book.title)} ${book.zhTitle ? `<span>${esc(book.title)}</span>` : ""}</h2>
         <p class="book-author">${esc(book.author)}</p>
         <p>${esc(book.description)}</p>
-        <p class="muted">${book.totalChapters} 章节选 · ${book.wordCount} 词</p>
-        ${next ? `<button type="button" class="btn primary" data-chapter="${next.chapterIndex}" data-book-id="${esc(book.id)}">${completed ? "重新开始阅读" : resume ? `继续阅读第 ${next.chapterIndex} 章` : "开始阅读"}</button>` : ""}
+        <p class="muted">${book.sourceHash ? `共 ${book.totalChapters} 章` : `${book.totalChapters} 章节选`} · ${book.wordCount} 词</p>
+        <div class="book-detail-actions">
+          ${next ? `<button type="button" class="btn primary" data-chapter="${next.chapterIndex}" data-book-id="${esc(book.id)}">${completed ? "重新开始阅读" : resume ? `继续阅读第 ${next.chapterIndex} 章` : "开始阅读"}</button>` : ""}
+          ${book.sourceHash ? `<button type="button" class="btn" data-delete-book="${esc(book.id)}">删除本书</button>` : ""}
+        </div>
       </div>
     </div>
     <div class="section-h"><h2>章节目录</h2><span class="muted">已读 ${book.completedChapters} / ${book.totalChapters} 章</span></div>
@@ -188,7 +218,7 @@ async function openChapter(button) {
   if (button.disabled) return;
   const bookId = button.dataset.bookId, chapterIndex = Number(button.dataset.chapter);
   const book = books.find(item => item.id === bookId);
-  const chapter = book && book.chapters.find(item => item.chapterIndex === chapterIndex);
+  const chapter = book && (book.chapters || []).find(item => item.chapterIndex === chapterIndex);
   if (chapter && chapter.articleId) { location.href = `/reading/${encodeURIComponent(chapter.articleId)}`; return; }
   button.disabled = true;
   const box = $("#classicJob");
@@ -206,22 +236,75 @@ async function openChapter(button) {
   }
 }
 
-// Show a job's progress in `box` until it finishes; returns the article id.
-async function follow(job, box) {
+// Show a job's progress in `box` until it finishes.
+async function follow(job, box, fullJob = false) {
   box.hidden = false;
   while (job.stage !== "done" && job.stage !== "error") {
-    const pct = job.stage === "annotate" ? 85 + job.percent * .15 : job.stage === "translate" ? 10 + job.percent * .75 : 5;
+    const pct = fullJob ? Math.max(0, Math.min(100, Number(job.percent) || 0)) :
+      job.stage === "annotate" ? 85 + job.percent * .15 : job.stage === "translate" ? 10 + job.percent * .75 : 5;
     box.innerHTML = `<b>${esc(job.stage === "translate" ? "翻译句子" : job.stageLabel)}</b> <span class="muted">${job.stage === "translate" || job.stage === "annotate" ? Math.round(job.percent) + "%" : ""}</span>
       <div class="recent-bar"><i style="width:${pct}%"></i></div>`;
     await new Promise(r => setTimeout(r, 800));
     job = await api(`/api/jobs/${job.id}`);
   }
   if (job.stage === "error") throw new Error(job.error || "处理失败");
-  return job.videoId;
+  return fullJob ? job : job.videoId;
 }
+
+async function refreshBooks() {
+  const updated = await api("/api/classics?summary=1");
+  while (selectedBook) {
+    const active = updated.find(item => item.id === selectedBook);
+    if (!active) { selectBook(null); break; }
+    if (active.chapters) break;
+    active.chapters = await api(`/api/classics/${encodeURIComponent(active.id)}/chapters`);
+  }
+  books = updated;
+  renderBooks();
+}
+
+$("#importEpub").addEventListener("click", () => $("#epubInput").click());
+$("#epubInput").addEventListener("change", async e => {
+  const input = e.target, file = input.files[0], button = $("#importEpub"), box = $("#classicJob");
+  if (!file) return;
+  if (!/\.epub$/i.test(file.name) || !file.size || file.size > 50 * 1024 * 1024) {
+    toast("请选择不超过 50 MB 的有效 EPUB 文件。");
+    input.value = "";
+    return;
+  }
+  button.disabled = true;
+  try {
+    let overwrite = false;
+    while (true) {
+      box.hidden = false;
+      box.textContent = "正在上传 EPUB…";
+      const response = await fetch(`/api/classics/import?filename=${encodeURIComponent(file.name)}${overwrite ? "&overwrite=1" : ""}`, {
+        method: "POST", headers: { "Content-Type": "application/epub+zip" }, body: file,
+      });
+      const initial = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(initial.error || `请求失败 ${response.status}`);
+      const job = await follow(initial, box, true);
+      box.hidden = true;
+      await refreshBooks();
+      if (!job.skipped) { toast("导入完成"); break; }
+      if (!(await confirmDialog("这本书已在书架中，要重新覆盖导入吗？", {
+        detail: "将保留阅读进度和已翻译句子。", ok: "覆盖导入",
+      }))) break;
+      overwrite = true;
+    }
+  } catch (error) {
+    box.hidden = false;
+    box.textContent = error.message;
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+    input.value = "";
+  }
+});
 
 async function openPassage(btn) {
   if (btn.dataset.article) { location.href = `/reading/${encodeURIComponent(btn.dataset.article)}`; return; }
+  if (btn.dataset.periodical === "1") { location.href = `/reading/${encodeURIComponent(btn.dataset.open)}`; return; }
   if (btn.disabled) return;
   btn.disabled = true;
   const box = $(".graded-progress", btn);
@@ -235,6 +318,32 @@ async function openPassage(btn) {
     btn.disabled = false;
   }
 }
+
+$("#refreshPeriodicals").addEventListener("click", async () => {
+  const btn = $("#refreshPeriodicals");
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const prev = btn.textContent;
+  btn.textContent = "正在刷新…";
+  try {
+    const res = await api("/api/periodicals/sync", { method: "POST", body: {} });
+    graded = { ...graded, ...res };
+    renderLevel();
+    if (res.cooldown) {
+      toast(`刷新过于频繁，请 ${res.waitSec} 秒后再试`);
+    } else if (Array.isArray(res.errors) && res.errors.length) {
+      const detail = res.errors.slice(0, 2).join("；") + (res.errors.length > 2 ? " 等" : "");
+      toast(`同步完成：新增 ${res.added} 篇（${res.errors.length} 个来源获取失败：${detail}）`);
+    } else {
+      toast(`已同步 ${res.added} 篇新外刊（共 ${res.total} 篇）`);
+    }
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prev;
+  }
+});
 
 async function loadEngine() {
   try {
@@ -264,8 +373,38 @@ document.addEventListener("click", async e => {
   if (t) { selectBook(null); tab = t.dataset.tab; saveTab(tab); renderTabs(); return; }
   const filter = e.target.closest("[data-topic]");
   if (filter) { topic = filter.dataset.topic; renderLevel(); return; }
+  const deleteBook = e.target.closest("[data-delete-book]");
+  if (deleteBook) {
+    e.stopPropagation();
+    const item = books.find(entry => entry.id === deleteBook.dataset.deleteBook);
+    if (!item || !item.sourceHash || deleteBook.disabled) return;
+    deleteBook.disabled = true;
+    try {
+      if (!(await confirmDialog(`确定删除《${item.zhTitle || item.title}》吗？`, {
+        detail: "将移除本书章节与阅读进度，已收藏的词句会保留。", ok: "删除", danger: true,
+      }))) return;
+      await api(`/api/classics/${encodeURIComponent(item.id)}`, { method: "DELETE" });
+      if (selectedBook === item.id) selectBook(null);
+      await refreshBooks();
+      toast("已删除");
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      deleteBook.disabled = false;
+    }
+    return;
+  }
   const book = e.target.closest("[data-book]");
-  if (book) { selectBook(book.dataset.book); renderBooks(); return; }
+  if (book) {
+    selectBook(book.dataset.book);
+    const item = books.find(entry => entry.id === selectedBook);
+    if (!item.chapters) {
+      try { item.chapters = await api(`/api/classics/${encodeURIComponent(item.id)}/chapters`); }
+      catch (error) { selectBook(null); toast(error.message); return; }
+    }
+    if (selectedBook === item.id) renderBooks();
+    return;
+  }
   if (e.target.closest("[data-bookshelf]")) { selectBook(null); renderBooks(); return; }
   const chapter = e.target.closest("[data-chapter]");
   if (chapter) { openChapter(chapter); return; }
@@ -331,7 +470,11 @@ $("#form").addEventListener("submit", async e => {
   tab = bookId ? "classic" : saved === "mine" ? "mine" : saved === "classic" ? "classic" : "periodical";
   selectedBook = bookId;
   await loadEngine();
-  try { [graded, books] = await Promise.all([api("/api/graded"), api("/api/classics")]); }
+  try {
+    [graded, books] = await Promise.all([api("/api/graded"), api("/api/classics?summary=1")]);
+    const book = books.find(item => item.id === selectedBook);
+    if (book && !book.chapters) book.chapters = await api(`/api/classics/${encodeURIComponent(book.id)}/chapters`);
+  }
   catch (e) { toast(e.message); graded = { levels: [], periodicals: [] }; }
   $("#writeLevel").innerHTML = graded.levels.map(level => `<option value="${esc(level.id)}">${esc(level.label)}</option>`).join("");
   const defaultLevel = graded.levels.some(level => level.id === saved) ? saved :

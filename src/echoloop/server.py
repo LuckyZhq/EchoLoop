@@ -10,6 +10,7 @@ import shutil
 import threading
 import sys
 import time
+import uuid
 import webbrowser
 import zipfile
 from pathlib import Path
@@ -20,7 +21,7 @@ from urllib.parse import parse_qs, parse_qsl, quote, unquote, urlencode, urlpars
 from .config import HOST, LIBRARY_DIR, PORT, STATIC_DIR
 from .dictionary import Dictionary
 from .pipeline import Pipeline, ensure_annotation, list_library
-from . import asr, backup, classics, goals, graded, i18n, keep, languages, placement, plan, reading, review, network, speaking, tts, usage, wordbook, words, writing
+from . import asr, backup, book_importer, classics, goals, graded, i18n, keep, languages, periodicals, placement, plan, reading, review, network, speaking, tts, usage, wordbook, words, writing
 from .settings import load_settings, save_settings, settings_for_engine, settings_from
 
 _vocab_lock = words._lock  # held while a deleted video's sentences are kept for its words
@@ -253,7 +254,7 @@ LOCAL_ONLY = ("/api/settings", "/api/usage", "/api/asr", "/api/network", "/api/b
 
 # API responses whose Chinese is content (subtitles, meanings, saved words): shown in the translation
 # language. Everything else is interface text and follows the interface language.
-CONTENT_PATHS = ("/api/video/", "/api/reading", "/api/classics", "/api/lookup", "/api/vocab", "/api/sentences", "/api/mistakes", "/api/dictation/",
+CONTENT_PATHS = ("/api/video/", "/api/reading", "/api/classics", "/api/periodicals", "/api/lookup", "/api/vocab", "/api/sentences", "/api/mistakes", "/api/dictation/",
                  "/api/library", "/api/home", "/api/sidebar", "/api/review", "/api/placement/check",
                  "/api/placement/result", "/api/profile", "/api/wordbook", "/api/speaking", "/api/writing",
                  "/api/sentence/analyze")
@@ -332,7 +333,7 @@ def home_stats() -> dict:
     today = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
     dictated, dictated_today = dictated_counts()
     vocab = load_vocab()
-    articles = reading.list_articles()
+    articles = reading.list_articles(include_managed=False)
     info = sidebar()
     return {
         "videos": len(list_library()), "articles": len(articles), "latestArticle": articles[0] if articles else None,
@@ -360,6 +361,7 @@ class App:
             say("单词记录已合并：", str(merged["words"]), "个词，其中", str(merged["known"]), "个已掌握")
         asr.migrate_keys()  # once: keys typed into the old recognition form join the one provider list
         wordbook.attach(self.dic)
+        periodicals.cleanup_legacy_graded()
         self.pipeline = Pipeline(self.dic)
 
 
@@ -544,9 +546,28 @@ def make_handler(app: App):
 
                 return self._json(storage.overview())
             if p == "/api/reading":
-                return self._json(reading.list_articles())
+                return self._json(reading.list_articles(include_managed=False))
             if p == "/api/classics":
-                return self._json(classics.overview())
+                return self._json(classics.overview(summary=q.get("summary") == ["1"]))
+            if p.startswith("/api/classics/") and p.endswith("/chapters"):
+                book_id = p[len("/api/classics/"):-len("/chapters")]
+                chapters = classics.book_chapters(book_id)
+                return self._json(chapters) if chapters is not None else self._json({"error": "not found"}, 404)
+            if p == "/api/periodicals":
+                return self._json(periodicals.overview())
+            if p.startswith("/api/periodicals/images/"):
+                parts = p.removeprefix("/api/periodicals/images/").split("/", 1)
+                path = periodicals.image_file_path(parts[0], parts[1]) if len(parts) == 2 else None
+                if not path:
+                    return self._json({"error": "not found"}, 404)
+                data_bytes = path.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/webp")
+                self.send_header("Content-Length", str(len(data_bytes)))
+                self.send_header("Cache-Control", "public, max-age=604800")
+                self.end_headers()
+                self.wfile.write(data_bytes)
+                return None
             if p == "/api/graded":
                 return self._json({**graded.overview(i18n.load()["native"]),
                                    "track": placement.load_profile().get("track", placement.DEFAULT_TRACK)})
@@ -615,8 +636,12 @@ def make_handler(app: App):
                 self.wfile.write(audio)
                 return None
             if p.startswith("/api/reading/"):
-                data = reading.load_article(p.rsplit("/", 1)[1])
+                aid = p.rsplit("/", 1)[1]
+                data = reading.load_article(aid)
                 if not data:
+                    stub = periodicals.uncached_stub(aid)
+                    if stub:
+                        return self._json(stub)
                     return self._json({"error": "not found"}, 404)
                 return self._json(reading.ensure_article_annotation(data, app.dic))
             if p.startswith("/player/"):
@@ -658,6 +683,12 @@ def make_handler(app: App):
                 return self._file(STATIC_DIR / "vocab.html", "text/html; charset=utf-8")
             if p.rstrip("/") == "/settings" or p.rstrip("/") in {f"/settings/{g}" for g in SETTINGS_GROUPS}:
                 return self._file(STATIC_DIR / "settings.html", "text/html; charset=utf-8")
+            if p.startswith("/static/classic-covers/"):
+                from .book_importer import covers_dir
+                name = p[len("/static/classic-covers/"):]
+                if not re.fullmatch(r"[0-9a-f]{64}\.(?:jpg|jpeg|png|webp)", name):
+                    return self._json({"error": "forbidden"}, 403)
+                return self._file(covers_dir() / name)
             if p.startswith("/static/"):
                 target = (STATIC_DIR / p[len("/static/") :]).resolve()
                 if STATIC_DIR.resolve() not in target.parents:
@@ -753,6 +784,37 @@ def make_handler(app: App):
             p = urlparse(self.path).path
             if not self._admit() or self._refuse_foreign():
                 return None
+            if p == "/api/classics/import":
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    length = 0
+                if not 0 < length <= 50 * 1024 * 1024:
+                    return self._json({"error": "请选择有效的 EPUB 文件，大小需在 50 MB 以内。"}, 400)
+                query = parse_qs(urlparse(self.path).query)
+                name = (query.get("filename") or [""])[0].replace("\\", "/").rsplit("/", 1)[-1]
+                name = re.sub(r"[\x00-\x1f<>:\"/\\|?*]", "", name)[:200]
+                uploads = book_importer.books_dir() / "_uploads"
+                uploads.mkdir(parents=True, exist_ok=True)
+                tmp = uploads / f"upload-{uuid.uuid4().hex}.epub"
+                try:
+                    with tmp.open("wb") as stream:
+                        left = length
+                        while left:
+                            chunk = self.rfile.read(min(1 << 20, left))
+                            if not chunk:
+                                break
+                            stream.write(chunk)
+                            left -= len(chunk)
+                    if left or not zipfile.is_zipfile(tmp):
+                        tmp.unlink(missing_ok=True)
+                        return self._json({"error": "这不是有效的 EPUB 文件。"}, 400)
+                    job = book_importer.submit_epub_import(app.pipeline, tmp, filename=name,
+                                                          overwrite=query.get("overwrite") == ["1"])
+                except Exception:
+                    tmp.unlink(missing_ok=True)
+                    raise
+                return self._json(job.to_json())
             if p == "/api/backup/import":  # a backup zip as the raw body
                 n = int(self.headers.get("Content-Length") or 0)
                 if n <= 0:
@@ -996,6 +1058,18 @@ def make_handler(app: App):
                     return self._json(asr.save_settings(body).public())
                 except ValueError as error:
                     return self._json({"error": str(error)}, 400)
+            if p == "/api/periodicals/sync":
+                res = periodicals.sync_feeds(force=bool(body.get("force")))
+                return self._json({**periodicals.overview(), **res})
+            if p.startswith("/api/periodicals/") and p.endswith("/fetch"):
+                aid = p.split("/")[3]
+                try:
+                    article = periodicals.fetch_and_cache_article(aid, app.dic, force=bool(body.get("force")))
+                    return self._json(article)
+                except LookupError as error:
+                    return self._json({"error": str(error)}, 404)
+                except Exception as error:  # noqa: BLE001
+                    return self._json({"error": str(error)}, 502)
             if p == "/api/graded/open":
                 out = graded.open_passage(app.pipeline, str(body.get("id") or ""))
                 return self._json(out, 404 if out.get("error") else 200)
@@ -1160,6 +1234,17 @@ def make_handler(app: App):
             p = unquote(urlparse(self.path).path)
             if not self._admit() or self._refuse_foreign():
                 return None
+            if p.startswith("/api/classics/"):
+                book_id = p[len("/api/classics/"):]
+                if "/" in book_id:
+                    return self._json({"error": "not found"}, 404)
+                if any(book["id"] == book_id for book in classics.BOOKS):
+                    return self._json({"error": "内置经典节选不支持删除。"}, 400)
+                try:
+                    ok = book_importer.delete_book(book_id)
+                except OSError:
+                    return self._json({"error": "删除失败，请检查文件是否被占用。"}, 500)
+                return self._json({"ok": True}) if ok else self._json({"error": "not found"}, 404)
             if p.startswith("/api/vocab/"):
                 words.remove(p[len("/api/vocab/") :])
                 return self._json({"ok": True})
@@ -1324,6 +1409,7 @@ def main(open_browser: bool = True, restart: bool = False):
     say("已启动：", url, "（按 Ctrl+C 退出）")
     threading.Thread(target=asr._start_upgrade, daemon=True).start()  # finish a large speech model left half-way
     backup.start_auto()
+    periodicals.ensure_seeded_async()
     if network.STARTED["lan"]:
         phone = network.phone_url(PORT)
         say("手机访问已开启：", phone or "（没有找到局域网地址）")

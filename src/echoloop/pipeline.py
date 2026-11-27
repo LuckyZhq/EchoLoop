@@ -31,7 +31,7 @@ STAGES = [
     ("done", "完成"),
 ]
 STAGE_LABEL = {**dict(STAGES), "queued": "排队中", "error": "处理失败", "split": "拆分句子", "compress": "压缩视频",
-               "write": "撰写文章"}
+               "write": "撰写文章", "parse": "解析 EPUB"}
 
 
 @dataclass
@@ -47,6 +47,7 @@ class Job:
     title: str | None = None
     error: str | None = None
     exists: bool = False
+    skipped: bool = False
     result: dict | None = None  # e.g. {"before": bytes, "after": bytes} for a shrink job
 
     def to_json(self) -> dict:
@@ -63,6 +64,7 @@ class Job:
             "title": self.title,
             "error": self.error,
             "exists": self.exists,
+            "skipped": self.skipped,
             "result": self.result,
         }
 
